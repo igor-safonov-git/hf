@@ -113,7 +113,7 @@ def validate_analytics_json(json_data: dict) -> tuple[bool, str, Optional[Analyt
         # Check field operations logic
         for metric in [report.main_metric] + report.secondary_metrics:
             if metric.value.operation in ["sum", "avg"] and not metric.value.field:
-                validation_errors.append(f"Operation '{metric.value.operation}' requires a field (e.g., for time to hire: 'time_to_hire_days' or date difference field)")
+                validation_errors.append(f"Operation '{metric.value.operation}' requires a field (e.g., numeric field for calculations)")
         
         if validation_errors:
             return False, "; ".join(validation_errors), None
@@ -130,13 +130,10 @@ def validate_huntflow_fields(expression: ValueExpression) -> List[str]:
     """Validate field names against Huntflow API structure"""
     errors = []
     
-    # Valid fields by entity - comprehensive Huntflow API fields
+    # Valid fields by entity - based on huntflow_schema.py (CLAUDE.md compliant)
     valid_fields = {
-        "applicants": {"id", "applicant_id", "first_name", "last_name", "email", "phone", "skype", "position", 
-                      "status", "status_id", "status_name", "vacancy", "vacancy_id", "source", "source_id", "source_name", 
-                      "rejection_reason_id", "created", "updated", "created_at", "department", "current_stage", 
-                      "time_to_hire_days", "coworkers", "recruiter", "recruiter_id", "recruiter_name", "tags", 
-                      "money", "salary", "photo", "birthday", "external", "double", "agreement"},
+        "applicants": {"id", "first_name", "last_name", "vacancy", "source", "created", "updated", "recruiter",
+                      "status_id", "status_name", "recruiter_name", "source_name"},  # Computed fields from schema
         "vacancies": {"id", "vacancy_id", "position", "company", "money", "currency", "experience", "type", 
                      "location", "remote", "languages", "skills", "department", "status", "state", "priority", 
                      "hidden", "grade", "quota", "created", "updated", "closed", "account_division", 
@@ -801,11 +798,11 @@ EXAMPLE OUTPUT (no demo values):
   },
   "secondary_metrics": [
     {
-      "label": "Average Time to Hire",
+      "label": "Total Hired Applicants",
       "value": {
-        "operation": "avg",
-        "field": "time_to_hire_days",
-        "entity": "applicants"
+        "operation": "count",
+        "entity": "applicants",
+        "filter": {"field": "status_name", "op": "eq", "value": "Оффер принят"}
       }
     }
   ],
@@ -846,7 +843,7 @@ EXAMPLE OUTPUT (no demo values):
 
 3. Allowed Field Names
     •    applicants:
-    •    id, applicant_id, first_name, last_name, email, phone, position, status, status_id, status_name, vacancy, vacancy_id, source, source_id, source_name, rejection_reason_id, created, updated, time_to_hire_days, recruiter, recruiter_id, recruiter_name, tags, money, salary
+    •    id, first_name, last_name, vacancy, source, created, updated, recruiter, status_id, status_name, recruiter_name, source_name
     •    vacancies:
     •    id, vacancy_id, position, company, money, currency, experience, type, location, department, status, state, priority, quota, created, updated, closed, time_to_fill_days, datediff, members
     •    coworkers:
@@ -895,21 +892,18 @@ Operations:
 
 EXAMPLES - Pay attention to field vs group_by:
 
-✅ CORRECT - Average time to hire:
+✅ CORRECT - Count hired applicants:
 {
-  "operation": "avg",
-  "field": "time_to_hire_days",
+  "operation": "count",
   "entity": "applicants",
-  "filter": {"field": "status", "op": "eq", "value": "Оффер принят"}
+  "filter": {"field": "status_name", "op": "eq", "value": "Оффер принят"}
 }
 
-✅ CORRECT - Average time to hire BY department:
+✅ CORRECT - Count applicants BY status:
 {
-  "operation": "avg", 
-  "field": "time_to_hire_days",
+  "operation": "count", 
   "entity": "applicants",
-  "filter": {"field": "status", "op": "eq", "value": "Оффер принят"},
-  "group_by": {"field": "department"}
+  "group_by": {"field": "status_name"}
 }
 
 ✅ CORRECT - Count applicants:
@@ -935,7 +929,7 @@ CRITICAL REMINDER: Your JSON must NOT contain:
 
 6. Common Analytics Patterns
     •    Applicant conversion: count by status/stage
-    •    Time to hire: avg time_to_hire_days for hired applicants  
+    •    Hired applicants: count applicants with status "Оффер принят"  
     •    Source effectiveness: count applicants by source
     •    Department metrics: count/avg by department
     •    Recruiter performance: count applicants by recruiter
