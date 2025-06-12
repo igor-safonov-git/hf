@@ -69,8 +69,7 @@ def test_demo_data_removed() -> Dict[str, bool]:
     
     files_to_check = [
         'huntflow_schema.py',
-        'sqlalchemy_executor.py', 
-        'huntflow_query_executor.py'
+        'sqlalchemy_executor.py'
     ]
     
     for pattern in demo_patterns:

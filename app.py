@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from openai import AsyncOpenAI
-from huntflow_query_executor import HuntflowQueryExecutor
+# Removed huntflow_query_executor - using only SQLAlchemy executor
 from sqlalchemy_executor import SQLAlchemyHuntflowExecutor, HuntflowAnalyticsTemplates
 
 
@@ -494,50 +494,10 @@ async def fetch_real_data_for_report(report: AnalyticsReport, hf_client: Huntflo
         }
         
     except Exception as e:
-        print(f"⚠️ SQLAlchemy executor failed: {e}, falling back to original executor")
-        
-        # Fallback to original executor
-        executor = HuntflowQueryExecutor(hf_client)
-        
-        try:
-            print(f"🔍 Starting fallback data fetch for: {report.report_title}")
-            # Fetch main metric
-            main_metric_expr = report.main_metric.value.model_dump()
-            print(f"📊 Main metric expression: {main_metric_expr}")
-            main_value = await executor.execute_expression(main_metric_expr)
-            print(f"📈 Main metric result: {main_value}")
-            
-            # Fetch secondary metrics
-            secondary_values = []
-            for i, metric in enumerate(report.secondary_metrics):
-                metric_expr = metric.value.model_dump()
-                print(f"📊 Secondary metric {i+1} expression: {metric_expr}")
-                value = await executor.execute_expression(metric_expr)
-                print(f"📈 Secondary metric {i+1} result: {value}")
-                secondary_values.append({
-                    "label": metric.label,
-                    "value": value
-                })
-            
-            # Fetch chart data
-            chart_spec = {
-                "x_axis": report.chart.x_axis.model_dump(),
-                "y_axis": report.chart.y_axis.model_dump()
-            }
-            print(f"📊 Chart specification: {chart_spec}")
-            chart_data = await executor.execute_chart_data(chart_spec)
-            print(f"📈 Chart data result: {chart_data}")
-            
-            return {
-                "main_metric_value": main_value,
-                "secondary_metrics_values": secondary_values,
-                "chart_data": chart_data
-            }
-        except Exception as e:
-            import traceback
-            print(f"Error fetching real data: {e}")
-            print(f"Traceback: {traceback.format_exc()}")
-            return None
+        print(f"⚠️ SQLAlchemy executor failed: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return None
 
 
 def make_chart(stage_counts: Dict[str, int]) -> str:
