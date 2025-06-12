@@ -43,7 +43,7 @@ class ValueExpression(BaseModel):
     operation: str
     entity: Optional[str] = None
     field: Optional[str] = None
-    filter: Optional[Dict[str, Any]] = None
+    filter: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
     group_by: Optional[Dict[str, str]] = None
 
 class Metric(BaseModel):
@@ -78,8 +78,8 @@ def validate_analytics_json(json_data: dict) -> tuple[bool, str, Optional[Analyt
         # Validate business logic
         validation_errors = []
         
-        # Check entities
-        valid_entities = {"applicants", "coworkers", "vacancies", "rejections", "responses", "offers", "tags", "sources", "statuses", "status_groups", "questionary", "organizations", "divisions", "webhooks", "logs"}
+        # Check entities (per huntflow_schema.py virtual tables)
+        valid_entities = {"applicants", "recruiters", "vacancies", "status_mapping", "sources", "divisions", "applicant_tags", "offers", "applicant_links"}
         for metric in [report.main_metric] + report.secondary_metrics:
             if metric.value.entity and metric.value.entity not in valid_entities:
                 validation_errors.append(f"Invalid entity: {metric.value.entity}")
@@ -132,25 +132,26 @@ def validate_huntflow_fields(expression: ValueExpression) -> List[str]:
     
     # Valid fields by entity - based on huntflow_schema.py (CLAUDE.md compliant)
     valid_fields = {
-        "applicants": {"id", "first_name", "last_name", "vacancy", "source", "created", "updated", "recruiter",
-                      "status_id", "status_name", "recruiter_name", "source_name"},  # Computed fields from schema
-        "vacancies": {"id", "vacancy_id", "position", "company", "money", "currency", "experience", "type", 
-                     "location", "remote", "languages", "skills", "department", "status", "state", "priority", 
-                     "hidden", "grade", "quota", "created", "updated", "closed", "account_division", 
-                     "time_to_fill_days", "datediff", "members", "frames"},
-        "coworkers": {"id", "first_name", "last_name", "full_name", "name", "email", "type", "meta", 
-                     "department", "position", "created", "updated"},
+        "applicants": {"id", "first_name", "last_name", "middle_name", "birthday", "phone", "skype", "email", 
+                      "money", "position", "company", "photo", "photo_url", "created", "account", "tags", 
+                      "external", "agreement", "doubles", "social", "source_id", "recruiter_id", 
+                      "recruiter_name", "source_name", "status_id", "status_name", "vacancy_id"},  # Per OpenAPI schema
+        "vacancies": {"id", "position", "company", "account_division", "account_region", "money", "priority", 
+                     "hidden", "state", "created", "updated", "multiple", "parent", "account_vacancy_status_group",
+                     "additional_fields_list", "body", "requirements", "conditions", "files", "coworkers", 
+                     "source", "blocks", "vacancy_request"},  # Per OpenAPI VacancyResponse
+        "coworkers": {"id", "name", "email", "member", "type", "head", "meta", "permissions", "full_name"},  # Per OpenAPI CoworkerResponse
         "offers": {"id", "offer_id", "applicant_id", "vacancy_frame_id", "status", "created", "updated", 
                   "values", "pdf_url"},
         "tags": {"id", "tag_id", "name", "color", "created", "updated"},
-        "sources": {"id", "source_id", "name", "type", "foreign", "created", "updated"},
-        "statuses": {"id", "status_id", "name", "type", "order", "stay_duration", "removed", "created", "updated"},
+        "sources": {"id", "name", "type", "foreign"},  # Per OpenAPI ApplicantSource
+        "statuses": {"id", "name", "type", "order", "stay_duration", "removed"},  # Per OpenAPI VacancyStatus
         "status_groups": {"id", "name", "type", "statuses"},
         "questionary": {"current_salary", "expected_salary", "position", "relocation", "availability"},
         "responses": {"id", "applicant_id", "status", "date_received", "source"},
         "rejections": {"id", "applicant_id", "reason", "reason_id", "created", "updated"},
         "organizations": {"id", "name", "nick", "member_type", "production", "created"},
-        "divisions": {"id", "name", "active", "foreign", "order"},
+        "divisions": {"id", "name", "order", "active", "deep", "parent", "foreign", "meta"},  # Per OpenAPI Division
         "webhooks": {"id", "url", "active", "created", "updated"},
         "logs": {"id", "type", "applicant", "vacancy", "status", "rejection_reason", "created", "author"}
     }
@@ -160,12 +161,21 @@ def validate_huntflow_fields(expression: ValueExpression) -> List[str]:
         if expression.field not in entity_fields:
             errors.append(f"Field '{expression.field}' not valid for entity '{expression.entity}'")
     
-    # Validate filter fields
+    # Validate filter fields (support both single filter and array of filters)
     if expression.filter and expression.entity:
-        filter_field = expression.filter.get("field")
-        if filter_field:
-            entity_fields = valid_fields.get(expression.entity, set())
-            if filter_field not in entity_fields:
+        entity_fields = valid_fields.get(expression.entity, set())
+        
+        # Handle array of filters
+        if isinstance(expression.filter, list):
+            for i, filter_obj in enumerate(expression.filter):
+                if isinstance(filter_obj, dict):
+                    filter_field = filter_obj.get("field")
+                    if filter_field and filter_field not in entity_fields:
+                        errors.append(f"Filter {i+1} field '{filter_field}' not valid for entity '{expression.entity}'")
+        # Handle single filter
+        elif isinstance(expression.filter, dict):
+            filter_field = expression.filter.get("field")
+            if filter_field and filter_field not in entity_fields:
                 errors.append(f"Filter field '{filter_field}' not valid for entity '{expression.entity}'")
     
     # Validate group_by fields
@@ -719,8 +729,8 @@ CRITICAL: Do NOT include any demo_value, demo_data, or placeholder values in you
     "label": "Main metric caption",
     "value": {
       "operation": "count|sum|avg|max|min",
-      "entity": "applicants|coworkers|vacancies|rejections|responses",
-      "filter": { "field": "<field_name>", "op": "eq|ne|gt|lt|in", "value": "<value>" },
+      "entity": "applicants|recruiters|vacancies|status_mapping|sources|divisions",
+      "filter": { "field": "<field_name>", "op": "eq|ne|gt|lt|in", "value": "<value>" } | [{ "field": "<field1>", "op": "eq", "value": "<val1>" }, { "field": "<field2>", "op": "gte", "value": "<val2>" }],
       "group_by": { "field": "<field_name>" }
     }
   },
@@ -738,8 +748,8 @@ CRITICAL: Do NOT include any demo_value, demo_data, or placeholder values in you
     "x_axis": { "operation": "field", "field": "<see fields below>" },
     "y_axis": {
       "operation": "count|sum|avg",
-      "entity": "<see entities below>",
-      "filter": { "field": "<field_name>", "op": "eq|ne|gt|lt|in", "value": "<value>" },
+      "entity": "applicants|recruiters|vacancies|status_mapping|sources|divisions",
+      "filter": { "field": "<field_name>", "op": "eq|ne|gt|lt|in", "value": "<value>" } | [{ "field": "<field1>", "op": "eq", "value": "<val1>" }, { "field": "<field2>", "op": "gte", "value": "<val2>" }],
       "group_by": { "field": "<field_name>" }
     }
   }
@@ -749,11 +759,12 @@ EXAMPLE OUTPUT (no demo values):
 {
   "report_title": "Recruiter Performance Analysis",
   "main_metric": {
-    "label": "Total Hires",
+    "label": "Top Hires by Recruiter",
     "value": {
       "operation": "count",
       "entity": "applicants",
-      "filter": {"field": "status", "op": "eq", "value": "Hired"}
+      "filter": {"field": "status_name", "op": "eq", "value": "Оффер принят"},
+      "group_by": {"field": "recruiter_name"}
     }
   },
   "secondary_metrics": [
@@ -775,6 +786,7 @@ EXAMPLE OUTPUT (no demo values):
     "y_axis": {
       "operation": "count",
       "entity": "applicants",
+      "filter": {"field": "status_name", "op": "eq", "value": "Оффер принят"},
       "group_by": {"field": "recruiter_name"}
     }
   }
@@ -782,40 +794,38 @@ EXAMPLE OUTPUT (no demo values):
 
 ⸻
 
-2. Supported Entities (based on Huntflow):
+2. Supported Entities (based on huntflow_schema.py virtual tables):
     •    applicants: candidates tracked in the pipeline
     •    vacancies: open positions; include hiring quotas, statuses
-    •    coworkers: internal users (recruiters, managers, etc.)
-    •    offers: job offers made to candidates
-    •    tags: labels assigned to applicants for categorization
+    •    recruiters: internal users (recruiters, managers, etc.) - mapped from coworkers API
+    •    status_mapping: hiring pipeline stages and status tracking
     •    sources: recruitment sources (LinkedIn, referrals, etc.)
-    •    statuses: hiring pipeline stages and status tracking
-    •    status_groups: grouped status collections
-    •    questionary: candidate questionnaire responses (salary, etc.)
-    •    rejections: declined applications with reasons
-    •    responses: responses received from job sites
-    •    organizations: company/account information
     •    divisions: company departments/divisions
-    •    logs: audit trail of applicant status changes
-    •    webhooks: API integration endpoints
+    •    applicant_tags: labels assigned to applicants for categorization
+    •    offers: job offers made to candidates
+    •    applicant_links: applicant-vacancy status relationships
+
+CRITICAL: Use ONLY the entities listed above. For rejection analysis, use "applicants" entity with status_name filters, NOT "rejections" entity.
 
 ⸻
 
 3. Allowed Field Names
     •    applicants:
-    •    id, first_name, last_name, vacancy, source, created, updated, recruiter, status_id, status_name, recruiter_name, source_name
+    •    id, first_name, last_name, middle_name, birthday, phone, skype, email, money, position, company, photo, photo_url, created, account, tags, external, agreement, doubles, social, source_id, recruiter_id, recruiter_name, source_name, status_id, status_name, vacancy_id
     •    vacancies:
-    •    id, vacancy_id, position, company, money, currency, experience, type, location, department, status, state, priority, quota, created, updated, closed, time_to_fill_days, datediff, members
-    •    coworkers:
-    •    id, first_name, last_name, full_name, name, email, type, department, position, created, updated
+    •    id, position, company, account_division, account_region, money, priority, hidden, state, created, updated, multiple, parent, account_vacancy_status_group, additional_fields_list, body, requirements, conditions, files, coworkers, source, blocks, vacancy_request
+    •    recruiters:
+    •    id, name, email, member, type, head, meta, permissions, full_name
     •    offers:
     •    id, offer_id, applicant_id, vacancy_frame_id, status, created, updated, values
     •    tags:
     •    id, tag_id, name, color, created, updated
     •    sources:
-    •    id, source_id, name, type, foreign, created, updated
-    •    statuses:
-    •    id, status_id, name, type, order, stay_duration, removed, created, updated
+    •    id, name, type, foreign
+    •    status_mapping:
+    •    id, name, type, order, stay_duration, removed
+    •    divisions:
+    •    id, name, order, active, deep, parent, foreign, meta
     •    questionary:
     •    current_salary, expected_salary, position, relocation, availability
     •    rejections:
@@ -845,10 +855,16 @@ CRITICAL: Understand the difference between "field" and "group_by":
 
 Operations:
     •    count: number of items (e.g. applicants, vacancies) - NO field needed
-    •    sum: total value for numeric fields - REQUIRES "field" parameter
-    •    avg: average value of a numeric field - REQUIRES "field" parameter
-    •    max/min: highest/lowest value - REQUIRES "field" parameter
+    •    sum: total value for numeric fields - REQUIRES "field" parameter (e.g. "money")
+    •    avg: average value of a numeric field - REQUIRES "field" parameter (e.g. "money")
+    •    max/min: highest/lowest value - REQUIRES "field" parameter (e.g. "money")
     •    field: used only for grouping (x_axis)
+
+IMPORTANT: When using "avg", "sum", "max", or "min" operations, you MUST specify the "field" parameter with a numeric field name. Valid numeric fields include:
+    •    For applicants: "money" (salary expectation)
+    •    For vacancies: "money" (salary), "priority" (0-1)
+    •    For status_mapping: "order", "stay_duration"
+    •    For divisions: "order", "deep"
 
 EXAMPLES - Pay attention to field vs group_by:
 
@@ -872,11 +888,61 @@ EXAMPLES - Pay attention to field vs group_by:
   "entity": "applicants"
 }
 
+✅ CORRECT - Average salary of vacancies:
+{
+  "operation": "avg",
+  "entity": "vacancies",
+  "field": "money"
+}
+
+✅ CORRECT - Average salary expectation by recruiter:
+{
+  "operation": "avg",
+  "entity": "applicants", 
+  "field": "money",
+  "group_by": {"field": "recruiter_name"}
+}
+
+❌ WRONG - Missing field parameter for avg:
+{
+  "operation": "avg",
+  "entity": "applicants",
+  "group_by": {"field": "recruiter_name"}
+}
+
+✅ CORRECT - Distribution query with grouping:
+{
+  "operation": "count",
+  "entity": "applicants",
+  "group_by": {"field": "status_name"}
+}
+
+✅ CORRECT - Top/ranking query with grouping:
+{
+  "operation": "count", 
+  "entity": "applicants",
+  "group_by": {"field": "recruiter_name"}
+}
+
+❌ WRONG - Distribution query without grouping:
+{
+  "operation": "count",
+  "entity": "applicants"
+}
+
 CRITICAL REMINDER: Your JSON must NOT contain:
 - demo_value fields
 - demo_data objects
 - placeholder or example values
 - Any field not in the schema above
+
+CRITICAL: Do NOT use "avg" operation without a valid numeric field. If you need to calculate averages of counts (e.g., "average candidates per recruiter"), use "count" with group_by instead. Only use "avg" when averaging actual numeric values like money/salary.
+
+IMPORTANT: For DISTRIBUTION and RANKING queries, always use group_by in the main metric:
+- "распределение по X" (distribution by X) → main_metric should use group_by: {"field": "X"}
+- "топ X по Y" (top X by Y) → main_metric should use group_by: {"field": "X"}  
+- "рейтинг X" (ranking of X) → main_metric should use group_by: {"field": "X"}
+- "кто больше всех" (who has the most) → main_metric should use group_by to compare entities
 
 ⸻
 
@@ -887,13 +953,158 @@ CRITICAL REMINDER: Your JSON must NOT contain:
 
 ⸻
 
-6. Common Analytics Patterns
-    •    Applicant conversion: count by status/stage
-    •    Hired applicants: count applicants with status "Оффер принят"  
-    •    Source effectiveness: count applicants by source
-    •    Department metrics: count/avg by department
-    •    Recruiter performance: count applicants by recruiter
-    •    Vacancy metrics: count by state, avg quota
+6. Common HR Analytics Patterns & Business Examples
+
+IMPORTANT: Use these real-world patterns for typical HR analytics queries:
+
+## CONVERSION METRICS:
+• Funnel conversion rate: Count by status with filters at each stage
+• Source conversion: Compare hired vs total by source_name
+• Recruiter conversion: Compare hired vs total by recruiter_name
+
+## TIME-BASED METRICS:
+• Time to hire: Use created field for date-based analysis
+• Pipeline aging: Filter by date ranges (e.g., "created" field)
+• Monthly/weekly trends: Group by time periods
+• Recent activity: Use filters like {"field": "created", "op": "gte", "value": "2025-11-22"} for "last 2 weeks"
+• Time ranges: "за неделю", "за месяц", "за квартал" → use date filters with created field
+
+## FILTERING PATTERNS:
+• By hiring stage: filter: {"field": "status_name", "op": "eq", "value": "Собеседование"}
+• By success: filter: {"field": "status_name", "op": "eq", "value": "Оффер принят"}
+• By rejection: filter: {"field": "status_name", "op": "eq", "value": "Отказ"}
+• By recruiter: filter: {"field": "recruiter_name", "op": "eq", "value": "John Smith"}
+• By source: filter: {"field": "source_name", "op": "eq", "value": "LinkedIn"}
+• By active vacancies: filter: {"field": "state", "op": "eq", "value": "OPEN"}
+• By salary range: filter: {"field": "money", "op": "gt", "value": "100000"}
+
+## PERFORMANCE METRICS:
+• Recruiter efficiency: Count hired applicants by recruiter_name
+• Source ROI: Count hired vs total applicants by source_name  
+• Offer acceptance rate: Count accepted vs offered by any dimension
+• Pipeline velocity: Count applicants at each status stage
+
+## EXAMPLES FOR COMPLEX QUERIES:
+
+✅ Conversion rate by source:
+{
+  "operation": "count",
+  "entity": "applicants", 
+  "filter": {"field": "status_name", "op": "eq", "value": "Оффер принят"},
+  "group_by": {"field": "source_name"}
+}
+
+✅ Recruiter performance (hires):
+{
+  "operation": "count",
+  "entity": "applicants",
+  "filter": {"field": "status_name", "op": "eq", "value": "Оффер принят"},
+  "group_by": {"field": "recruiter_name"}
+}
+
+✅ Pipeline by stage:
+{
+  "operation": "count", 
+  "entity": "applicants",
+  "group_by": {"field": "status_name"}
+}
+
+✅ Active vacancy analysis:
+{
+  "operation": "count",
+  "entity": "vacancies", 
+  "filter": {"field": "state", "op": "eq", "value": "OPEN"},
+  "group_by": {"field": "company"}
+}
+
+✅ Salary analysis by recruiter:
+{
+  "operation": "avg",
+  "entity": "applicants",
+  "field": "money",
+  "group_by": {"field": "recruiter_name"}
+}
+
+✅ High-priority vacancies:
+{
+  "operation": "count",
+  "entity": "vacancies",
+  "filter": {"field": "priority", "op": "eq", "value": "1"}
+}
+
+✅ Recent hires (last 2 weeks):
+{
+  "operation": "count",
+  "entity": "applicants",
+  "filter": [
+    {"field": "status_name", "op": "eq", "value": "Оффер принят"},
+    {"field": "created", "op": "gte", "value": "2025-11-22"}
+  ]
+}
+
+✅ Rejection analysis (why candidates drop out):
+{
+  "operation": "count",
+  "entity": "applicants",
+  "filter": {"field": "status_name", "op": "in", "value": ["Отказ", "Не подошел", "Отклонен"]},
+  "group_by": {"field": "status_name"}
+}
+
+✅ Dropout analysis by source:
+{
+  "operation": "count",
+  "entity": "applicants",
+  "filter": {"field": "status_name", "op": "eq", "value": "Отказ"},
+  "group_by": {"field": "source_name"}
+}
+
+## FILTER USAGE PATTERNS:
+
+IMPORTANT: Use appropriate filter patterns based on query complexity:
+
+✅ SINGLE FILTER - For simple conditions:
+{
+  "filter": {"field": "status_name", "op": "eq", "value": "Оффер принят"}
+}
+
+✅ MULTIPLE FILTERS (Array) - For complex conditions with time ranges, multiple criteria:
+{
+  "filter": [
+    {"field": "status_name", "op": "eq", "value": "Оффер принят"},
+    {"field": "created", "op": "gte", "value": "2025-04-01"},
+    {"field": "created", "op": "lt", "value": "2025-07-01"}
+  ]
+}
+
+✅ IN OPERATOR - For multiple values of same field:
+{
+  "filter": {"field": "status_name", "op": "in", "value": ["Отказ", "Не подошел", "Отклонен"]}
+}
+
+WHEN TO USE MULTIPLE FILTERS:
+• Time period analysis (quarterly, monthly comparisons)
+• Complex business logic requiring multiple conditions
+• Status + date range combinations
+• Recruiter + time period analysis
+• Source + outcome filtering
+
+## COMMON RUSSIAN HR QUERIES & TRANSLATIONS:
+
+• "конверсия" / "конверсия воронки" → conversion rate analysis with status filtering
+• "время найма" / "скорость найма" → time to hire using created field analysis  
+• "принятие оффера" / "принятые офферы" → offer acceptance with "Оффер принят" filter
+• "эффективность рекрутеров" → recruiter performance with hired status filter
+• "ROI источников" → source effectiveness comparing hired vs total
+• "воронка найма" → hiring funnel with status distribution
+• "активность по вакансиям" → vacancy metrics with state filtering
+• "зарплатная вилка" → salary analysis using money field
+• "отклоненные кандидаты" → rejected candidates with rejection status filter
+• "средний чек" / "средняя зарплата" → average salary using avg operation on money field
+• "производительность команды" → team performance with recruiter grouping
+• "качество источников" → source quality with conversion analysis
+• "почему отваливаются" / "причины отказов" → rejection analysis using status_name filtering
+• "дропаут кандидатов" → dropout analysis with rejection status filters
+• "узкие места воронки" → funnel bottleneck analysis with status distribution
 
 ⸻
 
