@@ -807,6 +807,11 @@ EXAMPLE OUTPUT (no demo values):
 
 CRITICAL: Use ONLY the entities listed above. For rejection analysis, use "applicants" entity with status_name filters, NOT "rejections" entity.
 
+CRITICAL FIELD USAGE:
+• stay_duration field ONLY exists in "status_mapping" entity, NOT in "vacancies" or "applicants"
+• For vacancy timing analysis, use "created" or "updated" fields from "vacancies" entity
+• For candidate stage duration, use "status_mapping" entity with stay_duration field
+
 ⸻
 
 3. Allowed Field Names
@@ -1058,6 +1063,23 @@ IMPORTANT: Use these real-world patterns for typical HR analytics queries:
   "group_by": {"field": "source_name"}
 }
 
+✅ Fast-closing vacancies analysis:
+{
+  "operation": "count",
+  "entity": "vacancies",
+  "filter": {"field": "state", "op": "eq", "value": "CLOSED"},
+  "group_by": {"field": "position"}
+}
+
+✅ Vacancy closing time analysis:
+{
+  "operation": "avg",
+  "entity": "vacancies", 
+  "field": "created",
+  "filter": {"field": "state", "op": "eq", "value": "CLOSED"},
+  "group_by": {"field": "position"}
+}
+
 ## FILTER USAGE PATTERNS:
 
 IMPORTANT: Use appropriate filter patterns based on query complexity:
@@ -1105,6 +1127,8 @@ WHEN TO USE MULTIPLE FILTERS:
 • "почему отваливаются" / "причины отказов" → rejection analysis using status_name filtering
 • "дропаут кандидатов" → dropout analysis with rejection status filters
 • "узкие места воронки" → funnel bottleneck analysis with status distribution
+• "быстро закрывающиеся вакансии" → fast-closing vacancies - analyze vacancies by state=CLOSED and created date proximity
+• "время закрытия вакансий" → vacancy closing time - use CLOSED vacancies with created field for timing analysis
 
 ⸻
 
