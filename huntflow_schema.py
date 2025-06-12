@@ -306,10 +306,11 @@ class HuntflowQueryBuilder:
     
     def recruiter_performance(self, status_filter: Optional[str] = None):
         """Build query for recruiter performance"""
+        # Note: time_to_hire_days removed from schema - must be calculated from logs
         query = select(
             self.applicants.c.recruiter_name,
-            func.count(self.applicants.c.id).label('hire_count'),
-            func.avg(self.applicants.c.time_to_hire_days).label('avg_time_to_hire')
+            func.count(self.applicants.c.id).label('hire_count')
+            # avg(time_to_hire_days) removed - calculate from logs separately
         ).group_by(self.applicants.c.recruiter_name)
         
         if status_filter:
