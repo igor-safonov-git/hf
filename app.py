@@ -8,6 +8,9 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 
+# Export for testing
+__all__ = ['chat_endpoint_with_retry']
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -135,28 +138,32 @@ def validate_huntflow_fields(expression: ValueExpression) -> List[str]:
         "applicants": {"id", "first_name", "last_name", "middle_name", "birthday", "phone", "skype", "email", 
                       "money", "position", "company", "photo", "photo_url", "created", "account", "tags", 
                       "external", "agreement", "doubles", "social", "source_id", "recruiter_id", 
-                      "recruiter_name", "source_name", "status_id", "status_name", "vacancy_id"},  # Per OpenAPI schema
+                      "recruiter_name", "source_name", "status_id", "status_name", "vacancy_id"},
         "vacancies": {"id", "position", "company", "account_division", "account_region", "money", "priority", 
                      "hidden", "state", "created", "updated", "multiple", "parent", "account_vacancy_status_group",
                      "additional_fields_list", "body", "requirements", "conditions", "files", "coworkers", 
-                     "source", "blocks", "vacancy_request"},  # Per OpenAPI VacancyResponse
-        "coworkers": {"id", "name", "email", "member", "type", "head", "meta", "permissions", "full_name"},  # Per OpenAPI CoworkerResponse
-        "offers": {"id", "offer_id", "applicant_id", "vacancy_frame_id", "status", "created", "updated", 
-                  "values", "pdf_url"},
-        "tags": {"id", "tag_id", "name", "color", "created", "updated"},
-        "sources": {"id", "name", "type", "foreign"},  # Per OpenAPI ApplicantSource
-        "statuses": {"id", "name", "type", "order", "stay_duration", "removed"},  # Per OpenAPI VacancyStatus
-        "status_groups": {"id", "name", "type", "statuses"},
-        "questionary": {"current_salary", "expected_salary", "position", "relocation", "availability"},
-        "responses": {"id", "applicant_id", "status", "date_received", "source"},
-        "rejections": {"id", "applicant_id", "reason", "reason_id", "created", "updated"},
-        "organizations": {"id", "name", "nick", "member_type", "production", "created"},
-        "divisions": {"id", "name", "order", "active", "deep", "parent", "foreign", "meta"},  # Per OpenAPI Division
-        "webhooks": {"id", "url", "active", "created", "updated"},
-        "logs": {"id", "type", "applicant", "vacancy", "status", "rejection_reason", "created", "author"}
+                     "source", "blocks", "vacancy_request"},
+        "recruiters": {"id", "name", "email", "member", "type", "head", "meta", "permissions", "full_name"},
+        "offers": {"id", "offer_id", "applicant_id", "vacancy_frame_id", "status", "created", "updated", "values"},
+        "applicant_tags": {"id", "tag_id", "name", "color", "created", "updated"},
+        "sources": {"id", "name", "type", "foreign"},
+        "status_mapping": {"id", "name", "type", "order", "stay_duration", "removed"},
+        "divisions": {"id", "name", "order", "active", "deep", "parent", "foreign", "meta"},
+        "applicant_links": {"id", "applicant_id", "vacancy_id", "status_id", "status_name", "created", "updated"}
     }
     
-    if expression.entity and expression.field:
+    # Invalid entities that should be rejected
+    invalid_entities = {"logs", "comments", "activity", "notes", "rejections", "coworkers", "statuses", "status_groups", 
+                       "questionary", "responses", "organizations", "webhooks"}
+    
+    # First check if entity is valid
+    if expression.entity:
+        if expression.entity in invalid_entities:
+            errors.append(f"Invalid entity: {expression.entity}")
+        elif expression.entity not in valid_fields:
+            errors.append(f"Invalid entity: {expression.entity}")
+    
+    if expression.entity and expression.field and expression.entity in valid_fields:
         entity_fields = valid_fields.get(expression.entity, set())
         if expression.field not in entity_fields:
             errors.append(f"Field '{expression.field}' not valid for entity '{expression.entity}'")
@@ -270,6 +277,8 @@ async def validate_and_enhance_response(response_content: str, use_real_data: bo
         
     except Exception as e:
         return f"⚠️ Validation error: {str(e)}\n\nOriginal response:\n{response_content}"
+
+
 
 
 class HuntflowClient:
@@ -581,6 +590,295 @@ deepseek_client = AsyncOpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY", ""), 
     base_url="https://api.deepseek.com"
 )
+
+
+def get_targeted_retry_message(validation_errors: List[str], original_query: str) -> str:
+    """Generate specific error messages for different validation failure types"""
+    error_messages = []
+    
+    # Extract unique entity errors
+    invalid_entities = set()
+    for error in validation_errors:
+        if "Invalid entity:" in error:
+            entity = error.split("Invalid entity:")[-1].strip()
+            invalid_entities.add(entity)
+    
+    if invalid_entities:
+        error_messages.append(f"""
+ENTITY ERROR: You used invalid entities: {', '.join(invalid_entities)}
+
+Valid entities ONLY: applicants, recruiters, vacancies, status_mapping, sources, divisions, applicant_tags, offers, applicant_links
+
+Common fixes:
+- Replace "logs" → use "applicants" grouped by recruiter_name for activity analysis
+- Replace "comments" → use recruiter activity analysis with applicants count
+- Replace "rejections" → use "applicants" filtered by rejection status (Отказ, Не подошел, Отклонен)
+- Replace "notes" → not available, use applicants metrics instead
+""")
+    
+    # Extract field errors
+    field_errors = []
+    for error in validation_errors:
+        if "Field" in error and "not valid" in error:
+            field_errors.append(error)
+    
+    if field_errors:
+        error_messages.append(f"""
+FIELD ERROR: {'; '.join(field_errors)}
+
+Remember:
+- stay_duration ONLY exists in "status_mapping" entity (NOT in vacancies or applicants)
+- For vacancy timing, use "created" or "updated" fields from vacancies entity
+- For applicant timing, use "created" field from applicants entity
+- Check the field lists in the prompt for each entity
+""")
+    
+    # Schema validation errors
+    schema_errors = [e for e in validation_errors if "Schema validation" in e]
+    if schema_errors:
+        error_messages.append(f"""
+SCHEMA ERROR: JSON structure is invalid
+
+{'; '.join(schema_errors)}
+
+Ensure proper format:
+- Filter can be a single dict OR an array of dicts for complex conditions
+- All required fields must be present (report_title, main_metric, secondary_metrics, chart)
+- Use correct data types (strings, numbers, arrays as specified)
+""")
+    
+    # Missing group_by errors
+    if any("распределение" in original_query.lower() or "топ" in original_query.lower() or "по" in original_query.lower() for query in [original_query]):
+        has_groupby_error = False
+        for error in validation_errors:
+            if "missing group_by" in error.lower() or "requires group_by" in error.lower():
+                has_groupby_error = True
+                break
+        
+        # Also check if it's a distribution query but no explicit group_by error
+        if not has_groupby_error and ("распределение" in original_query.lower() or "топ" in original_query.lower()):
+            error_messages.append(f"""
+GROUPING HINT: This appears to be a distribution/ranking query
+
+Add group_by when query asks for:
+- "распределение по X" → group_by field X  
+- "топ X" → group_by relevant field
+- "по рекрутерам" → group_by recruiter_name
+- "по источникам" → group_by source_name
+- "по статусам" → group_by status_name
+""")
+    
+    retry_prompt = f"""Your previous JSON response failed validation. Please fix these specific issues:
+{''.join(error_messages)}
+
+Original user query: {original_query}
+
+Generate a CORRECTED JSON response that addresses all the validation errors above.
+Remember: You must return ONLY valid JSON without any markdown formatting or demo values."""
+    
+    return retry_prompt
+
+
+async def chat_endpoint_with_retry(
+    message: str,
+    model: str = "deepseek",
+    temperature: float = 0.1,
+    max_retries: int = 2,
+    show_debug: bool = True,
+    use_real_data: bool = False,
+    thread_id: Optional[str] = None,
+    messages: Optional[List[Dict[str, str]]] = None,
+    hf_client: Optional[HuntflowClient] = None
+) -> Dict[str, Any]:
+    """
+    Chat endpoint with automatic retry on validation errors.
+    Returns detailed conversation log when show_debug=True.
+    """
+    conversation_log = []
+    attempts = 0
+    current_message = message
+    current_messages = messages or []
+    
+    # Use global hf_client if not provided
+    if hf_client is None:
+        hf_client = globals().get('hf_client')
+    
+    for attempt in range(max_retries + 1):
+        attempts = attempt + 1
+        
+        if attempt == 0:
+            conversation_log.append(f"🔵 User: {message}")
+        else:
+            conversation_log.append(f"🔄 Retry {attempt}/{ max_retries}: Sending error feedback to AI")
+        
+        try:
+            # Create request
+            request = ChatRequest(
+                message=current_message,
+                model=model,
+                temperature=temperature,
+                use_real_data=use_real_data,
+                thread_id=thread_id,
+                messages=current_messages
+            )
+            
+            # Get AI response
+            if model in ["deepseek", "deepseek-r1", "deepseek-reasoner"]:
+                # For DeepSeek, we need to directly call the API
+                model_mapping = {
+                    "deepseek": "deepseek-chat",
+                    "deepseek-r1": "deepseek-r1", 
+                    "deepseek-reasoner": "deepseek-reasoner"
+                }
+                model_name = model_mapping.get(model, "deepseek-chat")
+                
+                # Build messages
+                api_messages = [
+                    {"role": "system", "content": get_unified_prompt()},
+                    {"role": "system", "content": "ABSOLUTE REQUIREMENT: Your JSON response must NOT contain demo_value, demo_data, or any placeholder fields."}
+                ]
+                
+                # Add conversation history
+                if attempt == 0 and current_messages:
+                    for msg in current_messages:
+                        api_messages.append({"role": msg["role"], "content": msg["content"]})
+                
+                # Add current message
+                api_messages.append({"role": "user", "content": current_message})
+                
+                # Make API call
+                response = await deepseek_client.chat.completions.create(
+                    model=model_name,
+                    messages=api_messages,
+                    temperature=temperature,
+                    response_format={'type': 'json_object'},
+                    max_tokens=4000
+                )
+                
+                ai_response = response.choices[0].message.content
+            else:
+                # For OpenAI models, use existing chat function
+                chat_response = await chat(request)
+                ai_response = chat_response.response
+            
+            conversation_log.append(f"🤖 AI Attempt {attempts}: {ai_response[:200]}..." if len(ai_response) > 200 else f"🤖 AI Attempt {attempts}: {ai_response}")
+            
+            # Try to validate the response
+            validation_errors = []
+            
+            # First check if it's an error response
+            if ai_response.startswith("⚠️"):
+                conversation_log.append(f"❌ System Error: {ai_response}")
+                if attempt < max_retries:
+                    current_message = "Please provide a valid JSON response for the analytics query."
+                    continue
+                else:
+                    return {
+                        "error": ai_response,
+                        "conversation_log": conversation_log,
+                        "attempts": attempts,
+                        "validation_success": False
+                    }
+            
+            # Extract JSON and validate structure
+            try:
+                json_content = ai_response
+                json_match = ai_response.find('```json')
+                if json_match != -1:
+                    end_match = ai_response.find('```', json_match + 7)
+                    if end_match != -1:
+                        json_content = ai_response[json_match + 7:end_match].strip()
+                
+                json_data = json.loads(json_content)
+                
+                # Validate with Pydantic
+                report = AnalyticsReport(**json_data)
+                
+                # Validate entities and fields
+                validation_errors.extend(validate_huntflow_fields(report.main_metric.value))
+                for metric in report.secondary_metrics:
+                    validation_errors.extend(validate_huntflow_fields(metric.value))
+                
+                # Validate chart axes (x_axis might not have entity for operation="field")
+                if report.chart.x_axis.entity:  # Only validate if entity is specified
+                    validation_errors.extend(validate_huntflow_fields(report.chart.x_axis))
+                validation_errors.extend(validate_huntflow_fields(report.chart.y_axis))
+                
+                if validation_errors:
+                    conversation_log.append(f"❌ Validation Failed: {'; '.join(validation_errors)}")
+                    if attempt < max_retries:
+                        # Generate targeted retry message
+                        retry_message = get_targeted_retry_message(validation_errors, message)
+                        conversation_log.append(f"🔧 Error Feedback: {retry_message[:200]}...")
+                        current_message = retry_message
+                        # For retry, don't include previous conversation history
+                        current_messages = []
+                        continue
+                else:
+                    # Validation passed!
+                    conversation_log.append("✅ Validation: SUCCESS")
+                    
+                    # Optionally enhance with real data
+                    if use_real_data:
+                        enhanced_response = await validate_and_enhance_response(
+                            ai_response,
+                            use_real_data=True,
+                            hf_client=hf_client
+                        )
+                        final_response = enhanced_response
+                    else:
+                        final_response = ai_response
+                    
+                    if show_debug:
+                        return {
+                            "response": final_response,
+                            "conversation_log": conversation_log,
+                            "attempts": attempts,
+                            "validation_success": True
+                        }
+                    else:
+                        return {
+                            "response": final_response,
+                            "attempts": attempts,
+                            "validation_success": True
+                        }
+                    
+            except json.JSONDecodeError as e:
+                validation_errors.append(f"Invalid JSON format: {str(e)}")
+                conversation_log.append(f"❌ JSON Parse Error: {str(e)}")
+            except ValidationError as e:
+                validation_errors.append(f"Schema validation error: {str(e)}")
+                conversation_log.append(f"❌ Schema Error: {str(e)}")
+            except Exception as e:
+                validation_errors.append(f"Validation error: {str(e)}")
+                conversation_log.append(f"❌ Error: {str(e)}")
+            
+            # If we get here, validation failed
+            if attempt < max_retries and validation_errors:
+                retry_message = get_targeted_retry_message(validation_errors, message)
+                conversation_log.append(f"🔧 Error Feedback: Sending targeted retry instructions")
+                current_message = retry_message
+                current_messages = []  # Don't include history in retry
+                continue
+                
+        except Exception as e:
+            conversation_log.append(f"💀 Fatal Error: {str(e)}")
+            return {
+                "error": f"System error: {str(e)}",
+                "conversation_log": conversation_log,
+                "attempts": attempts,
+                "validation_success": False
+            }
+    
+    # Max retries exceeded
+    conversation_log.append("💀 Max retries exceeded - validation failed")
+    return {
+        "error": "Failed to generate valid response after maximum retries",
+        "conversation_log": conversation_log,
+        "attempts": attempts,
+        "validation_success": False
+    }
+
 
 # Global variable to store fetched Huntflow data
 huntflow_context = {
@@ -1214,6 +1512,43 @@ async def chat(request: ChatRequest):
         return ChatResponse(
             response=f"⚠️ Error: {str(e)}", 
             thread_id=request.thread_id or ""
+        )
+
+
+class ChatRetryRequest(BaseModel):
+    message: str
+    thread_id: Optional[str] = None
+    model: Optional[str] = "deepseek"
+    temperature: Optional[float] = 0.1
+    use_real_data: Optional[bool] = False
+    messages: Optional[List[Dict[str, str]]] = None
+    max_retries: Optional[int] = 2
+    show_debug: Optional[bool] = False
+
+
+@app.post("/chat-retry")
+async def chat_with_retry_endpoint(request: ChatRetryRequest):
+    """Chat endpoint with automatic retry on validation errors"""
+    result = await chat_endpoint_with_retry(
+        message=request.message,
+        model=request.model,
+        temperature=request.temperature,
+        max_retries=request.max_retries,
+        show_debug=request.show_debug,
+        use_real_data=request.use_real_data,
+        thread_id=request.thread_id,
+        messages=request.messages,
+        hf_client=hf_client
+    )
+    
+    # Format response based on debug mode
+    if request.show_debug:
+        return result
+    else:
+        # Return standard chat response format
+        return ChatResponse(
+            response=result.get("response", result.get("error", "Failed to generate response")),
+            thread_id=request.thread_id or f"retry_{int(asyncio.get_event_loop().time())}"
         )
 
 
