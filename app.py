@@ -729,7 +729,7 @@ CRITICAL: Do NOT include any demo_value, demo_data, or placeholder values in you
     "label": "Main metric caption",
     "value": {
       "operation": "count|sum|avg|max|min",
-      "entity": "applicants|recruiters|vacancies|status_mapping|sources|divisions",
+      "entity": "applicants|recruiters|vacancies|status_mapping|sources|divisions|applicant_tags|offers|applicant_links",
       "filter": { "field": "<field_name>", "op": "eq|ne|gt|lt|in", "value": "<value>" } | [{ "field": "<field1>", "op": "eq", "value": "<val1>" }, { "field": "<field2>", "op": "gte", "value": "<val2>" }],
       "group_by": { "field": "<field_name>" }
     }
@@ -748,7 +748,7 @@ CRITICAL: Do NOT include any demo_value, demo_data, or placeholder values in you
     "x_axis": { "operation": "field", "field": "<see fields below>" },
     "y_axis": {
       "operation": "count|sum|avg",
-      "entity": "applicants|recruiters|vacancies|status_mapping|sources|divisions",
+      "entity": "applicants|recruiters|vacancies|status_mapping|sources|divisions|applicant_tags|offers|applicant_links",
       "filter": { "field": "<field_name>", "op": "eq|ne|gt|lt|in", "value": "<value>" } | [{ "field": "<field1>", "op": "eq", "value": "<val1>" }, { "field": "<field2>", "op": "gte", "value": "<val2>" }],
       "group_by": { "field": "<field_name>" }
     }
@@ -806,6 +806,13 @@ EXAMPLE OUTPUT (no demo values):
     •    applicant_links: applicant-vacancy status relationships
 
 CRITICAL: Use ONLY the entities listed above. For rejection analysis, use "applicants" entity with status_name filters, NOT "rejections" entity.
+
+FORBIDDEN ENTITIES: NEVER use these non-existent entities: "logs", "comments", "activity", "notes", "rejections"
+
+For manager/recruiter activity analysis (comments, workload, activity):
+- Use "applicants" entity with recruiter_name grouping to measure recruiter workload
+- Use "recruiters" entity for basic recruiter information
+- Comment/activity tracking must be approximated through applicant handling volume
 
 CRITICAL FIELD USAGE:
 • stay_duration field ONLY exists in "status_mapping" entity, NOT in "vacancies" or "applicants"
@@ -1080,6 +1087,21 @@ IMPORTANT: Use these real-world patterns for typical HR analytics queries:
   "group_by": {"field": "position"}
 }
 
+✅ Recruiter activity analysis (who works with most applicants):
+{
+  "operation": "count",
+  "entity": "applicants",
+  "group_by": {"field": "recruiter_name"}
+}
+
+✅ Manager workload by hires:
+{
+  "operation": "count",
+  "entity": "applicants",
+  "filter": {"field": "status_name", "op": "eq", "value": "Оффер принят"},
+  "group_by": {"field": "recruiter_name"}
+}
+
 ## FILTER USAGE PATTERNS:
 
 IMPORTANT: Use appropriate filter patterns based on query complexity:
@@ -1129,6 +1151,9 @@ WHEN TO USE MULTIPLE FILTERS:
 • "узкие места воронки" → funnel bottleneck analysis with status distribution
 • "быстро закрывающиеся вакансии" → fast-closing vacancies - analyze vacancies by state=CLOSED and created date proximity
 • "время закрытия вакансий" → vacancy closing time - use CLOSED vacancies with created field for timing analysis
+• "активность менеджера" / "кто больше работает" → recruiter activity analysis using "applicants" entity grouped by recruiter_name
+• "рекрутер с наибольшим количеством кандидатов" → recruiter workload using applicants count by recruiter_name
+• "комментарии менеджера" → NOT SUPPORTED - rephrase as recruiter workload/activity using applicants entity
 
 ⸻
 
