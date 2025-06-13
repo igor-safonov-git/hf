@@ -634,6 +634,34 @@ OPTION 2 - Status transition duration (without departments):
 
 Choose OPTION 1 and return ONLY that JSON (no explanation)."""
     
+    # Check for other impossible patterns
+    impossible_patterns = {
+        "webhook": "No webhook entity exists. Use applicants or vacancies activity data instead.",
+        "анкеты": "No questionary entity in schema. Use applicants data for analysis.",
+        "гендерный баланс": "No gender fields in current schema. Cannot analyze gender balance.",
+        "уровень английского": "No language skill fields. Use position/requirements text analysis.",
+        "время рекрутера": "No time tracking data. Use applicants count per recruiter as proxy.",
+        "внутреннее перемещение": "No transfer tracking. Use applicants hired status analysis.",
+        "релокация": "No relocation fields. Use region/location analysis from vacancies.",
+        "изменения в резюме": "No CV versioning. Static applicant data only available.",
+        "история изменений": "No status change history. Use current applicant status only.",
+        "глубокие связи": "No relationship tracking in current schema."
+    }
+    
+    for pattern, message in impossible_patterns.items():
+        if pattern in original_query.lower():
+            return f"""IMPOSSIBLE QUERY: Your request contains "{pattern}" which is not supported by the current data model.
+
+EXPLANATION: {message}
+
+ALTERNATIVE: Please rephrase your query using available data:
+- Use "applicants" entity for candidate analysis
+- Use "vacancies" entity for job posting analysis  
+- Use "recruiters" entity for recruiter performance
+- Use available fields listed in the schema
+
+Return a JSON analysis using only available entities and fields."""
+    
     # Extract unique entity errors
     invalid_entities = set()
     for error in validation_errors:
@@ -1164,7 +1192,9 @@ EXAMPLE OUTPUT (no demo values):
 
 CRITICAL: Use ONLY the entities listed above. For rejection analysis, use "applicants" entity with status_name filters, NOT "rejections" entity.
 
-FORBIDDEN ENTITIES: NEVER use these non-existent entities: "logs", "comments", "activity", "notes", "rejections"
+FORBIDDEN ENTITIES: NEVER use these non-existent entities: "logs", "comments", "activity", "notes", "rejections", "webhooks", "questionary", "status_groups", "organizations"
+
+WHEN QUERY IS IMPOSSIBLE: If user asks for data that doesn't exist in the schema (like gender balance, English level, CV changes history), explain the limitation and suggest the closest possible analysis using available fields.
 
 For manager/recruiter activity analysis (comments, workload, activity):
 - Use "applicants" entity with recruiter_name grouping to measure recruiter workload
@@ -1323,6 +1353,18 @@ IMPOSSIBLE QUERY PATTERNS - EXPLAIN AND SUGGEST ALTERNATIVES:
 • "logs/comments анализ" - FORBIDDEN: Use applicants entity for activity analysis
   → Suggest: Recruiter workload using applicants count by recruiter_name
 • Cross-entity grouping without proper relationships - VALIDATE field existence before grouping
+
+CRITICAL: These specific queries are IMPOSSIBLE due to data model limitations:
+• "webhook события" - No webhook entity exists → Use applicants/vacancies activity instead
+• "анкеты/questionary" - No questionary entity in current schema → Use applicants data
+• "гендерный баланс" - No gender fields in schema → Explain data limitation
+• "уровень английского" - No language skill fields → Use position/requirements analysis
+• "время рекрутера на вакансию" - No time tracking → Use applicants count proxy
+• "внутреннее перемещение" - No transfer tracking → Use applicants hired status
+• "релокация" - No relocation fields → Use region/location analysis
+• "изменения в резюме" - No CV versioning → Static applicant data only
+• "история изменений статусов" - Use applicants current status, not change history
+• "глубокие связи" - No relationship tracking in current schema
 
 IMPORTANT: For DISTRIBUTION and RANKING queries, always use group_by in the main metric:
 - "распределение по X" (distribution by X) → main_metric should use group_by: {"field": "X"}
