@@ -1,0 +1,10 @@
+{
+  "response": "{\n  \"report_title\": \"Candidate Status Distribution\",\n  \"main_metric\": {\n    \"label\": \"Candidates by Status\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"applicants\",\n      \"group_by\": {\"field\": \"status_name\"}\n    }\n  },\n  \"secondary_metrics\": [\n    {\n      \"label\": \"Total Candidates\",\n      \"value\": {\n        \"operation\": \"count\",\n        \"entity\": \"applicants\"\n      }\n    }\n  ],\n  \"chart\": {\n    \"graph_description\": \"Distribution of candidates across different hiring stages\",\n    \"chart_type\": \"bar\",\n    \"x_axis_name\": \"Status\",\n    \"y_axis_name\": \"Number of Candidates\",\n    \"x_axis\": {\"operation\": \"field\", \"field\": \"status_name\"},\n    \"y_axis\": {\n      \"operation\": \"count\",\n      \"entity\": \"applicants\",\n      \"group_by\": {\"field\": \"status_name\"}\n    }\n  }\n}",
+  "conversation_log": [
+    "🔵 User: Распределение кандидатов по статусам",
+    "🤖 AI Attempt 1: {\n  \"report_title\": \"Candidate Status Distribution\",\n  \"main_metric\": {\n    \"label\": \"Candidates by Status\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"applicants\",\n      \"group_by\": ...",
+    "✅ Validation: SUCCESS"
+  ],
+  "attempts": 1,
+  "validation_success": true
+}

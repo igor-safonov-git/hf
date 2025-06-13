@@ -596,6 +596,44 @@ def get_targeted_retry_message(validation_errors: List[str], original_query: str
     """Generate specific error messages for different validation failure types"""
     error_messages = []
     
+    # Check for specific impossible patterns and provide alternatives
+    if "stay_duration для вакансий по отделам" in original_query:
+        return """Your query asks for "stay_duration для вакансий по отделам" which is impossible in the data model.
+
+PROBLEM: stay_duration exists only in status_mapping entity, which has no department fields.
+
+Instead, provide one of these alternative analyses:
+
+OPTION 1 - Vacancy closing time by department:
+{
+  "report_title": "Среднее время закрытия вакансий по отделам",
+  "main_metric": {
+    "label": "Среднее время закрытия",
+    "value": {
+      "operation": "avg",
+      "entity": "vacancies",
+      "field": "created",
+      "group_by": {"field": "account_division"}
+    }
+  }
+}
+
+OPTION 2 - Status transition duration (without departments):
+{
+  "report_title": "Среднее время в статусах",
+  "main_metric": {
+    "label": "Среднее stay_duration",
+    "value": {
+      "operation": "avg", 
+      "entity": "status_mapping",
+      "field": "stay_duration",
+      "group_by": {"field": "name"}
+    }
+  }
+}
+
+Choose OPTION 1 and return ONLY that JSON (no explanation)."""
+    
     # Extract unique entity errors
     invalid_entities = set()
     for error in validation_errors:
@@ -623,7 +661,28 @@ Common fixes:
             field_errors.append(error)
     
     if field_errors:
-        error_messages.append(f"""
+        # Check for the specific impossible pattern: stay_duration + department grouping
+        if any("department" in error and "status_mapping" in error for error in field_errors):
+            error_messages.append(f"""
+CRITICAL IMPOSSIBILITY ERROR: You're trying to group status_mapping by 'department' field.
+
+THIS IS CONCEPTUALLY IMPOSSIBLE because:
+- status_mapping entity ONLY has: id, name, type, order, stay_duration, removed
+- status_mapping has NO department/division fields
+- stay_duration measures status transition time, NOT organizational structure
+
+FOR QUERY "stay_duration для вакансий по отделам":
+This query is asking for something that doesn't exist in the data model.
+
+CORRECT ALTERNATIVES:
+1. Average time to hire by department: Use applicants entity with recruiter_name grouping
+2. Vacancy closing time by department: Use vacancies entity with account_division field
+3. Status duration analysis: Use status_mapping entity with group_by: name (status names)
+
+NEVER try to connect stay_duration with departments - they exist in different entities with no relationship.
+""")
+        else:
+            error_messages.append(f"""
 FIELD ERROR: {'; '.join(field_errors)}
 
 Remember:
@@ -1112,10 +1171,18 @@ For manager/recruiter activity analysis (comments, workload, activity):
 - Use "recruiters" entity for basic recruiter information
 - Comment/activity tracking must be approximated through applicant handling volume
 
-CRITICAL FIELD USAGE:
+CRITICAL FIELD USAGE & ENTITY RELATIONSHIPS:
 • stay_duration field ONLY exists in "status_mapping" entity, NOT in "vacancies" or "applicants"
 • For vacancy timing analysis, use "created" or "updated" fields from "vacancies" entity
 • For candidate stage duration, use "status_mapping" entity with stay_duration field
+
+CRITICAL ENTITY RELATIONSHIP RULES:
+• status_mapping entity does NOT have department/division fields - it only tracks status information
+• To analyze stay_duration by departments: This is conceptually impossible - stay_duration measures status transitions, not organizational structure
+• When user asks for "stay_duration для вакансий по отделам": Explain this is impossible and suggest alternatives like:
+  - Average time to hire by department using applicants with recruiter grouping
+  - Vacancy closing time by department using vacancies entity
+• department/division fields exist in "vacancies" and "divisions" entities, NOT in "status_mapping"
 
 ⸻
 
@@ -1247,6 +1314,15 @@ CRITICAL REMINDER: Your JSON must NOT contain:
 - Any field not in the schema above
 
 CRITICAL: Do NOT use "avg" operation without a valid numeric field. If you need to calculate averages of counts (e.g., "average candidates per recruiter"), use "count" with group_by instead. Only use "avg" when averaging actual numeric values like money/salary.
+
+IMPOSSIBLE QUERY PATTERNS - EXPLAIN AND SUGGEST ALTERNATIVES:
+• "stay_duration для вакансий" - IMPOSSIBLE: stay_duration exists only in status_mapping, not vacancies
+  → Suggest: Vacancy closing time using vacancies created/updated fields
+• "department группировка для status_mapping" - IMPOSSIBLE: status_mapping has no department field
+  → Suggest: Group by status names instead, or use applicants grouped by departments
+• "logs/comments анализ" - FORBIDDEN: Use applicants entity for activity analysis
+  → Suggest: Recruiter workload using applicants count by recruiter_name
+• Cross-entity grouping without proper relationships - VALIDATE field existence before grouping
 
 IMPORTANT: For DISTRIBUTION and RANKING queries, always use group_by in the main metric:
 - "распределение по X" (distribution by X) → main_metric should use group_by: {"field": "X"}

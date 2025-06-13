@@ -1,0 +1,19 @@
+{
+  "error": "Failed to generate valid response after maximum retries",
+  "conversation_log": [
+    "🔵 User: Покажи среднее stay_duration для вакансий по отделам",
+    "🤖 AI Attempt 1: {\n  \"report_title\": \"Average Stay Duration by Department\",\n  \"main_metric\": {\n    \"label\": \"Average Stay Duration\",\n    \"value\": {\n      \"operation\": \"avg\",\n      \"entity\": \"status_mapping\",\n      \"fi...",
+    "❌ Validation Failed: Group by field 'department' not valid for entity 'status_mapping'; Group by field 'department' not valid for entity 'status_mapping'",
+    "🔧 Error Feedback: Your previous JSON response failed validation. Please fix these specific issues:\n\n\nOriginal user query: Покажи среднее stay_duration для вакансий по отделам\n\nGenerate a CORRECTED JSON response that ad...",
+    "🔄 Retry 1/2: Sending error feedback to AI",
+    "🤖 AI Attempt 2: {\n  \"report_title\": \"Average Stay Duration by Department\",\n  \"main_metric\": {\n    \"label\": \"Average Stay Duration\",\n    \"value\": {\n      \"operation\": \"avg\",\n      \"entity\": \"status_mapping\",\n      \"fi...",
+    "❌ Validation Failed: Group by field 'department' not valid for entity 'status_mapping'; Group by field 'department' not valid for entity 'status_mapping'",
+    "🔧 Error Feedback: Your previous JSON response failed validation. Please fix these specific issues:\n\n\nOriginal user query: Покажи среднее stay_duration для вакансий по отделам\n\nGenerate a CORRECTED JSON response that ad...",
+    "🔄 Retry 2/2: Sending error feedback to AI",
+    "🤖 AI Attempt 3: {\n  \"report_title\": \"Average Stay Duration by Department\",\n  \"main_metric\": {\n    \"label\": \"Average Stay Duration\",\n    \"value\": {\n      \"operation\": \"avg\",\n      \"entity\": \"status_mapping\",\n      \"fi...",
+    "❌ Validation Failed: Group by field 'department' not valid for entity 'status_mapping'; Group by field 'department' not valid for entity 'status_mapping'",
+    "💀 Max retries exceeded - validation failed"
+  ],
+  "attempts": 3,
+  "validation_success": false
+}

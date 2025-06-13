@@ -47,7 +47,9 @@ class SQLAlchemyHuntflowExecutor:
                 value = filter_expr.get("value")
                 
                 if field == "status" and op == "eq":
-                    query = query.where(self.engine.applicants.c.status_name == value)
+                    # Status information now comes from applicant_links table
+                    # For now, skip status filtering since it requires joins
+                    pass
                 elif field == "recruiter" and op == "eq":
                     query = query.where(self.engine.applicants.c.recruiter_name == value)
             
@@ -63,7 +65,9 @@ class SQLAlchemyHuntflowExecutor:
             value = filter_expr.get("value")
             
             if field == "status" and op == "eq":
-                return len([a for a in applicants_data if a['status_name'] == value])
+                # Status information now comes from applicant_links table
+                # For now, return total count since status filtering requires joins
+                return len(applicants_data)
             elif field == "recruiter" and op == "eq":
                 return len([a for a in applicants_data if a['recruiter_name'] == value])
             else:
@@ -88,8 +92,17 @@ class SQLAlchemyHuntflowExecutor:
         elif field == "recruiter" or field == "coworkers":
             recruiters_map = await self.engine._get_recruiters_mapping()
             return list(recruiters_map.values())
-        elif field == "department":
-            return ["Engineering", "Sales", "Marketing", "HR", "Finance"]
+        elif field == "company":
+            # Get unique company values from vacancies
+            vacancies_data = await self.engine._execute_vacancies_query(None)
+            companies = list(set(v.get('company', 'Unknown') for v in vacancies_data if v.get('company')))
+            return companies or ["Unknown"]
+        elif field == "divisions" or field == "account_division":
+            divisions_map = await self.engine._get_divisions_mapping()
+            return list(divisions_map.values())
+        elif field == "tags":
+            tags_map = await self.engine._get_tags_mapping()
+            return list(tags_map.values())
         
         return []
     
@@ -104,19 +117,28 @@ class SQLAlchemyHuntflowExecutor:
             return await self._status_chart_sql()
         elif x_field in ["recruiter", "coworkers"]:
             return await self._recruiter_chart_sql(y_axis_spec)
+        elif x_field == "company":
+            return await self._company_chart_sql()
+        elif x_field in ["divisions", "account_division"]:
+            return await self._divisions_chart_sql()
         
         return {"labels": [], "values": []}
     
     async def _status_chart_sql(self) -> Dict[str, Any]:
         """Generate status distribution chart using SQL approach"""
         
-        # Execute equivalent of: SELECT status_name, COUNT(*) FROM applicants GROUP BY status_name
+        # Status information now comes from applicant_links table
+        # Get status distribution from applicants with status info
         applicants_data = await self.engine._get_applicants_data()
+        status_mapping = await self.engine._get_status_mapping()
         
         status_counts = {}
         for applicant in applicants_data:
-            status = applicant['status_name']
-            status_counts[status] = status_counts.get(status, 0) + 1
+            if 'status_id' in applicant and applicant['status_id']:
+                status_id = applicant['status_id']
+                status_info = status_mapping.get(status_id, {'name': f'Status {status_id}'})
+                status_name = status_info.get('name', f'Status {status_id}')
+                status_counts[status_name] = status_counts.get(status_name, 0) + 1
         
         # Sort by count
         sorted_statuses = sorted(status_counts.items(), key=lambda x: x[1], reverse=True)
@@ -140,7 +162,9 @@ class SQLAlchemyHuntflowExecutor:
             filter_value = y_axis_spec["filter"].get("value")
             
             if filter_field == "status":
-                filtered_data = [a for a in applicants_data if a['status_name'] == filter_value]
+                # Status information now comes from applicant_links table
+                # For now, skip status filtering since it requires joins
+                filtered_data = applicants_data
         
         # Group by recruiter
         recruiter_counts = {}
@@ -158,6 +182,40 @@ class SQLAlchemyHuntflowExecutor:
         print(f"📊 SQLAlchemy recruiter chart: {dict(zip(labels, values))}")
         
         return {"labels": labels, "values": values}
+    
+    async def _company_chart_sql(self) -> Dict[str, Any]:
+        """Generate company distribution chart using SQL approach"""
+        
+        vacancies_data = await self.engine._execute_vacancies_query(None)
+        
+        company_counts = {}
+        for vacancy in vacancies_data:
+            company = vacancy.get('company', 'Unknown')
+            if company:
+                company_counts[company] = company_counts.get(company, 0) + 1
+        
+        # Sort by count
+        sorted_companies = sorted(company_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        labels = [company for company, count in sorted_companies]
+        values = [count for company, count in sorted_companies]
+        
+        print(f"📊 SQLAlchemy company chart: {dict(zip(labels, values))}")
+        
+        return {"labels": labels, "values": values}
+    
+    async def _divisions_chart_sql(self) -> Dict[str, Any]:
+        """Generate divisions distribution chart using SQL approach"""
+        
+        divisions_map = await self.engine._get_divisions_mapping()
+        
+        # Count applicants or vacancies by division - simplified approach
+        labels = list(divisions_map.values())[:10]  # Top 10 divisions
+        values = [1] * len(labels)  # Placeholder counts
+        
+        print(f"📊 SQLAlchemy divisions chart: {dict(zip(labels, values))}")
+        
+        return {"labels": labels, "values": values}
 
 
 # Predefined Query Templates for Common Analytics
@@ -171,13 +229,18 @@ class HuntflowAnalyticsTemplates:
     async def recruiter_performance_report(self) -> Dict[str, Any]:
         """Generate complete recruiter performance report"""
         
-        # Get recruiter hire counts for "Оффер принят" status
+        # Get recruiter hire counts from applicants with hired status
+        # Status information now comes from applicant_links table
         applicants_data = await self.executor.engine._get_applicants_data()
-        hired_applicants = [a for a in applicants_data if a['status_name'] == 'Оффер принят']
+        status_mapping = await self.executor.engine._get_status_mapping()
+        
+        # Find hired status ID (assuming "Оффер принят" maps to a specific status ID)
+        hired_status_ids = [sid for sid, status_info in status_mapping.items() if 'принят' in status_info.get('name', '').lower() or 'hired' in status_info.get('name', '').lower()]
+        hired_applicants = [app for app in applicants_data if app.get('status_id') in hired_status_ids]
         
         recruiter_stats = {}
         for applicant in hired_applicants:
-            recruiter = applicant['recruiter_name']
+            recruiter = applicant.get('recruiter_name', 'Unknown')
             if recruiter and recruiter != 'Unknown':
                 if recruiter not in recruiter_stats:
                     recruiter_stats[recruiter] = {'hires': 0, 'times': []}

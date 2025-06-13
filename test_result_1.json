@@ -1,0 +1,10 @@
+{
+  "response": "{\n  \"report_title\": \"Manager Comments on Rejected Candidates\",\n  \"main_metric\": {\n    \"label\": \"Rejected Candidates Count\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"applicants\",\n      \"filter\": {\"field\": \"status_name\", \"op\": \"eq\", \"value\": \"Отказ\"}\n    }\n  },\n  \"secondary_metrics\": [\n    {\n      \"label\": \"Rejected Candidates by Recruiter\",\n      \"value\": {\n        \"operation\": \"count\",\n        \"entity\": \"applicants\",\n        \"filter\": {\"field\": \"status_name\", \"op\": \"eq\", \"value\": \"Отказ\"},\n        \"group_by\": {\"field\": \"recruiter_name\"}\n      }\n    }\n  ],\n  \"chart\": {\n    \"graph_description\": \"Distribution of rejected candidates by recruiter\",\n    \"chart_type\": \"bar\",\n    \"x_axis_name\": \"Recruiter\",\n    \"y_axis_name\": \"Number of Rejected Candidates\",\n    \"x_axis\": {\"operation\": \"field\", \"field\": \"recruiter_name\"},\n    \"y_axis\": {\n      \"operation\": \"count\",\n      \"entity\": \"applicants\",\n      \"filter\": {\"field\": \"status_name\", \"op\": \"eq\", \"value\": \"Отказ\"},\n      \"group_by\": {\"field\": \"recruiter_name\"}\n    }\n  }\n}",
+  "conversation_log": [
+    "🔵 User: Какие комментарии оставляют менеджеры по отклоненным кандидатам?",
+    "🤖 AI Attempt 1: {\n  \"report_title\": \"Manager Comments on Rejected Candidates\",\n  \"main_metric\": {\n    \"label\": \"Rejected Candidates Count\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"applicants\",\n   ...",
+    "✅ Validation: SUCCESS"
+  ],
+  "attempts": 1,
+  "validation_success": true
+}
