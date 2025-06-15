@@ -71,11 +71,24 @@ class AnalyticsReport(BaseModel):
     secondary_metrics: List[Metric]
     chart: Chart
 
+class ImpossibleQueryResponse(BaseModel):
+    impossible_query: bool
+    reason: str
+    alternative: str
+    available_entities: List[str]
+
 
 def validate_analytics_json(json_data: dict) -> tuple[bool, str, Optional[AnalyticsReport]]:
     """Validate JSON structure and business logic"""
     try:
-        # First validate basic structure
+        # Check if this is an impossible query response
+        if json_data.get("impossible_query") is True:
+            # Validate impossible query response structure
+            impossible_response = ImpossibleQueryResponse(**json_data)
+            # Return success for impossible query responses (they are valid responses)
+            return True, f"IMPOSSIBLE QUERY: {impossible_response.reason}. ALTERNATIVE: {impossible_response.alternative}", None
+        
+        # First validate basic structure for normal analytics report
         report = AnalyticsReport(**json_data)
         
         # Validate business logic
@@ -636,31 +649,43 @@ Choose OPTION 1 and return ONLY that JSON (no explanation)."""
     
     # Check for other impossible patterns
     impossible_patterns = {
-        "webhook": "No webhook entity exists. Use applicants or vacancies activity data instead.",
-        "анкеты": "No questionary entity in schema. Use applicants data for analysis.",
-        "гендерный баланс": "No gender fields in current schema. Cannot analyze gender balance.",
-        "уровень английского": "No language skill fields. Use position/requirements text analysis.",
-        "время рекрутера": "No time tracking data. Use applicants count per recruiter as proxy.",
-        "внутреннее перемещение": "No transfer tracking. Use applicants hired status analysis.",
-        "релокация": "No relocation fields. Use region/location analysis from vacancies.",
-        "изменения в резюме": "No CV versioning. Static applicant data only available.",
-        "история изменений": "No status change history. Use current applicant status only.",
-        "глубокие связи": "No relationship tracking in current schema."
+        # Employee data (post-hire) - not available in recruitment system
+        "уволилось": "Recruitment system only - no post-hire employee tracking",
+        "текучесть": "Recruitment system only - no employee departure data",
+        "стаж работы": "Recruitment system only - no employee tenure tracking", 
+        "удовлетворенность сотрудников": "Recruitment system only - no workplace metrics",
+        "производительность команды": "Recruitment system only - no team performance data",
+        "повышения": "Recruitment system only - no career progression tracking",
+        "бонусы": "Recruitment system only - no post-hire compensation data",
+        "увольнения": "Recruitment system only - no employee departure tracking",
+        
+        # Technical limitations
+        "webhook": "No webhook entity exists in the Huntflow schema",
+        "анкеты": "No questionary entity exists in current schema",
+        "гендерный баланс": "No gender fields exist in current schema",
+        "уровень английского": "No language skill fields exist in schema",
+        "время рекрутера": "No detailed time tracking data available",
+        "внутреннее перемещение": "No transfer/promotion tracking in current schema",
+        "релокация": "No relocation fields exist in schema",
+        "изменения в резюме": "No CV change history or versioning available",
+        "история изменений": "No status change history tracking available",
+        "глубокие связи": "No relationship tracking exists in current schema"
     }
     
-    for pattern, message in impossible_patterns.items():
+    for pattern, reason in impossible_patterns.items():
         if pattern in original_query.lower():
-            return f"""IMPOSSIBLE QUERY: Your request contains "{pattern}" which is not supported by the current data model.
+            return f"""This query is IMPOSSIBLE due to data model limitations.
 
-EXPLANATION: {message}
+Instead of trying to create a workaround JSON, return this exact structure:
 
-ALTERNATIVE: Please rephrase your query using available data:
-- Use "applicants" entity for candidate analysis
-- Use "vacancies" entity for job posting analysis  
-- Use "recruiters" entity for recruiter performance
-- Use available fields listed in the schema
+{{
+  "impossible_query": true,
+  "reason": "{reason}",
+  "alternative": "Use available entities like applicants, vacancies, recruiters for similar analysis",
+  "available_entities": ["applicants", "vacancies", "recruiters", "status_mapping", "sources", "divisions", "applicant_tags", "offers", "applicant_links"]
+}}
 
-Return a JSON analysis using only available entities and fields."""
+IMPORTANT: Do NOT try to create a regular analytics JSON for impossible queries. Use the impossible_query response format instead."""
     
     # Extract unique entity errors
     invalid_entities = set()
@@ -878,7 +903,34 @@ async def chat_endpoint_with_retry(
                 
                 json_data = json.loads(json_content)
                 
-                # Validate with Pydantic
+                # Check if this is an impossible query response
+                if json_data.get("impossible_query") is True:
+                    # Validate impossible query response structure
+                    impossible_response = ImpossibleQueryResponse(**json_data)
+                    conversation_log.append("✅ Validation: IMPOSSIBLE QUERY (valid response)")
+                    
+                    # Format the impossible query response for user
+                    formatted_response = f"❌ **Query Not Possible**: {impossible_response.reason}\n\n" \
+                                       f"💡 **Alternative**: {impossible_response.alternative}\n\n" \
+                                       f"📊 **Available Data**: {', '.join(impossible_response.available_entities)}"
+                    
+                    if show_debug:
+                        return {
+                            "response": formatted_response,
+                            "conversation_log": conversation_log,
+                            "attempts": attempts,
+                            "validation_success": True,
+                            "query_type": "impossible"
+                        }
+                    else:
+                        return {
+                            "response": formatted_response,
+                            "attempts": attempts,
+                            "validation_success": True,
+                            "query_type": "impossible"
+                        }
+                
+                # Validate normal analytics report with Pydantic
                 report = AnalyticsReport(**json_data)
                 
                 # Validate entities and fields
@@ -973,6 +1025,13 @@ huntflow_context = {
     "sources": [], 
     "departments": [],
     "vacancy_names": [],
+    "tags": [],
+    "divisions": [],
+    "coworkers": [],
+    "organizations": [],
+    "additional_fields": [],
+    "rejection_reasons": [],
+    "dictionaries": [],
     "total_applicants": 0,
     "total_vacancies": 0,
     "last_updated": None
@@ -1006,6 +1065,83 @@ async def fetch_huntflow_context():
                 ][:10]  # Limit to top 10
         except Exception as e:
             print(f"Failed to fetch sources: {e}")
+        
+        # Fetch all tags
+        try:
+            tags_result = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/tags")
+            if isinstance(tags_result, dict):
+                huntflow_context["tags"] = [
+                    {"id": t.get("id"), "name": t.get("name"), "color": t.get("color")}
+                    for t in tags_result.get("items", [])
+                ][:20]  # Limit to top 20
+        except Exception as e:
+            print(f"Failed to fetch tags: {e}")
+        
+        # Fetch all divisions
+        try:
+            divisions_result = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/divisions")
+            if isinstance(divisions_result, dict):
+                huntflow_context["divisions"] = [
+                    {"id": d.get("id"), "name": d.get("name"), "parent": d.get("parent")}
+                    for d in divisions_result.get("items", [])
+                ][:20]  # Limit to top 20
+        except Exception as e:
+            print(f"Failed to fetch divisions: {e}")
+        
+        # Fetch all coworkers
+        try:
+            coworkers_result = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/coworkers")
+            if isinstance(coworkers_result, dict):
+                huntflow_context["coworkers"] = [
+                    {"id": c.get("id"), "name": c.get("name"), "email": c.get("email")}
+                    for c in coworkers_result.get("items", [])
+                ][:20]  # Limit to top 20
+        except Exception as e:
+            print(f"Failed to fetch coworkers: {e}")
+        
+        # Fetch all organizations
+        try:
+            orgs_result = await hf_client._req("GET", "/v2/accounts")
+            if isinstance(orgs_result, dict):
+                huntflow_context["organizations"] = [
+                    {"id": o.get("id"), "name": o.get("name")}
+                    for o in orgs_result.get("items", [])
+                ]
+        except Exception as e:
+            print(f"Failed to fetch organizations: {e}")
+        
+        # Fetch additional fields for vacancies
+        try:
+            fields_result = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/vacancies/additional_fields")
+            if isinstance(fields_result, dict):
+                huntflow_context["additional_fields"] = [
+                    {"id": f.get("id"), "name": f.get("name"), "type": f.get("type")}
+                    for f in fields_result.get("items", [])
+                ][:15]  # Limit to top 15
+        except Exception as e:
+            print(f"Failed to fetch additional fields: {e}")
+        
+        # Fetch rejection reasons
+        try:
+            rejection_result = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/rejection_reasons")
+            if isinstance(rejection_result, dict):
+                huntflow_context["rejection_reasons"] = [
+                    {"id": r.get("id"), "name": r.get("name")}
+                    for r in rejection_result.get("items", [])
+                ][:20]  # Limit to top 20
+        except Exception as e:
+            print(f"Failed to fetch rejection reasons: {e}")
+        
+        # Fetch dictionaries
+        try:
+            dictionaries_result = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/dictionaries")
+            if isinstance(dictionaries_result, dict):
+                huntflow_context["dictionaries"] = [
+                    {"code": d.get("code"), "name": d.get("name")}
+                    for d in dictionaries_result.get("items", [])
+                ]
+        except Exception as e:
+            print(f"Failed to fetch dictionaries: {e}")
         
         # Get total applicants count
         try:
@@ -1044,7 +1180,12 @@ async def fetch_huntflow_context():
             print(f"Failed to fetch departments/vacancies: {e}")
         
         huntflow_context["last_updated"] = datetime.now().isoformat()
-        print(f"✅ Huntflow context updated: {len(huntflow_context['vacancy_statuses'])} statuses, {len(huntflow_context['sources'])} sources, {huntflow_context['total_applicants']} applicants")
+        print(f"✅ Huntflow context updated: {len(huntflow_context['vacancy_statuses'])} statuses, "
+              f"{len(huntflow_context['sources'])} sources, {len(huntflow_context['tags'])} tags, "
+              f"{len(huntflow_context['divisions'])} divisions, {len(huntflow_context['coworkers'])} coworkers, "
+              f"{len(huntflow_context['rejection_reasons'])} rejection reasons, "
+              f"{len(huntflow_context['dictionaries'])} dictionaries, "
+              f"{huntflow_context['total_applicants']} applicants")
         
     except Exception as e:
         print(f"❌ Failed to fetch Huntflow context: {e}")
@@ -1062,33 +1203,55 @@ def get_unified_prompt():
     if huntflow_context.get("last_updated"):
         statuses_list = chr(10).join([f"  - {s['name']} (ID: {s['id']})" for s in huntflow_context.get('vacancy_statuses', [])])
         sources_list = chr(10).join([f"  - {source}" for source in huntflow_context.get('sources', [])])
-        departments_list = chr(10).join([f"  - {dept}" for dept in huntflow_context.get('departments', [])])
-        vacancies_list = chr(10).join([f"  - {pos}" for pos in huntflow_context.get('vacancy_names', [])])
+        
+        # Prepare all entity lists with IDs
+        tags_list = chr(10).join([f"  - {t['name']} (ID: {t['id']})" for t in huntflow_context.get('tags', [])])
+        divisions_list = chr(10).join([f"  - {d['name']} (ID: {d['id']})" for d in huntflow_context.get('divisions', [])])
+        coworkers_list = chr(10).join([f"  - {c['name']} (ID: {c['id']})" for c in huntflow_context.get('coworkers', [])])
+        orgs_list = chr(10).join([f"  - {o['name']} (ID: {o['id']})" for o in huntflow_context.get('organizations', [])])
+        fields_list = chr(10).join([f"  - {f['name']} (ID: {f['id']}, Type: {f['type']})" for f in huntflow_context.get('additional_fields', [])])
+        rejection_list = chr(10).join([f"  - {r['name']} (ID: {r['id']})" for r in huntflow_context.get('rejection_reasons', [])])
+        dictionaries_list = chr(10).join([f"  - {d['name']} (Code: {d['code']})" for d in huntflow_context.get('dictionaries', [])])
         
         context_section = f"""
 
 ⸻
 
-REAL HUNTFLOW ACCOUNT DATA (Use this for accurate responses):
+REAL HUNTFLOW ACCOUNT DATA (Use these EXACT names and IDs for accurate responses):
 
-• Total Applicants: {huntflow_context.get('total_applicants', 'Unknown')}
-• Total Vacancies: {huntflow_context.get('total_vacancies', 'Unknown')}
-
-• Available Status Names & IDs:
+• VACANCY STATUSES ({len(huntflow_context.get('vacancy_statuses', []))} total):
 {statuses_list}
 
-• Available Sources:
+• SOURCES ({len(huntflow_context.get('sources', []))} total):
 {sources_list}
 
-• Available Departments:
-{departments_list}
+• TAGS ({len(huntflow_context.get('tags', []))} total):
+{tags_list}
 
-• Recent Vacancy Positions:
-{vacancies_list}
+• DIVISIONS ({len(huntflow_context.get('divisions', []))} total):
+{divisions_list}
 
-• Last Updated: {huntflow_context.get('last_updated')}
+• COWORKERS/RECRUITERS ({len(huntflow_context.get('coworkers', []))} total):
+{coworkers_list}
 
-IMPORTANT: Use these EXACT status names and source names in your queries to match the real account.
+• ORGANIZATIONS ({len(huntflow_context.get('organizations', []))} total):
+{orgs_list}
+
+• ADDITIONAL VACANCY FIELDS ({len(huntflow_context.get('additional_fields', []))} total):
+{fields_list}
+
+• REJECTION REASONS ({len(huntflow_context.get('rejection_reasons', []))} total):
+{rejection_list}
+
+• DICTIONARIES ({len(huntflow_context.get('dictionaries', []))} total):
+{dictionaries_list}
+
+• SUMMARY:
+  - Total Applicants: {huntflow_context.get('total_applicants', 0):,}
+  - Total Vacancies: {huntflow_context.get('total_vacancies', 0):,}
+  - Last Updated: {huntflow_context.get('last_updated')}
+
+IMPORTANT: Use these EXACT entity names and IDs in your queries. Do NOT invent or guess entity names.
 
 ⸻
 
@@ -1099,14 +1262,33 @@ IMPORTANT: Use these EXACT status names and source names in your queries to matc
     status_examples = ", ".join([s['name'] for s in huntflow_context.get('vacancy_statuses', [])][:8])
     
     prompt_base = """You are an HR-analytics expert with full knowledge of Huntflow API's entities and data structure.
+
+🔴 CRITICAL SYSTEM BOUNDARY: This is a RECRUITMENT SYSTEM ONLY. It tracks candidates from application through hiring decision. Once someone is hired, NO employee data is available (no performance, tenure, departures, satisfaction, promotions, etc.).
+
 Always answer user requests only with a single valid JSON object strictly following the schema below.
 Never return explanations or text outside the JSON.
 
 CRITICAL: Do NOT include any demo_value, demo_data, or placeholder values in your JSON response. The system fetches real data automatically.
 
+IMPOSSIBLE QUERY RESPONSE: If a query requests data that fundamentally doesn't exist in the Huntflow schema (like gender analysis, CV change history, skill assessments, etc.), return this JSON structure instead:
+
+{
+  "impossible_query": true,
+  "reason": "Brief explanation of why this is impossible",
+  "alternative": "Suggest what the user could analyze instead using available data",
+  "available_entities": ["applicants", "vacancies", "recruiters", "status_mapping", "sources", "divisions", "applicant_tags", "offers", "applicant_links"]
+}
+
+EXAMPLES of impossible queries that should use this response:
+• Gender analysis → "Gender fields don't exist in schema"
+• English level analysis → "Language skill fields not available"
+• CV change history → "Only current CV data available, no versioning"
+• Internal promotions → "No career progression tracking in current schema"
+• Time tracking → "No detailed time/activity tracking data"
+
 ⸻
 
-1. JSON Output Schema
+1. JSON Output Schema (for possible queries)
 
 {
   "report_title": "Short human-readable title",
@@ -1216,41 +1398,156 @@ CRITICAL ENTITY RELATIONSHIP RULES:
 
 ⸻
 
-3. Allowed Field Names
-    •    applicants:
-    •    id, first_name, last_name, middle_name, birthday, phone, skype, email, money, position, company, photo, photo_url, created, account, tags, external, agreement, doubles, social, source_id, recruiter_id, recruiter_name, source_name, status_id, status_name, vacancy_id
-    •    vacancies:
-    •    id, position, company, account_division, account_region, money, priority, hidden, state, created, updated, multiple, parent, account_vacancy_status_group, additional_fields_list, body, requirements, conditions, files, coworkers, source, blocks, vacancy_request
-    •    recruiters:
-    •    id, name, email, member, type, head, meta, permissions, full_name
-    •    offers:
-    •    id, offer_id, applicant_id, vacancy_frame_id, status, created, updated, values
-    •    tags:
-    •    id, tag_id, name, color, created, updated
-    •    sources:
-    •    id, name, type, foreign
-    •    status_mapping:
-    •    id, name, type, order, stay_duration, removed
-    •    divisions:
-    •    id, name, order, active, deep, parent, foreign, meta
-    •    questionary:
-    •    current_salary, expected_salary, position, relocation, availability
-    •    rejections:
-    •    id, applicant_id, reason, reason_id, created, updated
-    •    responses:
-    •    id, applicant_id, status, date_received, source
-    •    logs:
-    •    id, type, applicant, vacancy, status, rejection_reason, created, author
-    •    General:
-    •    department, source, status, current_stage, date
+3. COMPREHENSIVE HUNTFLOW DATA MODEL EXPLANATION
 
-Valid Filters/Groups:
-    •    department: e.g., Engineering, Sales, Marketing, HR, Finance
-    •    source: e.g., {source_examples}
-    •    status: e.g., {status_examples}
-    •    current_stage: same as status
-    •    date: date fields are filterable/groupable
-    •    rejection_reason_id: filter/group rejected candidates
+🗂️ AVAILABLE ENTITIES AND THEIR PURPOSE:
+
+**APPLICANTS ENTITY** - Main table for candidates in the recruitment pipeline
+Available Fields: id, first_name, last_name, middle_name, birthday, phone, skype, email, money (salary expectation), position, company, photo, photo_url, created, account, tags, external, agreement, doubles, social, source_id, recruiter_id, recruiter_name, source_name, status_id, status_name, vacancy_id
+
+Business Use Cases:
+• Count total candidates in pipeline: {"operation": "count", "entity": "applicants"}
+• Analyze salary expectations: {"operation": "avg", "entity": "applicants", "field": "money"}
+• Group by recruiter performance: {"group_by": {"field": "recruiter_name"}}
+• Filter by hiring stage: {"filter": {"field": "status_name", "op": "eq", "value": "Интервью"}}
+• Source effectiveness: {"group_by": {"field": "source_name"}}
+
+**VACANCIES ENTITY** - Job postings and open positions
+Available Fields: id, position, company, account_division, account_region, money (salary range), priority, hidden, state, created, updated, multiple, parent, account_vacancy_status_group, additional_fields_list, body, requirements, conditions, files, coworkers, source, blocks, vacancy_request
+
+Business Use Cases:
+• Active job count: {"filter": {"field": "state", "op": "eq", "value": "OPEN"}}
+• High priority positions: {"filter": {"field": "priority", "op": "eq", "value": 1}}
+• Department analysis: {"group_by": {"field": "account_division"}}
+• Salary budget analysis: {"operation": "avg", "entity": "vacancies", "field": "money"}
+• Long-running vacancies: {"filter": {"field": "created", "op": "lt", "value": "2024-10-01"}}
+
+**RECRUITERS ENTITY** - HR team members and hiring managers
+Available Fields: id, name, email, member, type, head, meta, permissions, full_name
+
+Business Use Cases:
+• Team size: {"operation": "count", "entity": "recruiters"}
+• Manager hierarchy: {"filter": {"field": "type", "op": "eq", "value": "manager"}}
+• Active recruiters: Use with applicants for workload analysis
+
+**STATUS_MAPPING ENTITY** - Hiring pipeline stages and transitions
+Available Fields: id, name, type, order, stay_duration, removed
+
+Business Use Cases:
+• Pipeline stage analysis: {"group_by": {"field": "name"}}
+• Time in stage metrics: {"operation": "avg", "entity": "status_mapping", "field": "stay_duration"}
+• Stage ordering: {"operation": "avg", "entity": "status_mapping", "field": "order"}
+
+**SOURCES ENTITY** - Recruitment channels and candidate origins
+Available Fields: id, name, type, foreign
+
+Business Use Cases:
+• Channel effectiveness: {"group_by": {"field": "name"}}
+• Source type distribution: {"group_by": {"field": "type"}}
+• ROI by channel: Use with applicants to measure conversion
+
+**DIVISIONS ENTITY** - Company organizational structure
+Available Fields: id, name, order, active, deep, parent, foreign, meta
+
+Business Use Cases:
+• Department hierarchy: {"filter": {"field": "parent", "op": "ne", "value": 0}}
+• Active departments: {"filter": {"field": "active", "op": "eq", "value": true}}
+• Organizational depth: {"operation": "max", "entity": "divisions", "field": "deep"}
+
+**APPLICANT_TAGS ENTITY** - Labels and categorization for candidates
+Available Fields: id, name, color
+
+Business Use Cases:
+• Tag usage frequency: {"group_by": {"field": "name"}}
+• Categorization analysis: Use with applicants to analyze tagged candidates
+
+**OFFERS ENTITY** - Job offers made to candidates
+Available Fields: id, applicant_id, vacancy_id, status, created, updated
+
+Business Use Cases:
+• Offer acceptance rate: {"filter": {"field": "status", "op": "eq", "value": "accepted"}}
+• Offer timing analysis: Use created/updated fields
+• Conversion metrics: Count offers vs final hires
+
+**APPLICANT_LINKS ENTITY** - Relationships between candidates and positions
+Available Fields: id, applicant_id, status, updated, changed, vacancy
+
+Business Use Cases:
+• Multi-position candidates: {"group_by": {"field": "applicant_id"}}
+• Status change tracking: Use updated/changed fields
+• Position competition: {"group_by": {"field": "vacancy"}}
+
+🚫 CRITICAL DATA MODEL LIMITATIONS:
+
+**RECRUITMENT vs EMPLOYEE DATA BOUNDARY:**
+🔴 **CRITICAL**: This system tracks ONLY the recruitment process up to the point of hiring. Once a person is hired, NO employee data is available.
+
+Available: Candidate journey from application → interview → offer → hire decision
+NOT Available: Employee performance, tenure, promotions, departures, satisfaction, etc.
+
+**WHAT DOESN'T EXIST IN THE SCHEMA:**
+• Gender fields → Cannot analyze gender balance
+• Language/skill fields → Cannot track English levels or technical skills
+• Salary history → Only current expectations available
+• Performance ratings → No evaluation scores
+• Time tracking → No detailed activity timestamps
+• CV change history → Static applicant data only
+• Employee lifecycle → No promotion/transfer tracking
+• Training records → No skill development data
+• Exit interview data → Basic status only
+• Internal mobility → No career progression tracking
+• Employee tenure → No post-hire tracking
+• Employee satisfaction → No workplace metrics
+• Performance reviews → No employee evaluation data
+• Departures/resignations → No employee lifecycle beyond hiring
+• Team assignments → No organizational structure post-hire
+
+**CROSS-ENTITY RELATIONSHIP RULES:**
+• stay_duration EXISTS ONLY in status_mapping, NOT in vacancies or applicants
+• Department fields exist in vacancies and divisions, NOT in status_mapping
+• Recruiter data comes from recruiters entity, linked via recruiter_id in applicants
+• Source data comes from sources entity, linked via source_id in applicants
+• Status information flows: status_mapping → applicants (via status_id) → analysis
+
+**BUSINESS INTELLIGENCE CAPABILITIES:**
+
+✅ WHAT YOU CAN ANALYZE:
+• Recruitment funnel conversion rates
+• Recruiter performance and workload
+• Time-to-hire metrics (via stay_duration)
+• Source effectiveness and ROI
+• Department hiring trends
+• Salary analysis and budgeting
+• Pipeline velocity and bottlenecks
+• Offer acceptance rates
+• Candidate quality scoring
+• Seasonal hiring patterns
+
+❌ WHAT YOU CANNOT ANALYZE:
+• Employee satisfaction scores (no post-hire data)
+• Skills gap analysis (no skill tracking)
+• Training effectiveness (no training data)
+• Career progression paths (no employee lifecycle)
+• Performance correlations (no performance data)
+• Diversity metrics (no gender/ethnicity data)
+• Retention prediction models (no departure tracking)
+• Competency assessments (no evaluation data)
+• Leadership pipeline analysis (no promotion tracking)
+• Cultural fit indicators (no workplace data)
+• Employee tenure analysis (no post-hire tracking)
+• Turnover rates (recruitment system only)
+• Team productivity (no team performance data)
+• Employee engagement (no workplace metrics)
+• Compensation changes (no salary history post-hire)
+
+**QUERY CONSTRUCTION BEST PRACTICES:**
+
+1. **For Pipeline Analysis**: Always use applicants entity with status_name grouping
+2. **For Performance Metrics**: Use applicants with recruiter_name grouping
+3. **For Time Analysis**: Use status_mapping stay_duration or applicants created dates
+4. **For Department Analysis**: Use vacancies account_division or divisions entity
+5. **For Source Analysis**: Use applicants with source_name grouping
+6. **For Complex Filters**: Use array format for multiple conditions
 
 ⸻
 
@@ -1355,6 +1652,17 @@ IMPOSSIBLE QUERY PATTERNS - EXPLAIN AND SUGGEST ALTERNATIVES:
 • Cross-entity grouping without proper relationships - VALIDATE field existence before grouping
 
 CRITICAL: These specific queries are IMPOSSIBLE due to data model limitations:
+
+**RECRUITMENT PROCESS ONLY (no employee data):**
+• "сколько людей уволилось" - No post-hire employee tracking
+• "текучесть кадров" - No employee departure data  
+• "средний стаж работы" - No employee tenure tracking
+• "удовлетворенность сотрудников" - No workplace metrics
+• "производительность команды" - No team performance data
+• "повышения сотрудников" - No career progression tracking
+• "кто получил бонусы" - No compensation tracking post-hire
+
+**TECHNICAL DATA LIMITATIONS:**
 • "webhook события" - No webhook entity exists → Use applicants/vacancies activity instead
 • "анкеты/questionary" - No questionary entity in current schema → Use applicants data
 • "гендерный баланс" - No gender fields in schema → Explain data limitation
