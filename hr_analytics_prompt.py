@@ -140,7 +140,28 @@ id, applicant, vacancy, status_id, created, updated
 - Join with vacancy_statuses to get status names
 - Count applicants grouped by their status in active vacancies
 
-# 3. Real account entities. Use exact id's to reference in JSON.
+# 3. Enhanced Entities
+
+In addition to the standard entities, the system provides these optimized virtual entities for common HR analytics:
+
+**Virtual Entities (use like regular entities):**
+- active_candidates: candidates linked to vacancies with state OPEN
+- open_vacancies: vacancies with state OPEN  
+- closed_vacancies: vacancies with state CLOSED
+
+**Virtual Entity Usage:**
+Use these exactly like regular entities in your queries:
+
+```json
+{
+  "operation": "count",
+  "entity": "active_candidates"
+}
+```
+
+For charts with these entities, the system will automatically return optimized data with proper labels.
+
+# 4. Real account entities. Use exact id's to reference in JSON.
 
 **User's name:** 
 Игорь
@@ -182,12 +203,12 @@ id, applicant, vacancy, status_id, created, updated
 {dictionaries_list}
 
 
-#4. Your task
+#5. Your task
 - Provide one North-Star metric that reflects business value.
 - Optionally add up to two secondary metrics.
 - Visualise with a bar, line or scatter chart unless a table is clearly better.
 
-#5. Generation rules
+#6. Generation rules
 - Before generating any report, CHECK if all fields exist in the target entity from section #2.
 - Return one valid JSON object and nothing else.
 - Use the Report schema if the query is answerable; use Impossible schema otherwise.
@@ -195,14 +216,14 @@ id, applicant, vacancy, status_id, created, updated
 - If ANY field referenced in your query does not exist in the target entity, immediately return impossible_query format.
 - Do NOT attempt to generate reports with non-existent fields.
 
-#6 Allowed filter & grouping operators
+#7 Allowed filter & grouping operators
 
 Comparison: eq, ne, gt, lt, gte, lte
 Set: in, not_in
 Text: contains, icontains
 Date range: combine gte and lt on the same field (ISO-8601 UTC).
 
-#7. Report format
+#8. Report format
 
 {
   "report_title": "Short human-readable title",
@@ -242,18 +263,18 @@ Date range: combine gte and lt on the same field (ISO-8601 UTC).
   }
 }
 
-#8. Impossible format
+#9. Impossible format
 
 {
   "impossible_query": true,
   "reason": "<why>"
 }
 
-#9. Casing convention
+#10. Casing convention
 
 JSON keys use camelCase. Entity field names use snake_case.
 
-#10. Field validation examples
+#11. Field validation examples
 
 Before generating any report, CHECK if all fields exist in the target entity from section #2.
 
@@ -274,16 +295,11 @@ Query: "сколько у нас кандидатов сейчас в ворон
     "label": "Total Candidates in Pipeline",
     "value": {
       "operation": "count",
-      "entity": "applicant_links",
-      "filter": {
-        "field": "vacancy.state",
-        "op": "eq",
-        "value": "OPEN"
-      }
+      "entity": "active_candidates"
     }
   },
   "chart": {
-    "graph_description": "Distribution of candidates across pipeline stages in open vacancies",
+    "graph_description": "Distribution of active candidates across pipeline stages",
     "chart_type": "bar",
     "x_axis_name": "Pipeline Stage",
     "y_axis_name": "Number of Candidates",
@@ -293,12 +309,7 @@ Query: "сколько у нас кандидатов сейчас в ворон
     },
     "y_axis": {
       "operation": "count",
-      "entity": "applicant_links",
-      "filter": {
-        "field": "vacancy.state",
-        "op": "eq",
-        "value": "OPEN"
-      },
+      "entity": "active_candidates",
       "group_by": {
         "field": "status_id"
       }
@@ -313,18 +324,13 @@ Query: "сколько всего сейчас открытых вакансий
     "label": "Open Vacancies Count",
     "value": {
       "operation": "count",
-      "entity": "vacancies",
-      "filter": {
-        "field": "state",
-        "op": "eq",
-        "value": "OPEN"
-      }
+      "entity": "open_vacancies"
     }
   },
   "chart": {
-    "graph_description": "Number of open vacancies",
+    "graph_description": "Distribution of vacancies by state",
     "chart_type": "bar",
-    "x_axis_name": "Status",
+    "x_axis_name": "Vacancy State",
     "y_axis_name": "Count",
     "x_axis": {
       "operation": "field",
@@ -333,11 +339,6 @@ Query: "сколько всего сейчас открытых вакансий
     "y_axis": {
       "operation": "count",
       "entity": "vacancies",
-      "filter": {
-        "field": "state",
-        "op": "eq",
-        "value": "OPEN"
-      },
       "group_by": {
         "field": "state"
       }

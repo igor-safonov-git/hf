@@ -26,6 +26,10 @@ class SQLAlchemyHuntflowExecutor:
         
         print(f"🔧 SQLAlchemy executing: {operation} on {entity}")
         
+        # Check if this is a computed metric entity
+        if entity in ["active_candidates", "open_vacancies", "closed_vacancies", "get_recruiters", "active_statuses"]:
+            return await self._execute_computed_metric(entity, operation)
+        
         if operation == "count":
             return await self._execute_count_sql(entity, filter_expr)
         elif operation == "avg":
@@ -35,6 +39,30 @@ class SQLAlchemyHuntflowExecutor:
         else:
             print(f"⚠️ Unsupported operation: {operation}")
             return 0
+    
+    async def _execute_computed_metric(self, entity: str, operation: str) -> Union[int, float, List[Any]]:
+        """Execute computed metric as virtual entity"""
+        if operation == "count":
+            if entity == "active_candidates":
+                return await self.metrics.active_candidates()
+            elif entity == "open_vacancies":
+                return await self.metrics.open_vacancies()
+            elif entity == "closed_vacancies":
+                return await self.metrics.closed_vacancies()
+            elif entity == "get_recruiters":
+                recruiters = await self.metrics.get_recruiters()
+                return len(recruiters)
+            elif entity == "active_statuses":
+                statuses = await self.metrics.active_statuses()
+                return len(statuses)
+        elif operation == "field":
+            if entity == "get_recruiters":
+                return await self.metrics.get_recruiters()
+            elif entity == "active_statuses":
+                return await self.metrics.active_statuses()
+        
+        print(f"⚠️ Unsupported computed metric: {operation} on {entity}")
+        return 0
     
     async def _execute_count_sql(self, entity: str, filter_expr: Dict[str, Any]) -> int:
         """Execute count using SQL approach"""
@@ -165,7 +193,18 @@ class SQLAlchemyHuntflowExecutor:
             
             print(f"🔧 Executing grouped query: {operation} on {entity} grouped by {group_by_field}")
             
-            if entity == "applicants" and group_by_field == "status_id":
+            # Check for computed chart entities
+            if entity == "active_candidates" and group_by_field == "status_id":
+                return await self.metrics.active_candidates_by_status_chart()
+            elif entity == "vacancies" and group_by_field == "state":
+                return await self.metrics.vacancy_states_chart()
+            elif entity == "applicants" and group_by_field == "source_id":
+                return await self.metrics.applicants_by_source_chart()
+            elif entity == "recruiters" and group_by_field == "hirings":
+                return await self.metrics.recruiter_performance_chart()
+            
+            # Regular entity queries
+            elif entity == "applicants" and group_by_field == "status_id":
                 return await self._execute_applicants_by_status()
             elif entity == "applicants" and group_by_field == "source_id":
                 return await self._execute_applicants_by_source()
