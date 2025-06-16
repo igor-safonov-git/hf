@@ -3,7 +3,7 @@ SQLAlchemy-based Query Executor for Huntflow Analytics
 Replaces the complex huntflow_query_executor.py with clean SQL-like operations
 """
 from typing import Dict, Any, List, Union
-from huntflow_schema import HuntflowVirtualEngine, HuntflowQueryBuilder
+from virtual_engine import HuntflowVirtualEngine, HuntflowQueryBuilder
 from huntflow_metrics import HuntflowComputedMetrics, HuntflowMetricsHelper
 from sqlalchemy.sql import select, func
 import asyncio

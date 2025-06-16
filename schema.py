@@ -2,7 +2,7 @@
 Huntflow Virtual Table Schema Definitions
 Clean, isolated table structures mapping Huntflow API endpoints to SQL tables
 """
-from sqlalchemy import MetaData, Table, Column, Integer, String, DateTime, Boolean, Float
+from sqlalchemy import MetaData, Table, Column, Integer, String, DateTime, Boolean
 from typing import Dict
 
 

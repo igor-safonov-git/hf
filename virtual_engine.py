@@ -3,15 +3,14 @@ Huntflow Virtual Schema using SQLAlchemy Core
 Maps Huntflow API endpoints to virtual SQL tables
 """
 from sqlalchemy import MetaData
-from sqlalchemy.sql import select, func, and_, or_
+from sqlalchemy.sql import select, func
 from sqlalchemy.sql.visitors import traverse
 from sqlalchemy.sql.elements import BinaryExpression, BindParameter
 from sqlalchemy.sql.operators import eq, in_op, gt, lt, ge, le
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional
 import asyncio
 import logging
 import time
-from datetime import datetime
 
 # Import clean table schema definitions
 from schema import create_huntflow_tables
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Example logging configuration (users can customize):
 # logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
-# To see debug details: logging.getLogger('huntflow_schema').setLevel(logging.DEBUG)
+# To see debug details: logging.getLogger('virtual_engine').setLevel(logging.DEBUG)
 
 
 class TTLCache:
@@ -29,9 +28,9 @@ class TTLCache:
     
     def __init__(self, ttl_seconds: int = 300):  # 5 minutes default TTL
         self.ttl = ttl_seconds
-        self._data = {}
-        self._timestamps = {}
-        self._locks = {}  # Per-key locks to prevent duplicate API calls
+        self._data: Dict[str, Any] = {}
+        self._timestamps: Dict[str, float] = {}
+        self._locks: Dict[str, asyncio.Lock] = {}  # Per-key locks to prevent duplicate API calls
     
     def _is_expired(self, key: str) -> bool:
         """Check if cache entry is expired"""
@@ -74,7 +73,7 @@ class TTLCache:
                     return self._data[key]
                 raise
     
-    def invalidate(self, key: str = None):
+    def invalidate(self, key: Optional[str] = None):
         """Invalidate cache entry or entire cache"""
         if key:
             self._data.pop(key, None)
@@ -147,7 +146,7 @@ class HuntflowVirtualEngine:
     async def execute(self, query) -> List[Dict[str, Any]]:
         """Execute SQLAlchemy query by translating to API calls"""
         
-        # Generic table dispatch - eliminates 16 nearly identical methods
+        # Generic table dispatch with clean helper functions
         table_handlers = {
             'applicants': self._execute_applicants_query,
             'recruiters': self._execute_recruiters_query, 
@@ -214,7 +213,7 @@ class HuntflowVirtualEngine:
                     # Try to get the actual value
                     try:
                         value = right
-                    except:
+                    except Exception:
                         pass
                 
                 if column_name and value is not None:
@@ -244,7 +243,7 @@ class HuntflowVirtualEngine:
         logger.debug(f"Extracted filters from query: {filters}")
         return filters
     
-    async def fan_out(self, ids: List[int], fetch_fn, cache_key: Optional[str] = None, mapper=None) -> List[Dict[str, Any]]:
+    async def fan_out(self, ids: List[int], fetch_fn, cache_key: Optional[str] = None, mapper=None, extra_filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Generic helper to eliminate boilerplate in execute methods.
         
         Args:
@@ -252,6 +251,7 @@ class HuntflowVirtualEngine:
             fetch_fn: Async function that takes an ID and returns data for that entity
             cache_key: Optional cache key prefix for TTL caching
             mapper: Optional function to transform API response to schema format
+            extra_filters: Optional additional parameters to pass to fetch_fn
             
         Returns:
             Aggregated list of all results from fetch_fn calls
@@ -259,15 +259,28 @@ class HuntflowVirtualEngine:
         if not ids:
             return []
         
+        # Include extra_filters in cache key for uniqueness
+        cache_key_suffix = f"_{hash(str(sorted(ids)))}_{hash(str(extra_filters or {}))}"
+        
         # Use TTL cache if cache_key provided
         if cache_key:
-            cache_key_full = f"{cache_key}_{hash(str(sorted(ids)))}"
+            cache_key_full = f"{cache_key}{cache_key_suffix}"
             
             async def fetch_all():
                 results = []
                 for entity_id in ids:
                     try:
-                        data = await fetch_fn(entity_id)
+                        # Pass extra_filters if provided and fetch_fn accepts them
+                        if extra_filters:
+                            import inspect
+                            sig = inspect.signature(fetch_fn)
+                            if len(sig.parameters) > 1:  # More than just entity_id
+                                data = await fetch_fn(entity_id, **extra_filters)
+                            else:
+                                data = await fetch_fn(entity_id)
+                        else:
+                            data = await fetch_fn(entity_id)
+                            
                         if isinstance(data, list):
                             results.extend(data)
                         elif data:  # Single item
@@ -283,7 +296,17 @@ class HuntflowVirtualEngine:
             results = []
             for entity_id in ids:
                 try:
-                    data = await fetch_fn(entity_id)
+                    # Pass extra_filters if provided and fetch_fn accepts them
+                    if extra_filters:
+                        import inspect
+                        sig = inspect.signature(fetch_fn)
+                        if len(sig.parameters) > 1:  # More than just entity_id
+                            data = await fetch_fn(entity_id, **extra_filters)
+                        else:
+                            data = await fetch_fn(entity_id)
+                    else:
+                        data = await fetch_fn(entity_id)
+                        
                     if isinstance(data, list):
                         results.extend(data)
                     elif data:  # Single item
@@ -298,15 +321,36 @@ class HuntflowVirtualEngine:
         
         return results
     
+    def _collect_ids(self, sql_filters: Dict[str, Any], id_field: str) -> List[int]:
+        """Generic helper to extract ID list from SQL filters - eliminates DRY violation.
+        
+        Args:
+            sql_filters: Extracted SQL WHERE clause filters
+            id_field: Base field name (e.g., 'vacancy_id', 'applicant_id')
+            
+        Returns:
+            List of IDs to process, or empty list if none found
+        """
+        # Handle single ID or multiple IDs
+        single_id = sql_filters.get(id_field)
+        plural_ids = sql_filters.get(f"{id_field}s", [])
+        
+        if single_id:
+            return [single_id]
+        elif plural_ids:
+            return plural_ids
+        else:
+            return []
+    
     async def _get_all_vacancy_ids(self) -> List[int]:
         """Get all vacancy IDs for queries that don't specify vacancy_id"""
         vacancies_data = await self._execute_vacancies_query(None)
-        return [v.get('id') for v in vacancies_data if v.get('id')]
+        return [v['id'] for v in vacancies_data if v.get('id') is not None]
     
     async def _get_all_applicant_ids_simple(self) -> List[int]:
         """Get all applicant IDs - now much more efficient thanks to /applicants endpoint"""
         applicants_data = await self._get_applicants_data()
-        return [a.get('id') for a in applicants_data if a.get('id')]
+        return [a['id'] for a in applicants_data if a.get('id') is not None]
     
     async def _get_applicants_data(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """OPTIMAL ARCHITECTURAL FIX: Use /applicants endpoint with rich ApplicantItem data.
@@ -362,13 +406,12 @@ class HuntflowVirtualEngine:
         # 2. PROCESS THE RICH DATA (NO ADDITIONAL API CALLS NEEDED!)
         enriched_applicants = []
         status_map = await self._get_status_mapping()
-        recruiters_map = await self._get_recruiters_mapping()
         sources_map = await self._get_sources_mapping()
         
         for applicant in all_applicants:
             # The 'applicant' object is already the rich ApplicantItem model with links array!
             links = applicant.get('links', [])
-            latest_link = max(links, key=lambda x: x.get('updated', ''), default={})
+            latest_link: Dict[str, Any] = max(links, key=lambda x: x.get('updated', ''), default={})
             
             # Extract status data directly from the links array
             status_id = latest_link.get('status', 0)
@@ -652,8 +695,6 @@ class HuntflowVirtualEngine:
     
     async def _execute_recruiters_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute query against recruiters virtual table with optional filters"""
-        recruiters_map = await self._get_recruiters_mapping()
-        
         # Prepare parameters with filters from short-spec.md
         params = {}
         if filters:
@@ -780,8 +821,6 @@ class HuntflowVirtualEngine:
     
     async def _execute_tags_query(self, query) -> List[Dict[str, Any]]:
         """Execute query against applicant_tags virtual table"""
-        tags_map = await self._get_tags_mapping()
-        
         # Get full tag data from API
         result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/tags")
         
@@ -914,13 +953,9 @@ class HuntflowVirtualEngine:
         if filters:
             sql_filters.update(filters)
         
-        # Handle single applicant_id or multiple applicant_ids
-        applicant_id = sql_filters.get('applicant_id')
-        applicant_ids = sql_filters.get('applicant_ids', [])
-        
-        if applicant_id:
-            applicant_ids = [applicant_id]
-        elif not applicant_ids:
+        # Use generic helper to extract IDs - eliminates DRY violation
+        applicant_ids = self._collect_ids(sql_filters, 'applicant_id')
+        if not applicant_ids:
             return []
         
         # Use generic fan_out helper - eliminates boilerplate loop
@@ -937,27 +972,24 @@ class HuntflowVirtualEngine:
         if filters:
             sql_filters.update(filters)
         
-        # Handle single vacancy_id or multiple vacancy_ids
-        vacancy_id = sql_filters.get('vacancy_id')
-        vacancy_ids = sql_filters.get('vacancy_ids', [])
-        
-        if vacancy_id:
-            vacancy_ids = [vacancy_id]
-        elif not vacancy_ids:
+        # Use generic helper to extract IDs - eliminates DRY violation
+        vacancy_ids = self._collect_ids(sql_filters, 'vacancy_id')
+        if not vacancy_ids:
             return []
         
-        date_begin = sql_filters.get('date_begin')
-        date_end = sql_filters.get('date_end')
+        # Extract date filters for extra_filters
+        extra_filters = {}
+        if 'date_begin' in sql_filters:
+            extra_filters['date_begin'] = sql_filters['date_begin']
+        if 'date_end' in sql_filters:
+            extra_filters['date_end'] = sql_filters['date_end']
         
-        # Create closure to capture date parameters
-        async def fetch_logs_with_dates(vid):
-            return await self.get_vacancy_logs(vid, date_begin, date_end)
-        
-        # Use generic fan_out helper - eliminates boilerplate loop
+        # Use generic fan_out helper with extra_filters
         return await self.fan_out(
             ids=vacancy_ids,
-            fetch_fn=fetch_logs_with_dates,
-            cache_key="vacancy_logs"
+            fetch_fn=self.get_vacancy_logs,
+            cache_key="vacancy_logs",
+            extra_filters=extra_filters if extra_filters else None
         )
     
     # Enhanced methods for individual entity access
@@ -1040,15 +1072,12 @@ class HuntflowVirtualEngine:
         if filters:
             sql_filters.update(filters)
         
-        # Handle single vacancy_id or multiple vacancy_ids
-        vacancy_id = sql_filters.get('vacancy_id')
-        vacancy_ids = sql_filters.get('vacancy_ids', [])
-        
-        if vacancy_id:
-            vacancy_ids = [vacancy_id]
-        elif not vacancy_ids:
+        # Use generic helper to extract IDs - eliminates DRY violation
+        vacancy_ids = self._collect_ids(sql_filters, 'vacancy_id')
+        if not vacancy_ids:
             return []
         
+        # Handle date range with defaults
         date_begin = sql_filters.get('date_begin')
         date_end = sql_filters.get('date_end')
         
@@ -1060,15 +1089,12 @@ class HuntflowVirtualEngine:
             date_begin = start_date.strftime('%Y-%m-%d')
             date_end = end_date.strftime('%Y-%m-%d')
         
-        # Create closure to capture date parameters
-        async def fetch_periods_with_dates(vid):
-            return await self.get_vacancy_periods(vid, date_begin, date_end)
-        
-        # Use generic fan_out helper - eliminates boilerplate loop
+        # Use generic fan_out helper with extra_filters
         return await self.fan_out(
             ids=vacancy_ids,
-            fetch_fn=fetch_periods_with_dates,
-            cache_key="vacancy_periods"
+            fetch_fn=self.get_vacancy_periods,
+            cache_key="vacancy_periods",
+            extra_filters={'date_begin': date_begin, 'date_end': date_end}
         )
     
     async def get_vacancy_periods(self, vacancy_id: int, date_begin: str, date_end: str) -> List[Dict[str, Any]]:
@@ -1098,13 +1124,9 @@ class HuntflowVirtualEngine:
         if filters:
             sql_filters.update(filters)
         
-        # Handle single vacancy_id or multiple vacancy_ids
-        vacancy_id = sql_filters.get('vacancy_id')
-        vacancy_ids = sql_filters.get('vacancy_ids', [])
-        
-        if vacancy_id:
-            vacancy_ids = [vacancy_id]
-        elif not vacancy_ids:
+        # Use generic helper to extract IDs - eliminates DRY violation
+        vacancy_ids = self._collect_ids(sql_filters, 'vacancy_id')
+        if not vacancy_ids:
             return []
         
         # Use generic fan_out helper - eliminates boilerplate loop
@@ -1152,29 +1174,29 @@ class HuntflowVirtualEngine:
         if filters:
             sql_filters.update(filters)
         
-        # Handle single vacancy_id or multiple vacancy_ids
-        vacancy_id = sql_filters.get('vacancy_id')
-        vacancy_ids = sql_filters.get('vacancy_ids', [])
-        frame_id = sql_filters.get('frame_id')
-        
-        if vacancy_id:
-            vacancy_ids = [vacancy_id]
-        elif not vacancy_ids:
+        # Use generic helper to extract IDs - eliminates DRY violation
+        vacancy_ids = self._collect_ids(sql_filters, 'vacancy_id')
+        if not vacancy_ids:
             return []
         
-        # Create closure to handle frame_id parameter
-        async def fetch_quotas_conditional(vid):
-            if frame_id:
-                return await self.get_frame_quotas(vid, frame_id)
-            else:
-                return await self.get_vacancy_quotas(vid)
+        frame_id = sql_filters.get('frame_id')
         
-        # Use generic fan_out helper - eliminates boilerplate loop
-        return await self.fan_out(
-            ids=vacancy_ids,
-            fetch_fn=fetch_quotas_conditional,
-            cache_key="vacancy_quotas"
-        )
+        # Choose appropriate fetch function based on frame_id
+        if frame_id:
+            # Use frame-specific quotas with extra_filters
+            return await self.fan_out(
+                ids=vacancy_ids,
+                fetch_fn=self.get_frame_quotas,
+                cache_key="frame_quotas",
+                extra_filters={'frame_id': frame_id}
+            )
+        else:
+            # Use general vacancy quotas
+            return await self.fan_out(
+                ids=vacancy_ids,
+                fetch_fn=self.get_vacancy_quotas,
+                cache_key="vacancy_quotas"
+            )
     
     async def get_vacancy_quotas(self, vacancy_id: int, count: int = 100, page: int = 1) -> List[Dict[str, Any]]:
         """Get hiring quotas for a vacancy"""

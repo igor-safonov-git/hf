@@ -5,7 +5,7 @@ Pre-computed metrics that SQLAlchemy can understand and compute under the hood
 from sqlalchemy import func, and_, or_, select, case
 from sqlalchemy.sql import Select
 from typing import Dict, Any, List, Optional
-from huntflow_schema import HuntflowVirtualEngine
+from virtual_engine import HuntflowVirtualEngine
 
 class HuntflowComputedMetrics:
     """Ready-to-use metrics that the AI model can use when generating charts"""

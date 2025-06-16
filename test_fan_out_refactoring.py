@@ -9,7 +9,7 @@ from sqlalchemy import select
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-from huntflow_schema import HuntflowVirtualEngine
+from virtual_engine import HuntflowVirtualEngine
 from app import HuntflowClient
 
 

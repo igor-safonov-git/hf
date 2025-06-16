@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Import our modules
 from schema import create_huntflow_tables
-from huntflow_schema import HuntflowVirtualEngine
+from virtual_engine import HuntflowVirtualEngine
 from app import HuntflowClient
 
 
