@@ -9,6 +9,7 @@ from sqlalchemy.sql import select, func
 import asyncio
 import logging
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -219,8 +220,12 @@ class SQLAlchemyHuntflowExecutor:
         elif field == "company":
             # Get unique company values from vacancies
             vacancies_data = await self.engine._execute_vacancies_query(None)
-            companies = list(set(v.get('company', 'Unknown') for v in vacancies_data if v.get('company')))
-            return companies or ["Unknown"]
+            # Use thread pool for CPU-intensive unique extraction on large datasets
+            if len(vacancies_data) > 500:
+                logger.debug(f"Processing {len(vacancies_data)} vacancies for company extraction in thread pool")
+                return await asyncio.to_thread(self._extract_unique_companies_cpu, vacancies_data)
+            else:
+                return self._extract_unique_companies_cpu(vacancies_data)
         elif field == "divisions" or field == "account_division":
             divisions_map = await self.engine._get_divisions_mapping()
             return list(divisions_map.values())
@@ -230,10 +235,19 @@ class SQLAlchemyHuntflowExecutor:
         
         return []
     
-    def _build_chart_data(self, items: List[Dict[str, Any]], field: str, 
-                          mapping: Optional[Dict[str, Any]] = None, sort_by_count: bool = True, 
-                          limit: Optional[int] = None) -> Dict[str, Any]:
-        """Convert item counts by field into chart format"""
+    # ==================== CPU-BOUND OPERATIONS ====================
+    
+    @staticmethod
+    def _extract_unique_companies_cpu(vacancies_data: List[Dict[str, Any]]) -> List[str]:
+        """CPU-bound: Extract unique companies from vacancy data"""
+        companies = list(set(v.get('company', 'Unknown') for v in vacancies_data if v.get('company')))
+        return companies or ["Unknown"]
+    
+    @staticmethod
+    def _build_chart_data_cpu(items: List[Dict[str, Any]], field: str, 
+                             mapping: Optional[Dict[str, Any]] = None, sort_by_count: bool = True, 
+                             limit: Optional[int] = None) -> Dict[str, Any]:
+        """CPU-bound: Convert item counts by field into chart format"""
         # Count by field
         field_counts: Dict[Any, int] = {}
         for item in items:
@@ -269,6 +283,47 @@ class SQLAlchemyHuntflowExecutor:
         values = [item[1] for item in chart_items]
         
         return {"labels": labels, "values": values}
+    
+    @staticmethod
+    def _calculate_recruiter_stats_cpu(applicants_data: List[Dict[str, Any]], 
+                                     hired_status_ids: List[Any]) -> Dict[str, Any]:
+        """CPU-bound: Calculate recruiter performance statistics"""
+        # Filter hired applicants
+        hired_applicants = [app for app in applicants_data if app.get('status_id') in hired_status_ids]
+        
+        recruiter_stats = {}
+        for applicant in hired_applicants:
+            recruiter = applicant.get('recruiter_name', 'Unknown')
+            if recruiter and recruiter != 'Unknown':
+                if recruiter not in recruiter_stats:
+                    recruiter_stats[recruiter] = {'hires': 0}
+                recruiter_stats[recruiter]['hires'] += 1
+        
+        # Find top performer
+        if recruiter_stats:
+            top_recruiter = max(recruiter_stats.items(), key=lambda x: x[1]['hires'])
+            return {
+                "top_recruiter": top_recruiter[0],
+                "hires": top_recruiter[1]['hires'],
+                "all_stats": recruiter_stats
+            }
+        
+        return {"top_recruiter": "No Data", "hires": 0, "all_stats": {}}
+    
+    async def _build_chart_data(self, items: List[Dict[str, Any]], field: str, 
+                          mapping: Optional[Dict[str, Any]] = None, sort_by_count: bool = True, 
+                          limit: Optional[int] = None) -> Dict[str, Any]:
+        """Convert item counts by field into chart format (async wrapper for CPU-bound work)"""
+        # For small datasets, do it synchronously to avoid thread overhead
+        if len(items) < 1000:
+            return self._build_chart_data_cpu(items, field, mapping, sort_by_count, limit)
+        
+        # For large datasets, offload to thread pool to prevent blocking event loop
+        logger.debug(f"Processing large dataset ({len(items)} items) in thread pool")
+        return await asyncio.to_thread(
+            self._build_chart_data_cpu, 
+            items, field, mapping, sort_by_count, limit
+        )
 
     @handle_errors(default_return=0)
     async def _execute_applicant_links_count(self, filter_expr: FilterExpr) -> int:
@@ -535,23 +590,13 @@ class HuntflowAnalyticsTemplates:
         
         # Find hired status ID (assuming "Оффер принят" maps to a specific status ID)
         hired_status_ids = [sid for sid, status_info in status_mapping.items() if 'принят' in status_info.get('name', '').lower() or 'hired' in status_info.get('name', '').lower()]
-        hired_applicants = [app for app in applicants_data if app.get('status_id') in hired_status_ids]
         
-        recruiter_stats = {}
-        for applicant in hired_applicants:
-            recruiter = applicant.get('recruiter_name', 'Unknown')
-            if recruiter and recruiter != 'Unknown':
-                if recruiter not in recruiter_stats:
-                    recruiter_stats[recruiter] = {'hires': 0}
-                recruiter_stats[recruiter]['hires'] += 1
-        
-        # Find top performer
-        if recruiter_stats:
-            top_recruiter = max(recruiter_stats.items(), key=lambda x: x[1]['hires'])
-            return {
-                "top_recruiter": top_recruiter[0],
-                "hires": top_recruiter[1]['hires'],
-                "all_stats": recruiter_stats
-            }
-        
-        return {"top_recruiter": "No Data", "hires": 0, "all_stats": {}}
+        # Use thread pool for CPU-intensive recruiter stats calculation on large datasets
+        if len(applicants_data) > 1000:
+            logger.debug(f"Processing recruiter stats for {len(applicants_data)} applicants in thread pool")
+            return await asyncio.to_thread(
+                SQLAlchemyHuntflowExecutor._calculate_recruiter_stats_cpu,
+                applicants_data, hired_status_ids
+            )
+        else:
+            return SQLAlchemyHuntflowExecutor._calculate_recruiter_stats_cpu(applicants_data, hired_status_ids)
