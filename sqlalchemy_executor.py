@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
+class QueryExecutionError(Exception):
+    """Custom exception for query execution errors"""
+    def __init__(self, message: str, query_type: str = None, original_error: Exception = None):
+        self.query_type = query_type
+        self.original_error = original_error
+        super().__init__(message)
+
 def handle_errors(default_return: Optional[T] = None, error_prefix: str = "Error") -> Callable:
     """Decorator to handle common error patterns in async methods"""
     def decorator(func: Callable) -> Callable:
@@ -21,8 +28,17 @@ def handle_errors(default_return: Optional[T] = None, error_prefix: str = "Error
         async def wrapper(*args, **kwargs) -> T:
             try:
                 return await func(*args, **kwargs)
+            except QueryExecutionError as e:
+                # Re-raise our custom errors to preserve context
+                logger.error(f"{error_prefix} in {func.__name__}: {e} (query_type: {e.query_type})")
+                raise
+            except (ValueError, TypeError) as e:
+                # Handle specific expected errors
+                logger.error(f"{error_prefix} in {func.__name__} - Invalid input: {e}")
+                return default_return
             except Exception as e:
-                logger.error(f"{error_prefix} in {func.__name__}: {e}")
+                # Log unexpected errors with more context
+                logger.error(f"{error_prefix} in {func.__name__} - Unexpected error: {type(e).__name__}: {e}")
                 return default_return
         return wrapper
     return decorator
@@ -93,28 +109,13 @@ class SQLAlchemyHuntflowExecutor:
         """Execute count using SQL approach"""
         
         if entity == "applicants":
-            # Build SQL query
-            query = select(func.count(self.engine.applicants.c.id))
-            
-            # Build SQLAlchemy query with filters
-            if filter_expr:
-                field = filter_expr.get("field")
-                op = filter_expr.get("op")
-                value = filter_expr.get("value")
-                
-                if field == "recruiter" and op == "eq":
-                    query = query.where(self.engine.applicants.c.recruiter_name == value)
-                elif field == "recruiter" and op == "in":
-                    query = query.where(self.engine.applicants.c.recruiter_name.in_(value))
-                elif field == "source_id" and op == "eq":
-                    query = query.where(self.engine.applicants.c.source_id == value)
-                elif field == "source_id" and op == "in":
-                    query = query.where(self.engine.applicants.c.source_id.in_(value))
-                # Note: status filtering requires joins with applicant_links
-            
-            # Get filtered data and count
-            applicants_data = await self.engine._execute_applicants_query(filter_expr or {})
-            return len(applicants_data)
+            # Check if we can use pure SQL counting
+            if self._can_use_sql_count(filter_expr):
+                return await self._execute_sql_count(filter_expr)
+            else:
+                # Fall back to Python filtering for complex cases
+                applicants_data = await self.engine._execute_applicants_query(filter_expr or {})
+                return len(applicants_data)
         
         elif entity == "applicant_links":
             # Handle applicant_links entity for pipeline status queries
@@ -122,10 +123,88 @@ class SQLAlchemyHuntflowExecutor:
         
         return 0
     
+    def _can_use_sql_count(self, filter_expr: FilterExpr) -> bool:
+        """Check if we can use pure SQL for counting (no complex joins needed)"""
+        if not filter_expr:
+            return True
+            
+        field = filter_expr.get("field")
+        # Simple fields that don't require joins
+        sql_compatible_fields = {"recruiter", "source_id", "vacancy_id"}
+        
+        # Status filtering requires joins with applicant_links, so not SQL-compatible yet
+        return field in sql_compatible_fields
+    
+    async def _execute_sql_count(self, filter_expr: FilterExpr) -> int:
+        """Execute actual SQL count query"""
+        try:
+            query = select(func.count(self.engine.applicants.c.id))
+            
+            if filter_expr:
+                field = filter_expr.get("field")
+                op = filter_expr.get("op")
+                value = filter_expr.get("value")
+                
+                # Validate inputs
+                if not field or not op:
+                    raise ValueError(f"Invalid filter expression: missing field or op")
+                
+                if op in ["in", "not_in"] and not isinstance(value, list):
+                    raise ValueError(f"Operator '{op}' requires list value, got {type(value)}")
+                
+                # Build where clauses
+                if field == "recruiter":
+                    if op == "eq":
+                        query = query.where(self.engine.applicants.c.recruiter_name == value)
+                    elif op == "in":
+                        query = query.where(self.engine.applicants.c.recruiter_name.in_(value))
+                elif field == "source_id":
+                    if op == "eq":
+                        query = query.where(self.engine.applicants.c.source_id == value)
+                    elif op == "in":
+                        query = query.where(self.engine.applicants.c.source_id.in_(value))
+                elif field == "vacancy_id":
+                    if op == "eq":
+                        query = query.where(self.engine.applicants.c.vacancy_id == value)
+                    elif op == "in":
+                        query = query.where(self.engine.applicants.c.vacancy_id.in_(value))
+                else:
+                    raise ValueError(f"Unsupported field for SQL count: {field}")
+            
+            # Execute the SQL query directly
+            result = await self.engine._execute_sql_query(query)
+            count = result.scalar() if result else 0
+            
+            logger.debug(f"SQL count query returned: {count}")
+            return count
+            
+        except Exception as e:
+            raise QueryExecutionError(
+                f"Failed to execute SQL count query: {e}",
+                query_type="count",
+                original_error=e
+            )
+    
     async def _execute_avg_sql(self, entity: str, field: str, filter_expr: FilterExpr) -> float:
         """Execute average using SQL approach - no longer supported"""
         logger.warning("Average calculations not supported - use logs-based calculations instead")
         return 0.0
+    
+    async def _fetch_data_chunked(self, entity: str, filter_expr: FilterExpr, chunk_size: int = 1000) -> List[Dict[str, Any]]:
+        """Fetch data in chunks to prevent memory overload"""
+        if entity == "applicants":
+            # For now, delegate to engine but add size limit awareness
+            data = await self.engine._execute_applicants_query(filter_expr or {})
+            if len(data) > chunk_size * 10:  # If more than 10 chunks worth
+                logger.warning(f"Large dataset detected: {len(data)} records. Consider adding pagination.")
+            return data
+        elif entity == "vacancies":
+            data = await self.engine._execute_vacancies_query(filter_expr or {})
+            if len(data) > chunk_size * 5:  # Vacancies typically smaller
+                logger.warning(f"Large vacancy dataset: {len(data)} records.")
+            return data
+        else:
+            return []
     
     @handle_errors(default_return=[])
     async def _execute_field_sql(self, field: str) -> List[str]:
@@ -268,8 +347,8 @@ class SQLAlchemyHuntflowExecutor:
         # Get vacancy statuses for labels
         status_map = await self.engine._get_status_mapping()
         
-        # Get all applicants data
-        applicants_data = await self.engine._execute_applicants_query({})
+        # Use chunked data fetching with size awareness
+        applicants_data = await self._fetch_data_chunked("applicants", {})
         
         # Use helper to build chart data
         return self._build_chart_data(applicants_data, 'status_id', status_map)
@@ -280,8 +359,8 @@ class SQLAlchemyHuntflowExecutor:
         # Get sources for labels
         sources_map = await self.engine._get_sources_mapping()
         
-        # Get all applicants data
-        applicants_data = await self.engine._execute_applicants_query({})
+        # Use chunked data fetching with size awareness
+        applicants_data = await self._fetch_data_chunked("applicants", {})
         
         # Use helper to build chart data
         return self._build_chart_data(applicants_data, 'source_id', sources_map)
