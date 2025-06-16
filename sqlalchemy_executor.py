@@ -2,11 +2,36 @@
 SQLAlchemy-based Query Executor for Huntflow Analytics
 Replaces the complex huntflow_query_executor.py with clean SQL-like operations
 """
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, TypedDict, Literal, Callable, TypeVar, Optional
 from virtual_engine import HuntflowVirtualEngine, HuntflowQueryBuilder
 from huntflow_metrics import HuntflowComputedMetrics, HuntflowMetricsHelper
 from sqlalchemy.sql import select, func
 import asyncio
+import logging
+from functools import wraps
+
+logger = logging.getLogger(__name__)
+
+T = TypeVar('T')
+
+def handle_errors(default_return: Optional[T] = None, error_prefix: str = "Error") -> Callable:
+    """Decorator to handle common error patterns in async methods"""
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args, **kwargs) -> T:
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"{error_prefix} in {func.__name__}: {e}")
+                return default_return
+        return wrapper
+    return decorator
+
+class FilterExpr(TypedDict, total=False):
+    """Type definition for filter expressions"""
+    field: str
+    op: Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
+    value: Union[str, int, List[Union[str, int]]]
 
 class SQLAlchemyHuntflowExecutor:
     """Execute analytics expressions using SQLAlchemy virtual tables"""
@@ -17,14 +42,14 @@ class SQLAlchemyHuntflowExecutor:
         self.metrics = HuntflowComputedMetrics(self.engine)
         self.metrics_helper = HuntflowMetricsHelper(self)
     
-    async def execute_expression(self, expression: Dict[str, Any]) -> Union[int, float, List[Any]]:
+    async def execute_expression(self, expression: Dict[str, Any]) -> Union[int, List[str]]:
         """Execute analytics expression using SQL approach"""
         operation = expression.get("operation", "")
         entity = expression.get("entity", "")
         field = expression.get("field")
         filter_expr = expression.get("filter", {})
         
-        print(f"🔧 SQLAlchemy executing: {operation} on {entity}")
+        logger.info(f"Executing {operation} on {entity}")
         
         # Check if this is a computed metric entity
         if entity in ["active_candidates", "open_vacancies", "closed_vacancies", "get_recruiters", "active_statuses"]:
@@ -37,10 +62,10 @@ class SQLAlchemyHuntflowExecutor:
         elif operation == "field":
             return await self._execute_field_sql(field)
         else:
-            print(f"⚠️ Unsupported operation: {operation}")
+            logger.warning(f"Unsupported operation: {operation}")
             return 0
     
-    async def _execute_computed_metric(self, entity: str, operation: str) -> Union[int, float, List[Any]]:
+    async def _execute_computed_metric(self, entity: str, operation: str) -> Union[int, List[str]]:
         """Execute computed metric as virtual entity"""
         if operation == "count":
             if entity == "active_candidates":
@@ -61,48 +86,35 @@ class SQLAlchemyHuntflowExecutor:
             elif entity == "active_statuses":
                 return await self.metrics.active_statuses()
         
-        print(f"⚠️ Unsupported computed metric: {operation} on {entity}")
+        logger.warning(f"Unsupported computed metric: {operation} on {entity}")
         return 0
     
-    async def _execute_count_sql(self, entity: str, filter_expr: Dict[str, Any]) -> int:
+    async def _execute_count_sql(self, entity: str, filter_expr: FilterExpr) -> int:
         """Execute count using SQL approach"""
         
         if entity == "applicants":
             # Build SQL query
             query = select(func.count(self.engine.applicants.c.id))
             
-            # Apply filters
+            # Build SQLAlchemy query with filters
             if filter_expr:
                 field = filter_expr.get("field")
                 op = filter_expr.get("op")
                 value = filter_expr.get("value")
                 
-                if field == "status" and op == "eq":
-                    # Status information now comes from applicant_links table
-                    # For now, skip status filtering since it requires joins
-                    pass
-                elif field == "recruiter" and op == "eq":
+                if field == "recruiter" and op == "eq":
                     query = query.where(self.engine.applicants.c.recruiter_name == value)
+                elif field == "recruiter" and op == "in":
+                    query = query.where(self.engine.applicants.c.recruiter_name.in_(value))
+                elif field == "source_id" and op == "eq":
+                    query = query.where(self.engine.applicants.c.source_id == value)
+                elif field == "source_id" and op == "in":
+                    query = query.where(self.engine.applicants.c.source_id.in_(value))
+                # Note: status filtering requires joins with applicant_links
             
-            # Execute query (simplified - would need full SQL parser for complex queries)
-            applicants_data = await self.engine._get_applicants_data()
-            
-            # Apply filter manually for now
-            if not filter_expr:
-                return len(applicants_data)
-            
-            field = filter_expr.get("field")
-            op = filter_expr.get("op")
-            value = filter_expr.get("value")
-            
-            if field == "status" and op == "eq":
-                # Status information now comes from applicant_links table
-                # For now, return total count since status filtering requires joins
-                return len(applicants_data)
-            elif field == "recruiter" and op == "eq":
-                return len([a for a in applicants_data if a['recruiter_name'] == value])
-            else:
-                return len(applicants_data)
+            # Get filtered data and count
+            applicants_data = await self.engine._execute_applicants_query(filter_expr or {})
+            return len(applicants_data)
         
         elif entity == "applicant_links":
             # Handle applicant_links entity for pipeline status queries
@@ -110,14 +122,12 @@ class SQLAlchemyHuntflowExecutor:
         
         return 0
     
-    async def _execute_avg_sql(self, entity: str, field: str, filter_expr: Dict[str, Any]) -> float:
-        """Execute average using SQL approach"""
-        
-        # time_to_hire_days field has been removed from schema per CLAUDE.md
-        # All time calculations must now be done via logs parsing
-        print(f"⚠️ Field '{field}' no longer supported in schema. Use logs-based calculations instead.")
+    async def _execute_avg_sql(self, entity: str, field: str, filter_expr: FilterExpr) -> float:
+        """Execute average using SQL approach - no longer supported"""
+        logger.warning("Average calculations not supported - use logs-based calculations instead")
         return 0.0
     
+    @handle_errors(default_return=[])
     async def _execute_field_sql(self, field: str) -> List[str]:
         """Execute field extraction using SQL approach"""
         
@@ -141,217 +151,184 @@ class SQLAlchemyHuntflowExecutor:
         
         return []
     
-    async def _execute_applicant_links_count(self, filter_expr: Dict[str, Any]) -> int:
+    def _build_chart_data(self, items: List[Dict[str, Any]], field: str, 
+                          mapping: Optional[Dict[str, Any]] = None, sort_by_count: bool = True, 
+                          limit: Optional[int] = None) -> Dict[str, Any]:
+        """Convert item counts by field into chart format"""
+        # Count by field
+        field_counts: Dict[Any, int] = {}
+        for item in items:
+            field_value = item.get(field, 'Unknown')
+            # Convert None to 'Unknown' as well
+            if field_value is None:
+                field_value = 'Unknown'
+            field_counts[field_value] = field_counts.get(field_value, 0) + 1
+        
+        # Convert to chart format with mapping
+        chart_items = []
+        for field_id, count in field_counts.items():
+            if mapping and field_id != 'Unknown':
+                if isinstance(mapping.get(field_id), dict):
+                    # Handle mapping values that are dicts (like status objects)
+                    field_name = mapping.get(field_id, {}).get('name', f"{field} {field_id}")
+                else:
+                    # Handle mapping values that are strings
+                    field_name = mapping.get(field_id, f"{field} {field_id}")
+            else:
+                field_name = str(field_id) if field_id != 'Unknown' else "Unknown"
+            
+            chart_items.append((field_name, count))
+        
+        # Sort and limit if specified
+        if sort_by_count:
+            chart_items.sort(key=lambda x: x[1], reverse=True)
+        
+        if limit:
+            chart_items = chart_items[:limit]
+        
+        labels = [item[0] for item in chart_items]
+        values = [item[1] for item in chart_items]
+        
+        return {"labels": labels, "values": values}
+
+    @handle_errors(default_return=0)
+    async def _execute_applicant_links_count(self, filter_expr: FilterExpr) -> int:
         """Execute count on applicant_links with filtering"""
-        try:
-            # Get all applicants with their links
-            applicants_data = await self.engine._get_applicants_data()
-            
-            # Extract all links and apply filters
-            all_links = []
-            for applicant in applicants_data:
-                # Check if applicant has status_id (from enriched individual calls)
-                if 'status_id' in applicant and applicant['status_id']:
-                    # Create synthetic link from enriched applicant data
-                    synthetic_link = {
-                        'id': f"synthetic_{applicant['id']}",
-                        'applicant': applicant['id'],
-                        'status_id': applicant['status_id'],
-                        'vacancy': applicant.get('vacancy_id', 0)
-                    }
-                    all_links.append(synthetic_link)
-            
-            # Apply filters
-            if not filter_expr:
-                return len(all_links)
-            
-            field = filter_expr.get("field")
-            op = filter_expr.get("op")
-            value = filter_expr.get("value")
-            
-            if field == "vacancy.state" and op == "eq" and value == "OPEN":
-                # Filter to only links connected to open vacancies
-                open_vacancies = await self.engine._execute_vacancies_query(None)
-                open_vacancy_ids = {v['id'] for v in open_vacancies if v.get('state') == 'OPEN'}
-                
-                filtered_links = [link for link in all_links if link.get('vacancy') in open_vacancy_ids]
-                return len(filtered_links)
-            
+        # Get all applicants with their links
+        applicants_data = await self.engine._get_applicants_data()
+        
+        # Extract all links and apply filters
+        all_links = []
+        for applicant in applicants_data:
+            # Check if applicant has status_id (from enriched individual calls)
+            if 'status_id' in applicant and applicant['status_id']:
+                # Create synthetic link from enriched applicant data
+                synthetic_link = {
+                    'id': f"synthetic_{applicant['id']}",
+                    'applicant': applicant['id'],
+                    'status_id': applicant['status_id'],
+                    'vacancy': applicant.get('vacancy_id', 0)
+                }
+                all_links.append(synthetic_link)
+        
+        # Apply filters
+        if not filter_expr:
             return len(all_links)
+        
+        field = filter_expr.get("field")
+        op = filter_expr.get("op")
+        value = filter_expr.get("value")
+        
+        if field == "vacancy.state" and op == "eq" and value == "OPEN":
+            # Filter to only links connected to open vacancies
+            open_vacancies = await self.engine._execute_vacancies_query(None)
+            open_vacancy_ids = {v['id'] for v in open_vacancies if v.get('state') == 'OPEN'}
             
-        except Exception as e:
-            print(f"❌ Error in applicant_links count: {e}")
-            return 0
+            filtered_links = [link for link in all_links if link.get('vacancy') in open_vacancy_ids]
+            return len(filtered_links)
+        
+        return len(all_links)
     
+    @handle_errors(default_return={"labels": [], "values": []})
     async def execute_grouped_query(self, query_spec: Dict[str, Any]) -> Dict[str, Any]:
         """Execute grouped query for chart data"""
-        try:
-            operation = query_spec.get("operation", "count")
-            entity = query_spec.get("entity", "")
-            group_by_field = query_spec.get("group_by", {}).get("field", "")
-            filter_expr = query_spec.get("filter", {})
-            
-            print(f"🔧 Executing grouped query: {operation} on {entity} grouped by {group_by_field}")
-            
-            # Check for computed chart entities
-            if entity == "active_candidates" and group_by_field == "status_id":
-                return await self.metrics.active_candidates_by_status_chart()
-            elif entity == "vacancies" and group_by_field == "state":
-                return await self.metrics.vacancy_states_chart()
-            elif entity == "applicants" and group_by_field == "source_id":
-                return await self.metrics.applicants_by_source_chart()
-            elif entity == "recruiters" and group_by_field == "hirings":
-                return await self.metrics.recruiter_performance_chart()
-            
-            # Regular entity queries
-            elif entity == "applicants" and group_by_field == "status_id":
-                return await self._execute_applicants_by_status()
-            elif entity == "applicants" and group_by_field == "source_id":
-                return await self._execute_applicants_by_source()
-            elif entity == "applicant_links" and group_by_field == "status_id":
-                return await self._execute_applicant_links_by_status(filter_expr)
-            elif entity == "vacancies" and group_by_field == "state":
-                return await self._execute_vacancies_by_state()
-            else:
-                print(f"⚠️ Unsupported grouped query: {entity} by {group_by_field}")
-                return {"labels": [], "values": []}
-                
-        except Exception as e:
-            print(f"❌ Error in grouped query: {e}")
+        operation = query_spec.get("operation", "count")
+        entity = query_spec.get("entity", "")
+        group_by_field = query_spec.get("group_by", {}).get("field", "")
+        filter_expr = query_spec.get("filter", {})
+        
+        logger.info(f"Executing grouped query: {operation} on {entity} grouped by {group_by_field}")
+        
+        # Check for computed chart entities
+        if entity == "active_candidates" and group_by_field == "status_id":
+            return await self.metrics.active_candidates_by_status_chart()
+        elif entity == "vacancies" and group_by_field == "state":
+            return await self.metrics.vacancy_states_chart()
+        elif entity == "applicants" and group_by_field == "source_id":
+            return await self.metrics.applicants_by_source_chart()
+        elif entity == "recruiters" and group_by_field == "hirings":
+            return await self.metrics.recruiter_performance_chart()
+        
+        # Regular entity queries
+        elif entity == "applicants" and group_by_field == "status_id":
+            return await self._execute_applicants_by_status()
+        elif entity == "applicants" and group_by_field == "source_id":
+            return await self._execute_applicants_by_source()
+        elif entity == "applicant_links" and group_by_field == "status_id":
+            return await self._execute_applicant_links_by_status(filter_expr)
+        elif entity == "vacancies" and group_by_field == "state":
+            return await self._execute_vacancies_by_state()
+        else:
+            logger.warning(f"Unsupported grouped query: {entity} by {group_by_field}")
             return {"labels": [], "values": []}
     
+    @handle_errors(default_return={"labels": [], "values": []})
     async def _execute_applicants_by_status(self) -> Dict[str, Any]:
         """Get applicant counts by status"""
-        try:
-            # Get vacancy statuses for labels
-            status_map = await self.engine._get_status_mapping()
-            
-            # Get all applicants data
-            applicants_data = await self.engine._execute_applicants_query({})
-            
-            # Count by status_id (using virtual field from schema)
-            status_counts = {}
-            for applicant in applicants_data:
-                status_id = applicant.get('status_id', 'Unknown')
-                status_counts[status_id] = status_counts.get(status_id, 0) + 1
-            
-            # Convert to chart format
-            labels = []
-            values = []
-            for status_id, count in status_counts.items():
-                status_name = status_map.get(status_id, f"Status {status_id}")
-                labels.append(status_name)
-                values.append(count)
-            
-            return {"labels": labels, "values": values}
-            
-        except Exception as e:
-            print(f"❌ Error getting applicants by status: {e}")
-            return {"labels": [], "values": []}
+        # Get vacancy statuses for labels
+        status_map = await self.engine._get_status_mapping()
+        
+        # Get all applicants data
+        applicants_data = await self.engine._execute_applicants_query({})
+        
+        # Use helper to build chart data
+        return self._build_chart_data(applicants_data, 'status_id', status_map)
     
+    @handle_errors(default_return={"labels": [], "values": []})
     async def _execute_applicants_by_source(self) -> Dict[str, Any]:
         """Get applicant counts by source"""
-        try:
-            # Get sources for labels
-            sources_map = await self.engine._get_sources_mapping()
-            
-            # Get all applicants data
-            applicants_data = await self.engine._execute_applicants_query({})
-            
-            # Count by source_id
-            source_counts = {}
-            for applicant in applicants_data:
-                source_id = applicant.get('source_id', 'Unknown')
-                source_counts[source_id] = source_counts.get(source_id, 0) + 1
-            
-            # Convert to chart format
-            labels = []
-            values = []
-            for source_id, count in source_counts.items():
-                source_name = sources_map.get(source_id, f"Source {source_id}")
-                labels.append(source_name)
-                values.append(count)
-            
-            return {"labels": labels, "values": values}
-            
-        except Exception as e:
-            print(f"❌ Error getting applicants by source: {e}")
-            return {"labels": [], "values": []}
+        # Get sources for labels
+        sources_map = await self.engine._get_sources_mapping()
+        
+        # Get all applicants data
+        applicants_data = await self.engine._execute_applicants_query({})
+        
+        # Use helper to build chart data
+        return self._build_chart_data(applicants_data, 'source_id', sources_map)
     
-    async def _execute_applicant_links_by_status(self, filter_expr: Dict[str, Any]) -> Dict[str, Any]:
+    @handle_errors(default_return={"labels": [], "values": []})
+    async def _execute_applicant_links_by_status(self, filter_expr: FilterExpr) -> Dict[str, Any]:
         """Get applicant link counts by status (for pipeline analysis)"""
-        try:
-            # Get vacancy statuses for labels
-            status_map = await self.engine._get_status_mapping()
+        # Get vacancy statuses for labels
+        status_map = await self.engine._get_status_mapping()
+        
+        # Get all applicants with their links/status info
+        applicants_data = await self.engine._get_applicants_data()
+        
+        # Extract links and apply filters
+        all_links = []
+        for applicant in applicants_data:
+            if 'status_id' in applicant and applicant['status_id']:
+                synthetic_link = {
+                    'status_id': applicant['status_id'],
+                    'vacancy_id': applicant.get('vacancy_id', 0)
+                }
+                all_links.append(synthetic_link)
+        
+        # Apply vacancy.state = "OPEN" filter if specified
+        if filter_expr and filter_expr.get("field") == "vacancy.state" and filter_expr.get("value") == "OPEN":
+            # Get open vacancy IDs
+            open_vacancies = await self.engine._execute_vacancies_query(None)
+            open_vacancy_ids = {v['id'] for v in open_vacancies if v.get('state') == 'OPEN'}
             
-            # Get all applicants with their links/status info
-            applicants_data = await self.engine._get_applicants_data()
-            
-            # Extract links and apply filters
-            all_links = []
-            for applicant in applicants_data:
-                if 'status_id' in applicant and applicant['status_id']:
-                    synthetic_link = {
-                        'status_id': applicant['status_id'],
-                        'vacancy_id': applicant.get('vacancy_id', 0)
-                    }
-                    all_links.append(synthetic_link)
-            
-            # Apply vacancy.state = "OPEN" filter if specified
-            if filter_expr and filter_expr.get("field") == "vacancy.state" and filter_expr.get("value") == "OPEN":
-                # Get open vacancy IDs
-                open_vacancies = await self.engine._execute_vacancies_query(None)
-                open_vacancy_ids = {v['id'] for v in open_vacancies if v.get('state') == 'OPEN'}
-                
-                # Filter links to only those connected to open vacancies
-                all_links = [link for link in all_links if link.get('vacancy_id') in open_vacancy_ids]
-                print(f"🎯 Filtered to {len(all_links)} links from open vacancies")
-            
-            # Count by status_id
-            status_counts = {}
-            for link in all_links:
-                status_id = link.get('status_id', 'Unknown')
-                status_counts[status_id] = status_counts.get(status_id, 0) + 1
-            
-            # Convert to chart format using status names instead of raw status objects
-            labels = []
-            values = []
-            for status_id, count in status_counts.items():
-                if status_id == 'Unknown':
-                    labels.append("Status Unknown")
-                else:
-                    status_info = status_map.get(status_id, {'name': f'Status {status_id}'})
-                    labels.append(status_info.get('name', f'Status {status_id}'))
-                values.append(count)
-            
-            print(f"📊 Pipeline status distribution: {dict(zip(labels, values))}")
-            return {"labels": labels, "values": values}
-            
-        except Exception as e:
-            print(f"❌ Error getting applicant links by status: {e}")
-            return {"labels": [], "values": []}
+            # Filter links to only those connected to open vacancies
+            all_links = [link for link in all_links if link.get('vacancy_id') in open_vacancy_ids]
+            logger.debug(f"Filtered to {len(all_links)} links from open vacancies")
+        
+        # Use helper to build chart data
+        chart_data = self._build_chart_data(all_links, 'status_id', status_map)
+        
+        logger.debug(f"Pipeline status distribution: {dict(zip(chart_data['labels'], chart_data['values']))}")
+        return chart_data
     
+    @handle_errors(default_return={"labels": [], "values": []})
     async def _execute_vacancies_by_state(self) -> Dict[str, Any]:
         """Get vacancy counts by state"""
-        try:
-            # Get all vacancies data
-            vacancies_data = await self.engine._execute_vacancies_query({})
-            
-            # Count by state
-            state_counts = {}
-            for vacancy in vacancies_data:
-                state = vacancy.get('state', 'Unknown')
-                state_counts[state] = state_counts.get(state, 0) + 1
-            
-            # Convert to chart format
-            labels = list(state_counts.keys())
-            values = list(state_counts.values())
-            
-            return {"labels": labels, "values": values}
-            
-        except Exception as e:
-            print(f"❌ Error getting vacancies by state: {e}")
-            return {"labels": [], "values": []}
+        # Get all vacancies data
+        vacancies_data = await self.engine._execute_vacancies_query({})
+        
+        # Use helper to build chart data (no mapping needed for state)
+        return self._build_chart_data(vacancies_data, 'state')
     
     async def execute_chart_data(self, chart_spec: Dict[str, Any]) -> Dict[str, Any]:
         """Execute chart data generation using SQL approach"""
@@ -371,6 +348,7 @@ class SQLAlchemyHuntflowExecutor:
         
         return {"labels": [], "values": []}
     
+    @handle_errors(default_return={"labels": [], "values": []})
     async def _status_chart_sql(self) -> Dict[str, Any]:
         """Generate status distribution chart using SQL approach"""
         
@@ -379,78 +357,53 @@ class SQLAlchemyHuntflowExecutor:
         applicants_data = await self.engine._get_applicants_data()
         status_mapping = await self.engine._get_status_mapping()
         
-        status_counts = {}
-        for applicant in applicants_data:
-            if 'status_id' in applicant and applicant['status_id']:
-                status_id = applicant['status_id']
-                status_info = status_mapping.get(status_id, {'name': f'Status {status_id}'})
-                status_name = status_info.get('name', f'Status {status_id}')
-                status_counts[status_name] = status_counts.get(status_name, 0) + 1
+        # Filter to only applicants with status info
+        applicants_with_status = [app for app in applicants_data if 'status_id' in app and app['status_id']]
         
-        # Sort by count
-        sorted_statuses = sorted(status_counts.items(), key=lambda x: x[1], reverse=True)
+        # Use helper to build chart data
+        chart_data = self._build_chart_data(applicants_with_status, 'status_id', status_mapping)
         
-        labels = [status for status, count in sorted_statuses]
-        values = [count for status, count in sorted_statuses]
+        logger.debug(f"Status chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
         
-        print(f"📊 SQLAlchemy status chart: {dict(zip(labels, values))}")
-        
-        return {"labels": labels, "values": values}
+        return chart_data
     
+    @handle_errors(default_return={"labels": [], "values": []})
     async def _recruiter_chart_sql(self, y_axis_spec: Dict[str, Any]) -> Dict[str, Any]:
         """Generate recruiter performance chart using SQL approach"""
         
         applicants_data = await self.engine._get_applicants_data()
         
-        # Apply filter if specified
-        filtered_data = applicants_data
-        if y_axis_spec.get("filter"):
-            filter_field = y_axis_spec["filter"].get("field")
-            filter_value = y_axis_spec["filter"].get("value")
-            
-            if filter_field == "status":
-                # Status information now comes from applicant_links table
-                # For now, skip status filtering since it requires joins
-                filtered_data = applicants_data
+        # Build base query with filters from y_axis_spec
+        filter_expr = y_axis_spec.get("filter", {})
+        applicants_data = await self.engine._execute_applicants_query(filter_expr)
         
-        # Group by recruiter
-        recruiter_counts = {}
-        for applicant in filtered_data:
-            recruiter = applicant['recruiter_name']
-            if recruiter and recruiter != 'Unknown':
-                recruiter_counts[recruiter] = recruiter_counts.get(recruiter, 0) + 1
+        # Filter out unknown recruiters
+        valid_applicants = [app for app in applicants_data if app.get('recruiter_name') and app.get('recruiter_name') != 'Unknown']
         
-        # Sort by count
-        sorted_recruiters = sorted(recruiter_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        # Use helper to build chart data with limit
+        chart_data = self._build_chart_data(valid_applicants, 'recruiter_name', limit=5)
         
-        labels = [recruiter for recruiter, count in sorted_recruiters]
-        values = [count for recruiter, count in sorted_recruiters]
+        logger.debug(f"Recruiter chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
         
-        print(f"📊 SQLAlchemy recruiter chart: {dict(zip(labels, values))}")
-        
-        return {"labels": labels, "values": values}
+        return chart_data
     
+    @handle_errors(default_return={"labels": [], "values": []})
     async def _company_chart_sql(self) -> Dict[str, Any]:
         """Generate company distribution chart using SQL approach"""
         
         vacancies_data = await self.engine._execute_vacancies_query(None)
         
-        company_counts = {}
-        for vacancy in vacancies_data:
-            company = vacancy.get('company', 'Unknown')
-            if company:
-                company_counts[company] = company_counts.get(company, 0) + 1
+        # Filter out vacancies without company
+        valid_vacancies = [vac for vac in vacancies_data if vac.get('company')]
         
-        # Sort by count
-        sorted_companies = sorted(company_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        # Use helper to build chart data with limit
+        chart_data = self._build_chart_data(valid_vacancies, 'company', limit=10)
         
-        labels = [company for company, count in sorted_companies]
-        values = [count for company, count in sorted_companies]
+        logger.debug(f"Company chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
         
-        print(f"📊 SQLAlchemy company chart: {dict(zip(labels, values))}")
-        
-        return {"labels": labels, "values": values}
+        return chart_data
     
+    @handle_errors(default_return={"labels": [], "values": []})
     async def _divisions_chart_sql(self) -> Dict[str, Any]:
         """Generate divisions distribution chart using SQL approach"""
         
@@ -460,13 +413,13 @@ class SQLAlchemyHuntflowExecutor:
         labels = list(divisions_map.values())[:10]  # Top 10 divisions
         values = [1] * len(labels)  # Placeholder counts
         
-        print(f"📊 SQLAlchemy divisions chart: {dict(zip(labels, values))}")
+        logger.debug(f"Divisions chart data: {dict(zip(labels, values))}")
         
         return {"labels": labels, "values": values}
     
     # ==================== READY-TO-USE METRICS ====================
     
-    async def get_ready_metric(self, metric_name: str, **kwargs) -> Union[int, float, List[Any], Dict[str, Any]]:
+    async def get_ready_metric(self, metric_name: str, **kwargs) -> Union[int, List[str], Dict[str, Any]]:
         """Execute ready-to-use metrics"""
         return await self.metrics_helper.execute_metric(metric_name, **kwargs)
     
@@ -510,16 +463,8 @@ class HuntflowAnalyticsTemplates:
             recruiter = applicant.get('recruiter_name', 'Unknown')
             if recruiter and recruiter != 'Unknown':
                 if recruiter not in recruiter_stats:
-                    recruiter_stats[recruiter] = {'hires': 0, 'times': []}
+                    recruiter_stats[recruiter] = {'hires': 0}
                 recruiter_stats[recruiter]['hires'] += 1
-                
-                # Note: time_to_hire_days removed from schema per CLAUDE.md
-                # Time calculations would be done via log parsing if implemented
-                pass
-        
-        # Note: avg_time calculation removed since time_to_hire_days field removed
-        for recruiter in recruiter_stats:
-            recruiter_stats[recruiter]['avg_time'] = 0  # Placeholder
         
         # Find top performer
         if recruiter_stats:
@@ -527,8 +472,7 @@ class HuntflowAnalyticsTemplates:
             return {
                 "top_recruiter": top_recruiter[0],
                 "hires": top_recruiter[1]['hires'],
-                "avg_time": top_recruiter[1]['avg_time'],
                 "all_stats": recruiter_stats
             }
         
-        return {"top_recruiter": "No Data", "hires": 0, "avg_time": 0, "all_stats": {}}
+        return {"top_recruiter": "No Data", "hires": 0, "all_stats": {}}
