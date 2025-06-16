@@ -1,4 +1,89 @@
-You are an HR-analytics expert with full knowledge of Huntflow API's entities and data structure.
+"""
+HR Analytics Prompt for Huntflow Integration
+This module contains the unified prompt used for both OpenAI and DeepSeek models
+to generate HR analytics reports from Huntflow API data.
+"""
+
+from typing import Optional
+
+def get_unified_prompt(huntflow_context: Optional[dict] = None) -> str:
+    """
+    Get unified HR analytics prompt for both OpenAI and DeepSeek.
+    
+    Args:
+        huntflow_context: Dictionary containing real Huntflow data to inject into prompt
+        
+    Returns:
+        str: Complete prompt with injected real data
+    """
+    
+    if huntflow_context is None:
+        huntflow_context = {}
+    
+    # Inject real Huntflow data into prompt
+    context_section = ""
+    if huntflow_context.get("last_updated"):
+        statuses_list = chr(10).join([f"  - {s['name']} (ID: {s['id']})" for s in huntflow_context.get('vacancy_statuses', [])])
+        sources_list = chr(10).join([f"  - {source}" for source in huntflow_context.get('sources', [])])
+        
+        # Prepare all entity lists with IDs
+        tags_list = chr(10).join([f"  - {t['name']} (ID: {t['id']})" for t in huntflow_context.get('tags', [])])
+        divisions_list = chr(10).join([f"  - {d['name']} (ID: {d['id']})" for d in huntflow_context.get('divisions', [])])
+        coworkers_list = chr(10).join([f"  - {c['name']} (ID: {c['id']})" for c in huntflow_context.get('coworkers', [])])
+        orgs_list = chr(10).join([f"  - {o['name']} (ID: {o['id']})" for o in huntflow_context.get('organizations', [])])
+        fields_list = chr(10).join([f"  - {f['name']} (ID: {f['id']}, Type: {f['type']})" for f in huntflow_context.get('additional_fields', [])])
+        rejection_list = chr(10).join([f"  - {r['name']} (ID: {r['id']})" for r in huntflow_context.get('rejection_reasons', [])])
+        dictionaries_list = chr(10).join([f"  - {d['name']} (Code: {d['code']})" for d in huntflow_context.get('dictionaries', [])])
+        
+        context_section = f"""
+
+⸻
+
+REAL HUNTFLOW ACCOUNT DATA (Use these EXACT names and IDs for accurate responses):
+
+• VACANCY STATUSES ({len(huntflow_context.get('vacancy_statuses', []))} total):
+{statuses_list}
+
+• SOURCES ({len(huntflow_context.get('sources', []))} total):
+{sources_list}
+
+• TAGS ({len(huntflow_context.get('tags', []))} total):
+{tags_list}
+
+• DIVISIONS ({len(huntflow_context.get('divisions', []))} total):
+{divisions_list}
+
+• COWORKERS/RECRUITERS ({len(huntflow_context.get('coworkers', []))} total):
+{coworkers_list}
+
+• ORGANIZATIONS ({len(huntflow_context.get('organizations', []))} total):
+{orgs_list}
+
+• ADDITIONAL VACANCY FIELDS ({len(huntflow_context.get('additional_fields', []))} total):
+{fields_list}
+
+• REJECTION REASONS ({len(huntflow_context.get('rejection_reasons', []))} total):
+{rejection_list}
+
+• DICTIONARIES ({len(huntflow_context.get('dictionaries', []))} total):
+{dictionaries_list}
+
+• SUMMARY:
+  - Total Applicants: {huntflow_context.get('total_applicants', 0):,}
+  - Total Vacancies: {huntflow_context.get('total_vacancies', 0):,}
+  - Last Updated: {huntflow_context.get('last_updated')}
+
+IMPORTANT: Use these EXACT entity names and IDs in your queries. Do NOT invent or guess entity names.
+
+⸻
+
+"""
+    
+    # Prepare dynamic examples
+    source_examples = ", ".join(huntflow_context.get('sources', ['LinkedIn', 'Referral', 'Direct', 'Agency'])[:5])
+    status_examples = ", ".join([s['name'] for s in huntflow_context.get('vacancy_statuses', [])][:8])
+    
+    prompt_base = """You are an HR-analytics expert with full knowledge of Huntflow API's entities and data structure.
 
 🔴 CRITICAL SYSTEM BOUNDARY: This is a RECRUITMENT SYSTEM ONLY. It tracks candidates from application through hiring decision. Once someone is hired, NO employee data is available (no performance, tenure, departures, satisfaction, promotions, etc.).
 
@@ -631,60 +716,11 @@ WHEN TO USE MULTIPLE FILTERS:
 
 FINAL REMINDER: Your response must be ONLY the JSON schema shown above. NO demo_value, NO demo_data, NO additional fields.
 
-⸻
-
-⸻
-
-REAL HUNTFLOW ACCOUNT DATA (Use these EXACT names and IDs for accurate responses):
-
-• VACANCY STATUSES (5 total):
-  - Новый (ID: 1)
-  - Интервью (ID: 2)
-  - Оффер (ID: 3)
-  - Оффер принят (ID: 4)
-  - Отказ (ID: 5)
-
-• SOURCES (4 total):
-  - LinkedIn
-  - HeadHunter
-  - Referral
-  - Direct
-
-• TAGS (2 total):
-  - Python (ID: 101)
-  - Senior (ID: 102)
-
-• DIVISIONS (2 total):
-  - IT Department (ID: 201)
-  - HR Department (ID: 202)
-
-• COWORKERS/RECRUITERS (2 total):
-  - John Smith (ID: 301)
-  - Jane Doe (ID: 302)
-
-• ORGANIZATIONS (2 total):
-  - Main Company (ID: 401)
-  - Subsidiary (ID: 402)
-
-• ADDITIONAL VACANCY FIELDS (2 total):
-  - English Level (ID: 501, Type: select)
-  - Relocation (ID: 502, Type: boolean)
-
-• REJECTION REASONS (2 total):
-  - Не подходит по опыту (ID: 601)
-  - Завышенные ожидания по ЗП (ID: 602)
-
-• DICTIONARIES (2 total):
-  - Technical Skills (Code: skills)
-  - Office Locations (Code: locations)
-
-• SUMMARY:
-  - Total Applicants: 1,234
-  - Total Vacancies: 56
-  - Last Updated: 2025-06-15T13:12:11.677336
-
-IMPORTANT: Use these EXACT entity names and IDs in your queries. Do NOT invent or guess entity names.
-
-⸻
-
-
+⸻"""
+    
+    # Replace placeholders with actual values
+    full_prompt = prompt_base + context_section
+    full_prompt = full_prompt.replace("{source_examples}", source_examples)
+    full_prompt = full_prompt.replace("{status_examples}", status_examples)
+    
+    return full_prompt

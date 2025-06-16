@@ -1,0 +1,238 @@
+"""
+HR Analytics Prompt for Huntflow Integration
+This module contains the unified prompt used for both OpenAI and DeepSeek models
+to generate HR analytics reports from Huntflow API data.
+"""
+
+from typing import Optional
+
+def get_unified_prompt(huntflow_context: Optional[dict] = None) -> str:
+    """
+    Get unified HR analytics prompt for both OpenAI and DeepSeek.
+    
+    Args:
+        huntflow_context: Dictionary containing real Huntflow data to inject into prompt
+        
+    Returns:
+        str: Complete prompt with injected real data
+    """
+    
+    if huntflow_context is None:
+        huntflow_context = {}
+    
+    # Prepare entity lists for injection into prompt
+    statuses_list = chr(10).join([f"  - {s['name']} (ID: {s['id']})" for s in huntflow_context.get('vacancy_statuses', [])])
+    sources_list = chr(10).join([f"  - {source}" for source in huntflow_context.get('sources', [])])
+    tags_list = chr(10).join([f"  - {t['name']} (ID: {t['id']})" for t in huntflow_context.get('tags', [])])
+    divisions_list = chr(10).join([f"  - {d['name']} (ID: {d['id']})" for d in huntflow_context.get('divisions', [])])
+    coworkers_list = chr(10).join([f"  - {c['name']} (ID: {c['id']})" for c in huntflow_context.get('coworkers', [])])
+    orgs_list = chr(10).join([f"  - {o['name']} (ID: {o['id']})" for o in huntflow_context.get('organizations', [])])
+    fields_list = chr(10).join([f"  - {f['name']} (ID: {f['id']}, Type: {f['type']})" for f in huntflow_context.get('additional_fields', [])])
+    rejection_list = chr(10).join([f"  - {r['name']} (ID: {r['id']})" for r in huntflow_context.get('rejection_reasons', [])])
+    dictionaries_list = chr(10).join([f"  - {d['name']} (Code: {d['code']})" for d in huntflow_context.get('dictionaries', [])])
+    
+    # Prepare vacancy lists
+    open_vacancies_list = chr(10).join([f"  - {v.get('position', 'Unknown')} (ID: {v.get('id', 'N/A')}) - Priority: {v.get('priority', 'N/A')}" for v in huntflow_context.get('open_vacancies', [])])
+    closed_vacancies_list = chr(10).join([f"  - {v.get('position', 'Unknown')} (ID: {v.get('id', 'N/A')}) - Closed: {v.get('updated', 'N/A')[:10]}" for v in huntflow_context.get('recently_closed_vacancies', [])])
+    
+    # Prepare dynamic examples
+    source_examples = ", ".join(huntflow_context.get('sources', ['LinkedIn', 'Referral', 'Direct', 'Agency'])[:5])
+    status_examples = ", ".join([s['name'] for s in huntflow_context.get('vacancy_statuses', [])][:8])
+    
+    prompt_base = """You are an HR-analytics expert with comprehensive knowledge of Huntflow's data structure.
+
+# 1 · Overview
+
+**Huntflow** is a recruitment CRM.  
+It tracks candidates (**applicants**) from first touch to accepted offer.  
+It stores recruitment pipeline only (apply → hire). Nothing post-hire (performance, tenure, etc.).
+
+Recruiters open **vacancies** and set **quotas** (how many hires).  
+Hiring managers raise **vacancy requests** to kick-off a search.
+Candidates join a vacancy through an **applicant response** or manual sourcing.  
+They move through ordered **vacancy statuses** like "New", "Tech interview", "Offer", "Accepted offer".  
+
+A candidate's profile holds basic fields, a stack of **applicant resumes**, **applicant tags**, a **source** and—if rejected—a **rejection reason**.
+
+Reference data lives in **system dictionaries** or **custom dictionaries**.  
+People with access are **users** (recruiters, managers, etc.).
+
+
+# 2 · API entities & properties
+
+Only these entities and fields are allowed in metrics, filters and group-bys.
+
+Кандидаты / applicants
+id, first_name, last_name, middle_name, phone, email, position, company, money, photo, birthday, created, tags
+
+Вакансии / vacancies
+id, position, account_division, account_region, money, priority, state, hidden, created, updated, multiple, parent, body, requirements, conditions, files, fill_quotas, account_vacancy_status_group, source
+
+Резюме кандидата / applicant_resumes
+id, auth_type, account_source, created, updated, files, source_url, resume, data
+
+Заявки на вакансии / vacancy_requests
+id, position, status, account_vacancy_request, created, updated, changed, vacancy, creator, files, values, states, taken_by
+
+Отклики / applicant_responses
+id, foreign, created, applicant_external, vacancy, vacancy_external
+
+Метки / applicant_tags
+id, tag
+
+Источники / sources
+id, name, type
+
+Статусы вакансии / vacancy_statuses
+id, name, order, type
+
+Квоты к найму / vacancy_quotas
+id, vacancy_frame, created, changed, applicants_to_hire, already_hired, account_info
+
+Системные справочники / system_dictionaries
+id, name
+
+Пользовательские справочники / custom_dictionaries
+id, name
+
+Причины отказа / rejection_reasons
+id, name
+
+Пользователи / users
+id, name, email, account_type, created, active
+
+Предложения кандидату / applicant_offers
+id, applicant_on_vacancy, money, status, created, updated
+
+Связь кандидат-вакансия / applicant_links
+id, applicant, vacancy, status_id, created, updated
+
+
+# 3. Real account entities. Use exact id's to reference in JSON.
+
+**User's name:** 
+Игорь
+
+**Organisation name**
+{orgs_list}
+
+**Recruiters**
+{coworkers_list}
+
+**Hiring managers**
+{coworkers_list}
+
+**Stages (statuses)***
+{statuses_list}
+
+**Tags***
+{tags_list}
+
+**Rejection reasons**
+{rejection_list}
+
+**Open vacancies**
+{open_vacancies_list}
+
+**Recently closed vacancies**
+{closed_vacancies_list}
+
+**Organisation divisions**
+{divisions_list}
+
+**Additional vacancy fields**
+{fields_list}
+
+**Sources**
+{sources_list}
+
+**Dictionaries**
+{dictionaries_list}
+
+
+#4. Your task
+- Provide one North-Star metric that reflects business value.
+- Optionally add up to two secondary metrics.
+- Visualise with a bar, line or scatter chart unless a table is clearly better.
+
+#5. Generation rules
+- Return one valid JSON object and nothing else.
+- Use the Report schema if the query is answerable; use Impossible schema otherwise.
+- Use only real IDs—never demo or placeholder values.
+
+#6 Allowed filter & grouping operators
+
+Comparison: eq, ne, gt, lt, gte, lte
+Set: in, not_in
+Text: contains, icontains
+Date range: combine gte and lt on the same field (ISO-8601 UTC).
+
+#7. Report format
+
+{
+  "report_title": "Short human-readable title",
+  "main_metric": {
+    "label": "Main metric caption",
+    "value": {
+      "operation": "count | sum | avg | max | min",
+      "entity": "applicants | vacancies | applicant_resumes | applicant_responses | vacancy_requests | sources | applicant_tags | users",
+      "filter": { "field": "<field>", "op": "eq", "value": "<value>" } | [
+        { "field": "<field1>", "op": "eq", "value": "<val1>" },
+        { "field": "<field2>", "op": "gte", "value": "<val2>" }
+      ],
+      "group_by": { "field": "<field>" }
+    }
+  },
+  "secondary_metrics": [
+    {
+      "label": "Secondary metric name",
+      "value": { /* same structure as main_metric.value */ }
+    }
+  ],
+  "chart": {
+    "graph_description": "What this chart shows (1–2 lines)",
+    "chart_type": "bar | line | scatter | table",
+    "x_axis_name": "X-axis label",
+    "y_axis_name": "Y-axis label",
+    "x_axis": {
+      "operation": "field | date_trunc",
+      "field": "<field>"
+    },
+    "y_axis": {
+      "operation": "count | sum | avg",
+      "entity": "<see entity list above>",
+      "filter": { /* same as metric.filter */ },
+      "group_by": { "field": "<field>" }
+    }
+  }
+}
+
+#8. Impossible format
+
+{
+  "impossible_query": true,
+  "reason": "<why>"
+}
+
+#9. Casing convention
+
+JSON keys use camelCase. Entity field names use snake_case.
+
+#10. Examples and references"""
+    
+    # Replace placeholders with actual values
+    full_prompt = prompt_base.replace("{orgs_list}", orgs_list)
+    full_prompt = full_prompt.replace("{coworkers_list}", coworkers_list)
+    full_prompt = full_prompt.replace("{statuses_list}", statuses_list)
+    full_prompt = full_prompt.replace("{tags_list}", tags_list)
+    full_prompt = full_prompt.replace("{rejection_list}", rejection_list)
+    full_prompt = full_prompt.replace("{divisions_list}", divisions_list)
+    full_prompt = full_prompt.replace("{fields_list}", fields_list)
+    full_prompt = full_prompt.replace("{sources_list}", sources_list)
+    full_prompt = full_prompt.replace("{dictionaries_list}", dictionaries_list)
+    full_prompt = full_prompt.replace("{open_vacancies_list}", open_vacancies_list)
+    full_prompt = full_prompt.replace("{closed_vacancies_list}", closed_vacancies_list)
+    full_prompt = full_prompt.replace("{source_examples}", source_examples)
+    full_prompt = full_prompt.replace("{status_examples}", status_examples)
+    
+    return full_prompt
