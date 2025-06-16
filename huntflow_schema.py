@@ -191,6 +191,42 @@ class HuntflowVirtualEngine:
             Column('statuses', String)  # JSON array of status IDs
         )
         
+        # Add missing vacancy detail tables per your analysis
+        self.vacancy_periods = Table('vacancy_periods', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('vacancy_id', Integer),
+            Column('period_type', String),  # work, hold, closed
+            Column('start_date', DateTime),
+            Column('end_date', DateTime),
+            Column('duration_days', Integer)
+        )
+        
+        self.vacancy_frames = Table('vacancy_frames', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('vacancy_id', Integer),
+            Column('created', DateTime),
+            Column('is_current', Boolean),
+            Column('data', String)  # JSON string of frame data
+        )
+        
+        self.vacancy_quotas = Table('vacancy_quotas', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('vacancy_id', Integer),
+            Column('frame_id', Integer),
+            Column('quota_value', Integer),
+            Column('filled', Integer),
+            Column('created', DateTime)
+        )
+        
+        # Add account action logs table
+        self.action_logs = Table('action_logs', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('type', String),
+            Column('created', DateTime),
+            Column('account_info', String),  # JSON string
+            Column('data', String)  # JSON string of log data
+        )
+        
         # Cache for API data
         self._applicants_cache = None
         self._status_cache = None
@@ -202,6 +238,10 @@ class HuntflowVirtualEngine:
         self._rejection_reasons_cache = None
         self._dictionaries_cache = None
         self._status_groups_cache = None
+        self._vacancy_periods_cache = None
+        self._vacancy_frames_cache = None
+        self._vacancy_quotas_cache = None
+        self._action_logs_cache = None
     
     async def execute(self, query) -> List[Dict[str, Any]]:
         """Execute SQLAlchemy query by translating to API calls"""
@@ -231,6 +271,14 @@ class HuntflowVirtualEngine:
             return await self._execute_applicant_responses_query(query)
         elif self._is_table_in_query(query, 'vacancy_logs'):
             return await self._execute_vacancy_logs_query(query)
+        elif self._is_table_in_query(query, 'vacancy_periods'):
+            return await self._execute_vacancy_periods_query(query)
+        elif self._is_table_in_query(query, 'vacancy_frames'):
+            return await self._execute_vacancy_frames_query(query)
+        elif self._is_table_in_query(query, 'vacancy_quotas'):
+            return await self._execute_vacancy_quotas_query(query)
+        elif self._is_table_in_query(query, 'action_logs'):
+            return await self._execute_action_logs_query(query)
         else:
             return []
     
@@ -287,13 +335,25 @@ class HuntflowVirtualEngine:
         recruiters_map = await self._get_recruiters_mapping()
         sources_map = await self._get_sources_mapping()
         
-        # Sample first 200 applicants for individual API calls to get real status data
-        sample_size = min(200, len(all_applicants))
-        print(f"🔄 Enriching {sample_size} of {len(all_applicants)} applicants with individual API calls...")
+        # CRITICAL FIX: Use applicant_links as primary data source for status information
+        # This solves the major flaw where only first 200 applicants had status data
+        print(f"🔄 Building applicants data from applicant_links to ensure complete status coverage...")
         
-        for i, applicant in enumerate(all_applicants):
+        # Get all applicant links with status data
+        all_links = await self._get_all_applicant_links()
+        applicant_status_map = {}  # applicant_id -> latest status info
+        
+        # Build status mapping for each applicant
+        for link in all_links:
+            applicant_id = link.get('applicant_id')
+            if applicant_id and (applicant_id not in applicant_status_map or 
+                               link.get('updated', '') > applicant_status_map[applicant_id].get('updated', '')):
+                applicant_status_map[applicant_id] = link
+        
+        print(f"✅ Built status mapping for {len(applicant_status_map)} applicants")
+        
+        for applicant in all_applicants:
             # Map to actual API fields available in search response per OpenAPI spec
-            # CRITICAL: NO status fields in ApplicantSearchItem per OpenAPI
             enriched = {
                 'id': applicant.get('id', 0),
                 'first_name': applicant.get('first_name', ''),
@@ -316,36 +376,116 @@ class HuntflowVirtualEngine:
                 'agreement': str(applicant.get('agreement', {})),            # Agreement state as JSON string
                 'doubles': str(applicant.get('doubles', [])),                # List of duplicates as JSON string
                 'social': str(applicant.get('social', [])),                  # Social accounts as JSON string
-                # Computed fields from logs or individual calls
+                # Status data from applicant_links - now covers ALL applicants
+                'status_id': 0,
+                'vacancy_id': 0,
+                'status_name': 'Unknown',
                 'source_id': 0,         # Must be fetched from individual call
                 'recruiter_id': 0,      # Must be computed from logs
                 'recruiter_name': 'Unknown',
                 'source_name': 'Unknown',
             }
             
-            # For first 30 applicants, make individual API calls to get real status data
-            if i < sample_size:
-                try:
-                    real_data = await self._get_applicant_links_from_individual_call(applicant.get('id', 0))
-                    if real_data:
-                        # Get most recent link (highest status activity)
-                        latest_link = max(real_data, key=lambda x: x.get('updated', ''), default={})
-                        if latest_link:
-                            enriched['status_id'] = latest_link.get('status', 0)
-                            enriched['vacancy_id'] = latest_link.get('vacancy', 0)
-                            
-                            # Map status ID to name
-                            status_map = await self._get_status_mapping()
-                            status_info = status_map.get(enriched['status_id'], {'name': 'Unknown'})
-                            enriched['status_name'] = status_info.get('name', 'Unknown')
-                except Exception as e:
-                    print(f"⚠️ Failed to enrich applicant {applicant.get('id')}: {e}")
+            # Get status data for this applicant from our complete mapping
+            applicant_id = applicant.get('id', 0)
+            if applicant_id in applicant_status_map:
+                link_data = applicant_status_map[applicant_id]
+                enriched['status_id'] = link_data.get('status', 0)
+                enriched['vacancy_id'] = link_data.get('vacancy', 0)
+                
+                # Map status ID to name
+                status_map = await self._get_status_mapping()
+                status_info = status_map.get(enriched['status_id'], {'name': 'Unknown'})
+                enriched['status_name'] = status_info.get('name', 'Unknown')
             
             enriched_applicants.append(enriched)
         
         self._applicants_cache = enriched_applicants
         print(f"✅ Cached {len(enriched_applicants)} applicants")
         return enriched_applicants
+    
+    async def _get_all_applicant_ids_with_cursor(self) -> List[int]:
+        """Get all applicant IDs using cursor pagination for better performance on large datasets"""
+        print("🔄 Fetching ALL applicant IDs using cursor pagination for optimal performance...")
+        
+        all_applicant_ids = []
+        next_page_cursor = None
+        
+        while True:
+            params = {"count": 100}
+            if next_page_cursor:
+                params["next_page_cursor"] = next_page_cursor
+            
+            result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/search_by_cursor", params=params)
+            
+            if isinstance(result, dict):
+                items = result.get("items", [])
+                if not items:
+                    break
+                
+                all_applicant_ids.extend([item.get('id') for item in items if item.get('id')])
+                
+                # Check for next page cursor
+                next_page_cursor = result.get("next_page_cursor")
+                if not next_page_cursor:
+                    break
+            else:
+                break
+        
+        return all_applicant_ids
+    
+    async def _get_all_applicant_links(self) -> List[Dict[str, Any]]:
+        """Get all applicant links to solve status data coverage issue"""
+        print("🔄 Fetching ALL applicant links for complete status coverage...")
+        
+        # Use cursor pagination for better performance on large datasets
+        try:
+            all_applicant_ids = await self._get_all_applicant_ids_with_cursor()
+            print(f"✅ Using cursor pagination for {len(all_applicant_ids)} applicants")
+        except Exception as e:
+            print(f"⚠️ Cursor pagination failed ({e}), falling back to page-based pagination")
+            # Fallback to original page-based approach
+            all_applicant_ids = []
+            page = 1
+            while True:
+                params = {"count": 100, "page": page}
+                result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/search", params=params)
+                
+                if isinstance(result, dict):
+                    items = result.get("items", [])
+                    if not items:
+                        break
+                    all_applicant_ids.extend([item.get('id') for item in items if item.get('id')])
+                    
+                    if len(items) < 100:
+                        break
+                    page += 1
+                else:
+                    break
+        
+        print(f"📊 Found {len(all_applicant_ids)} applicants, fetching links for all...")
+        
+        # Now get links for ALL applicants (this is the critical fix)
+        all_links = []
+        batch_size = 50  # Process in batches to avoid overwhelming the API
+        
+        for i in range(0, len(all_applicant_ids), batch_size):
+            batch = all_applicant_ids[i:i + batch_size]
+            batch_links = await asyncio.gather(
+                *[self._get_applicant_links_from_individual_call(applicant_id) for applicant_id in batch],
+                return_exceptions=True
+            )
+            
+            for applicant_id, links in zip(batch, batch_links):
+                if isinstance(links, list):
+                    for link in links:
+                        link['applicant_id'] = applicant_id  # Ensure we track the applicant
+                        all_links.append(link)
+            
+            print(f"✅ Processed batch {i//batch_size + 1}/{(len(all_applicant_ids) + batch_size - 1)//batch_size}")
+        
+        print(f"✅ Retrieved {len(all_links)} total applicant links")
+        return all_links
     
     # Removed demo applicants generation - using real API only
     
@@ -905,6 +1045,143 @@ class HuntflowVirtualEngine:
         if isinstance(result, dict):
             return result
         return {}
+    
+    # Implement missing vacancy detail endpoints identified in analysis
+    
+    async def _execute_vacancy_periods_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against vacancy_periods virtual table"""
+        # This requires vacancy_id and date range - implement as method that takes vacancy_id
+        return []  # Stub for now - needs individual vacancy context
+    
+    async def get_vacancy_periods(self, vacancy_id: int, date_begin: str, date_end: str) -> List[Dict[str, Any]]:
+        """Get vacancy periods (work, hold, closed) per API spec"""
+        params = {'date_begin': date_begin, 'date_end': date_end}
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies/{vacancy_id}/periods", params=params)
+        
+        if isinstance(result, dict) and result.get("items"):
+            return [
+                {
+                    'id': p.get('id', 0),
+                    'vacancy_id': vacancy_id,
+                    'period_type': p.get('type', ''),
+                    'start_date': p.get('start_date', ''),
+                    'end_date': p.get('end_date', ''),
+                    'duration_days': p.get('duration_days', 0)
+                }
+                for p in result.get("items", [])
+            ]
+        return []
+    
+    async def _execute_vacancy_frames_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against vacancy_frames virtual table"""
+        # This requires vacancy_id - implement as method that takes vacancy_id
+        return []  # Stub for now - needs individual vacancy context
+    
+    async def get_vacancy_frames(self, vacancy_id: int) -> List[Dict[str, Any]]:
+        """Get all historical activity frames for a vacancy"""
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies/{vacancy_id}/frames")
+        
+        if isinstance(result, dict) and result.get("items"):
+            return [
+                {
+                    'id': f.get('id', 0),
+                    'vacancy_id': vacancy_id,
+                    'created': f.get('created', ''),
+                    'is_current': f.get('is_current', False),
+                    'data': str(f)
+                }
+                for f in result.get("items", [])
+            ]
+        return []
+    
+    async def get_vacancy_current_frame(self, vacancy_id: int) -> Dict[str, Any]:
+        """Get the most recent activity frame for a vacancy"""
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies/{vacancy_id}/frame")
+        
+        if isinstance(result, dict):
+            return {
+                'id': result.get('id', 0),
+                'vacancy_id': vacancy_id,
+                'created': result.get('created', ''),
+                'is_current': True,
+                'data': str(result)
+            }
+        return {}
+    
+    async def _execute_vacancy_quotas_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against vacancy_quotas virtual table"""
+        # This requires vacancy_id - implement as method that takes vacancy_id
+        return []  # Stub for now - needs individual vacancy context
+    
+    async def get_vacancy_quotas(self, vacancy_id: int, count: int = 100, page: int = 1) -> List[Dict[str, Any]]:
+        """Get hiring quotas for a vacancy"""
+        params = {'count': count, 'page': page}
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies/{vacancy_id}/quotas", params=params)
+        
+        if isinstance(result, dict) and result.get("items"):
+            return [
+                {
+                    'id': q.get('id', 0),
+                    'vacancy_id': vacancy_id,
+                    'frame_id': q.get('frame_id', 0),
+                    'quota_value': q.get('quota_value', 0),
+                    'filled': q.get('filled', 0),
+                    'created': q.get('created', '')
+                }
+                for q in result.get("items", [])
+            ]
+        return []
+    
+    async def get_frame_quotas(self, vacancy_id: int, frame_id: int) -> List[Dict[str, Any]]:
+        """Get hiring quotas within a specific historical frame"""
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies/{vacancy_id}/frames/{frame_id}/quotas")
+        
+        if isinstance(result, dict) and result.get("items"):
+            return [
+                {
+                    'id': q.get('id', 0),
+                    'vacancy_id': vacancy_id,
+                    'frame_id': frame_id,
+                    'quota_value': q.get('quota_value', 0),
+                    'filled': q.get('filled', 0),
+                    'created': q.get('created', '')
+                }
+                for q in result.get("items", [])
+            ]
+        return []
+    
+    async def _execute_action_logs_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against action_logs virtual table"""
+        if self._action_logs_cache is not None:
+            return list(self._action_logs_cache.values())
+        
+        params = {}
+        if filters:
+            # Support documented action_logs parameters: type, count, next_id, previous_id
+            for param in ['type', 'count', 'next_id', 'previous_id']:
+                if param in filters:
+                    params[param] = filters[param]
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/action_logs", params=params if params else None)
+        
+        if isinstance(result, dict) and result.get("items"):
+            logs = [
+                {
+                    'id': log.get('id', 0),
+                    'type': log.get('type', ''),
+                    'created': log.get('created', ''),
+                    'account_info': str(log.get('account_info', {})),
+                    'data': str(log)
+                }
+                for log in result.get("items", [])
+            ]
+            self._action_logs_cache = {log['id']: log for log in logs}
+            return logs
+        else:
+            self._action_logs_cache = {}
+            return []
 
 
 # Query Builder Helper Functions
