@@ -533,8 +533,8 @@ class HuntflowVirtualEngine:
                 all_vacancies.extend(items)
                 
                 # Check if we have more pages
-                total = result.get("total", 0)
-                if len(all_vacancies) >= total:
+                total_pages = result.get("total_pages", 0)
+                if page >= total_pages:
                     break
                     
                 page += 1
