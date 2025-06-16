@@ -4,9 +4,94 @@ Maps Huntflow API endpoints to virtual SQL tables
 """
 from sqlalchemy import MetaData, Table, Column, Integer, String, DateTime, Boolean, Float
 from sqlalchemy.sql import select, func, and_, or_
-from typing import Dict, Any, List, Optional
+from sqlalchemy.sql.visitors import traverse
+from sqlalchemy.sql.elements import BinaryExpression, BindParameter
+from sqlalchemy.sql.operators import eq, in_op, gt, lt, ge, le
+from typing import Dict, Any, List, Optional, Set
 import asyncio
+import logging
+import time
 from datetime import datetime
+
+# Configure logging for this module
+logger = logging.getLogger(__name__)
+
+# Example logging configuration (users can customize):
+# logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
+# To see debug details: logging.getLogger('huntflow_schema').setLevel(logging.DEBUG)
+
+
+class TTLCache:
+    """Thread-safe cache with TTL (Time To Live) and concurrency protection"""
+    
+    def __init__(self, ttl_seconds: int = 300):  # 5 minutes default TTL
+        self.ttl = ttl_seconds
+        self._data = {}
+        self._timestamps = {}
+        self._locks = {}  # Per-key locks to prevent duplicate API calls
+    
+    def _is_expired(self, key: str) -> bool:
+        """Check if cache entry is expired"""
+        if key not in self._timestamps:
+            return True
+        return time.time() - self._timestamps[key] > self.ttl
+    
+    async def get_or_fetch(self, key: str, fetch_func):
+        """Get cached value or fetch using provided async function with concurrency protection"""
+        # Check if we have valid cached data
+        if key in self._data and not self._is_expired(key):
+            logger.debug(f"Cache HIT for {key}")
+            return self._data[key]
+        
+        # Get or create lock for this key to prevent duplicate API calls
+        if key not in self._locks:
+            self._locks[key] = asyncio.Lock()
+        
+        lock = self._locks[key]
+        
+        async with lock:
+            # Double-check after acquiring lock (another coroutine might have fetched)
+            if key in self._data and not self._is_expired(key):
+                logger.debug(f"Cache HIT after lock for {key}")
+                return self._data[key]
+            
+            # Cache miss or expired - fetch new data
+            logger.debug(f"Cache MISS for {key} - fetching...")
+            try:
+                data = await fetch_func()
+                self._data[key] = data
+                self._timestamps[key] = time.time()
+                logger.debug(f"Cache STORED for {key}")
+                return data
+            except Exception as e:
+                logger.error(f"Failed to fetch data for cache key {key}: {e}")
+                # Return stale data if available, otherwise raise
+                if key in self._data:
+                    logger.warning(f"Using stale cache data for {key}")
+                    return self._data[key]
+                raise
+    
+    def invalidate(self, key: str = None):
+        """Invalidate cache entry or entire cache"""
+        if key:
+            self._data.pop(key, None)
+            self._timestamps.pop(key, None)
+            logger.debug(f"Cache invalidated for {key}")
+        else:
+            self._data.clear()
+            self._timestamps.clear()
+            logger.debug("Entire cache invalidated")
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics"""
+        now = time.time()
+        expired_count = sum(1 for ts in self._timestamps.values() if now - ts > self.ttl)
+        return {
+            'total_entries': len(self._data),
+            'expired_entries': expired_count,
+            'valid_entries': len(self._data) - expired_count,
+            'ttl_seconds': self.ttl
+        }
 
 class HuntflowVirtualEngine:
     """Virtual SQL engine that translates SQLAlchemy expressions to Huntflow API calls"""
@@ -227,120 +312,121 @@ class HuntflowVirtualEngine:
             Column('data', String)  # JSON string of log data
         )
         
-        # Cache for API data
-        self._applicants_cache = None
-        self._status_cache = None
-        self._recruiters_cache = None
-        self._sources_cache = None
-        self._divisions_cache = None
-        self._tags_cache = None
-        self._regions_cache = None
-        self._rejection_reasons_cache = None
-        self._dictionaries_cache = None
-        self._status_groups_cache = None
-        self._vacancy_periods_cache = None
-        self._vacancy_frames_cache = None
-        self._vacancy_quotas_cache = None
-        self._action_logs_cache = None
+        # TTL Cache with concurrency protection (5 min TTL by default)
+        self._cache = TTLCache(ttl_seconds=300)
+        
+        # Cache invalidation methods for users
+        self.invalidate_cache = self._cache.invalidate
+        self.get_cache_stats = self._cache.get_stats
     
     async def execute(self, query) -> List[Dict[str, Any]]:
         """Execute SQLAlchemy query by translating to API calls"""
         
         # Determine which table is being queried
-        if self._is_table_in_query(query, 'applicants'):
+        if self._query_references_table(query, 'applicants'):
             return await self._execute_applicants_query(query)
-        elif self._is_table_in_query(query, 'recruiters'):
+        elif self._query_references_table(query, 'recruiters'):
             return await self._execute_recruiters_query(query)
-        elif self._is_table_in_query(query, 'vacancies'):
+        elif self._query_references_table(query, 'vacancies'):
             return await self._execute_vacancies_query(query)
-        elif self._is_table_in_query(query, 'divisions'):
+        elif self._query_references_table(query, 'divisions'):
             return await self._execute_divisions_query(query)
-        elif self._is_table_in_query(query, 'applicant_tags'):
+        elif self._query_references_table(query, 'applicant_tags'):
             return await self._execute_tags_query(query)
-        elif self._is_table_in_query(query, 'sources'):
+        elif self._query_references_table(query, 'sources'):
             return await self._execute_sources_query(query)
-        elif self._is_table_in_query(query, 'regions'):
+        elif self._query_references_table(query, 'regions'):
             return await self._execute_regions_query(query)
-        elif self._is_table_in_query(query, 'rejection_reasons'):
+        elif self._query_references_table(query, 'rejection_reasons'):
             return await self._execute_rejection_reasons_query(query)
-        elif self._is_table_in_query(query, 'dictionaries'):
+        elif self._query_references_table(query, 'dictionaries'):
             return await self._execute_dictionaries_query(query)
-        elif self._is_table_in_query(query, 'status_groups'):
+        elif self._query_references_table(query, 'status_groups'):
             return await self._execute_status_groups_query(query)
-        elif self._is_table_in_query(query, 'applicant_responses'):
+        elif self._query_references_table(query, 'applicant_responses'):
             return await self._execute_applicant_responses_query(query)
-        elif self._is_table_in_query(query, 'vacancy_logs'):
+        elif self._query_references_table(query, 'vacancy_logs'):
             return await self._execute_vacancy_logs_query(query)
-        elif self._is_table_in_query(query, 'vacancy_periods'):
+        elif self._query_references_table(query, 'vacancy_periods'):
             return await self._execute_vacancy_periods_query(query)
-        elif self._is_table_in_query(query, 'vacancy_frames'):
+        elif self._query_references_table(query, 'vacancy_frames'):
             return await self._execute_vacancy_frames_query(query)
-        elif self._is_table_in_query(query, 'vacancy_quotas'):
+        elif self._query_references_table(query, 'vacancy_quotas'):
             return await self._execute_vacancy_quotas_query(query)
-        elif self._is_table_in_query(query, 'action_logs'):
+        elif self._query_references_table(query, 'action_logs'):
             return await self._execute_action_logs_query(query)
         else:
             return []
     
-    def _is_table_in_query(self, query, table_name: str) -> bool:
-        """Check if a specific table is referenced in the query"""
-        query_str = str(query)
-        return table_name in query_str.lower()
+    def _query_references_table(self, query, table_name: str) -> bool:
+        """Check if a specific table is referenced in the query using proper AST traversal"""
+        table_names = set()
+        
+        def visit_table(element):
+            if hasattr(element, 'name'):
+                table_names.add(element.name)
+        
+        # Traverse the query AST to find all table references
+        traverse(query, {}, {'table': visit_table})
+        return table_name in table_names
     
     def _extract_filters_from_query(self, query) -> Dict[str, Any]:
-        """Extract WHERE clause filters from SQLAlchemy query"""
+        """Extract WHERE clause filters from SQLAlchemy query using proper AST traversal"""
         filters = {}
-        query_str = str(query).lower()
         
-        # Simple WHERE clause parsing for common patterns
-        # This is a basic implementation - could be enhanced with proper SQL parsing
-        import re
+        def visit_binary_expr(element):
+            """Visit binary expressions (comparisons) in the WHERE clause"""
+            if isinstance(element, BinaryExpression):
+                # Get the left side (column) and right side (value)
+                left = element.left
+                right = element.right
+                operator = element.operator
+                
+                # Extract column name
+                column_name = None
+                if hasattr(left, 'name'):
+                    column_name = left.name
+                elif hasattr(left, 'key'):
+                    column_name = left.key
+                
+                # Extract value
+                value = None
+                if isinstance(right, BindParameter):
+                    value = right.value
+                elif hasattr(right, 'value'):
+                    value = right.value
+                else:
+                    # Try to get the actual value
+                    try:
+                        value = right
+                    except:
+                        pass
+                
+                if column_name and value is not None:
+                    # Handle different operators
+                    if operator is eq:
+                        filters[column_name] = value
+                    elif operator is in_op:
+                        # Handle IN clauses
+                        if isinstance(value, (list, tuple)):
+                            filters[f"{column_name}s"] = list(value)  # plural for IN
+                        else:
+                            filters[column_name] = value
+                    elif operator in (gt, ge):
+                        filters[f"{column_name}_min"] = value
+                    elif operator in (lt, le):
+                        filters[f"{column_name}_max"] = value
+                        
+                    logger.debug(f"Extracted filter: {column_name} {operator} {value}")
         
-        # Extract vacancy_id filters (single or IN clause)
-        vacancy_id_match = re.search(r'vacancy_id\s*=\s*(\d+)', query_str)
-        if vacancy_id_match:
-            filters['vacancy_id'] = int(vacancy_id_match.group(1))
-        else:
-            # Check for IN clause: vacancy_id IN (1, 2, 3)
-            vacancy_in_match = re.search(r'vacancy_id\s+in\s*\(([^)]+)\)', query_str)
-            if vacancy_in_match:
-                ids_str = vacancy_in_match.group(1)
-                vacancy_ids = [int(x.strip()) for x in ids_str.split(',') if x.strip().isdigit()]
-                if vacancy_ids:
-                    filters['vacancy_ids'] = vacancy_ids  # Multiple IDs
+        # Traverse the query AST to find all binary expressions
+        traverse(query, {}, {'binary': visit_binary_expr})
         
-        # Extract applicant_id filters
-        applicant_id_match = re.search(r'applicant_id\s*=\s*(\d+)', query_str)
-        if applicant_id_match:
-            filters['applicant_id'] = int(applicant_id_match.group(1))
-        else:
-            # Check for IN clause for applicant_ids
-            applicant_in_match = re.search(r'applicant_id\s+in\s*\(([^)]+)\)', query_str)
-            if applicant_in_match:
-                ids_str = applicant_in_match.group(1)
-                applicant_ids = [int(x.strip()) for x in ids_str.split(',') if x.strip().isdigit()]
-                if applicant_ids:
-                    filters['applicant_ids'] = applicant_ids
+        # Handle WHERE clause specifically if it exists
+        if hasattr(query, 'whereclause') and query.whereclause is not None:
+            traverse(query.whereclause, {}, {'binary': visit_binary_expr})
         
-        # Extract frame_id filters
-        frame_id_match = re.search(r'frame_id\s*=\s*(\d+)', query_str)
-        if frame_id_match:
-            filters['frame_id'] = int(frame_id_match.group(1))
-        
-        # Extract date range filters
-        date_begin_match = re.search(r'date_begin\s*=\s*["\']([^"\'\ ]+)["\']', query_str)
-        if date_begin_match:
-            filters['date_begin'] = date_begin_match.group(1)
-        
-        date_end_match = re.search(r'date_end\s*=\s*["\']([^"\'\ ]+)["\']', query_str)
-        if date_end_match:
-            filters['date_end'] = date_end_match.group(1)
-        
-        # Extract type filters for logs
-        type_match = re.search(r'type\s*=\s*["\']([^"\'\ ]+)["\']', query_str)
-        if type_match:
-            filters['type'] = type_match.group(1)
-        
+        logger.debug(f"Extracted filters from query: {filters}")
         return filters
     
     async def _get_all_vacancy_ids(self) -> List[int]:
@@ -357,10 +443,16 @@ class HuntflowVirtualEngine:
         """OPTIMAL ARCHITECTURAL FIX: Use /applicants endpoint with rich ApplicantItem data.
         This eliminates the N+1 problem by getting links array for ALL applicants in ~100 calls instead of ~10,000.
         """
-        if self._applicants_cache is not None:
-            return self._applicants_cache
+        cache_key = f"applicants_{hash(str(filters))}"
         
-        print("🔄 Using OPTIMAL endpoint: /applicants (includes links array for ALL applicants)...")
+        async def fetch_applicants():
+            return await self._fetch_applicants_from_api(filters)
+            
+        return await self._cache.get_or_fetch(cache_key, fetch_applicants)
+    
+    async def _fetch_applicants_from_api(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        
+        logger.info("Using OPTIMAL endpoint: /applicants (includes links array for ALL applicants)")
         
         # 1. CALL THE ARCHITECTURALLY SUPERIOR ENDPOINT
         all_applicants = []
@@ -393,10 +485,10 @@ class HuntflowVirtualEngine:
                 break
         
         if not all_applicants:
-            print("❌ No applicants data available from API")
+            logger.warning("No applicants data available from API")
             return []
         
-        print(f"📊 Retrieved {len(all_applicants)} applicants with COMPLETE data (no N+1 calls needed)")
+        logger.info(f"Retrieved {len(all_applicants)} applicants with COMPLETE data (no N+1 calls needed)")
         
         # 2. PROCESS THE RICH DATA (NO ADDITIONAL API CALLS NEEDED!)
         enriched_applicants = []
@@ -448,8 +540,7 @@ class HuntflowVirtualEngine:
             }
             enriched_applicants.append(enriched)
         
-        self._applicants_cache = enriched_applicants
-        print(f"✅ PERFORMANCE WIN: Cached {len(enriched_applicants)} applicants with ~{page} API calls instead of ~{len(all_applicants)} calls!")
+        logger.info(f"PERFORMANCE WIN: Fetched {len(enriched_applicants)} applicants with ~{page} API calls instead of ~{len(all_applicants)} calls!")
         return enriched_applicants
     
     # REMOVED: Complex N+1 methods no longer needed thanks to architectural fix!
@@ -462,77 +553,90 @@ class HuntflowVirtualEngine:
     
     async def _get_status_mapping(self) -> Dict[int, str]:
         """Get status ID to name mapping from actual API response"""
-        if self._status_cache is not None:
-            return self._status_cache
+        async def fetch_statuses():
+            return await self._fetch_status_mapping_from_api()
+            
+        return await self._cache.get_or_fetch("status_mapping", fetch_statuses)
+    
+    async def _fetch_status_mapping_from_api(self) -> Dict[int, str]:
         
-        print("🔄 Fetching actual status mapping from API...")
+        logger.debug("Fetching actual status mapping from API")
         # Use correct endpoint from official API specification
         result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies/statuses")
         
-        print(f"🔍 Debug - API response: {result}")
+        logger.debug(f"Status API response: {result}")
         
         if isinstance(result, dict):
             if result.get("items"):
                 statuses = result.get("items", [])
                 # Create complete status mapping with all OpenAPI fields
-                self._status_cache = {}
+                status_cache = {}
                 for s in statuses:
                     if s.get("id") and s.get("name"):
-                        self._status_cache[s.get("id")] = {
+                        status_cache[s.get("id")] = {
                             'name': s.get("name"),
                             'type': s.get("type", ""),                    # Required per OpenAPI
                             'removed': s.get("removed", ""),             # Optional per OpenAPI  
                             'order': s.get("order", 0),                  # Required per OpenAPI
                             'stay_duration': s.get("stay_duration", 0)   # Optional per OpenAPI
                         }
-                print(f"✅ Got {len(self._status_cache)} actual statuses from API: {[s['name'] for s in self._status_cache.values()]}")
+                logger.info(f"Got {len(status_cache)} actual statuses from API: {[s['name'] for s in status_cache.values()]}")
             else:
-                print(f"❌ API failed to return status data. Response: {result}")
-                print("🔄 API authentication or endpoint issue - no statuses available")
-                self._status_cache = {}
+                logger.error(f"API failed to return status data. Response: {result}")
+                logger.error("API authentication or endpoint issue - no statuses available")
+                status_cache = {}
         else:
-            print(f"⚠️ API response is not dict, type: {type(result)}")
-            self._status_cache = {}
+            logger.error(f"API response is not dict, type: {type(result)}")
+            status_cache = {}
         
-        return self._status_cache
+        return status_cache
     
     async def _get_recruiters_mapping(self) -> Dict[int, str]:
         """Get recruiter ID to name mapping from actual API response"""
-        if self._recruiters_cache is not None:
-            return self._recruiters_cache
+        async def fetch_recruiters():
+            return await self._fetch_recruiters_mapping_from_api()
+            
+        return await self._cache.get_or_fetch("recruiters_mapping", fetch_recruiters)
+    
+    async def _fetch_recruiters_mapping_from_api(self) -> Dict[int, str]:
         
-        print("🔄 Fetching actual recruiters from API...")
+        logger.debug("Fetching actual recruiters from API")
         result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/coworkers")
         
-        print(f"🔍 Debug - Recruiters API response: {result}")
+        logger.debug(f"Recruiters API response: {result}")
         
+        recruiters_cache = {}
         if isinstance(result, dict):
             if result.get("items"):
                 recruiters = result.get("items", [])
-                self._recruiters_cache = {
+                recruiters_cache = {
                     r.get("id"): r.get('name', 'Unknown')  # Use name field per OpenAPI
                     for r in recruiters if r.get('id')
                 }
-                print(f"✅ Got {len(self._recruiters_cache)} actual recruiters from API: {list(self._recruiters_cache.values())}")
+                logger.info(f"Got {len(recruiters_cache)} actual recruiters from API: {list(recruiters_cache.values())}")
             else:
-                print(f"❌ API failed to return recruiter data. Response: {result}")
-                print("🔄 API authentication or endpoint issue - no recruiters available")
-                self._recruiters_cache = {}
+                logger.error(f"API failed to return recruiter data. Response: {result}")
+                logger.error("API authentication or endpoint issue - no recruiters available")
+                recruiters_cache = {}
         else:
-            print(f"⚠️ Recruiters API response is not dict, type: {type(result)}")
-            self._recruiters_cache = {}
+            logger.error(f"Recruiters API response is not dict, type: {type(result)}")
+            recruiters_cache = {}
         
-        return self._recruiters_cache
+        return recruiters_cache
     
     async def _get_sources_mapping(self) -> Dict[int, str]:
         """Get source ID to name mapping from actual API response"""
-        if self._sources_cache is not None:
-            return self._sources_cache
+        async def fetch_sources():
+            return await self._fetch_sources_mapping_from_api()
+            
+        return await self._cache.get_or_fetch("sources_mapping", fetch_sources)
+    
+    async def _fetch_sources_mapping_from_api(self) -> Dict[int, str]:
         
-        print("🔄 Fetching actual sources from API...")
+        logger.debug("Fetching actual sources from API")
         result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/sources")
         
-        print(f"🔍 Debug - Sources API response: {result}")
+        logger.debug(f"Sources API response: {result}")
         
         if isinstance(result, dict):
             if result.get("items"):
@@ -541,12 +645,12 @@ class HuntflowVirtualEngine:
                     s.get("id"): s.get("name", "Unknown")
                     for s in sources if s.get('id') and s.get('name')
                 }
-                print(f"✅ Got {len(self._sources_cache)} actual sources from API: {list(self._sources_cache.values())}")
+                logger.info(f"Got {len(self._sources_cache)} actual sources from API: {list(self._sources_cache.values())}")
             else:
-                print(f"❌ API failed to return source data. Response: {result}")
+                logger.error(f"API failed to return source data. Response: {result}")
                 self._sources_cache = {}
         else:
-            print(f"⚠️ Sources API response is not dict, type: {type(result)}")
+            logger.error(f"Sources API response is not dict, type: {type(result)}")
             self._sources_cache = {}
         
         return self._sources_cache
@@ -556,7 +660,7 @@ class HuntflowVirtualEngine:
         if self._divisions_cache is not None:
             return self._divisions_cache
         
-        print("🔄 Fetching actual divisions from API...")
+        logger.debug("Fetching actual divisions from API")
         result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/divisions")
         
         if isinstance(result, dict) and result.get("items"):
@@ -565,7 +669,7 @@ class HuntflowVirtualEngine:
                 d.get("id"): d.get("name", "Unknown")
                 for d in divisions if d.get('id') and d.get('name')
             }
-            print(f"✅ Got {len(self._divisions_cache)} divisions from API")
+            logger.info(f"Got {len(self._divisions_cache)} divisions from API")
         else:
             self._divisions_cache = {}
         
@@ -576,7 +680,7 @@ class HuntflowVirtualEngine:
         if self._tags_cache is not None:
             return self._tags_cache
         
-        print("🔄 Fetching applicant tags from API...")
+        logger.debug("Fetching applicant tags from API")
         result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/tags")
         
         if isinstance(result, dict) and result.get("items"):
@@ -585,7 +689,7 @@ class HuntflowVirtualEngine:
                 t.get("id"): t.get("name", "Unknown")
                 for t in tags if t.get('id') and t.get('name')
             }
-            print(f"✅ Got {len(self._tags_cache)} applicant tags from API")
+            logger.info(f"Got {len(self._tags_cache)} applicant tags from API")
         else:
             self._tags_cache = {}
         
@@ -634,7 +738,7 @@ class HuntflowVirtualEngine:
                         
             return result
         except Exception as e:
-            print(f"⚠️ Failed to get data from logs for applicant {applicant_id}: {e}")
+            logger.warning(f"Failed to get data from logs for applicant {applicant_id}: {e}")
             return {
                 'status_id': 0,
                 'status_name': 'Unknown',
@@ -665,7 +769,7 @@ class HuntflowVirtualEngine:
                         
             return []
         except Exception as e:
-            print(f"⚠️ Failed to get links from individual call for applicant {applicant_id}: {e}")
+            logger.warning(f"Failed to get links from individual call for applicant {applicant_id}: {e}")
             return []
     
     async def _execute_applicants_query(self, query) -> List[Dict[str, Any]]:
