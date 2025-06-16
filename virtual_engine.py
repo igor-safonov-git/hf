@@ -593,7 +593,7 @@ class HuntflowVirtualEngine:
             return self._tags_cache
         
         logger.debug("Fetching applicant tags from API")
-        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/tags")
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/tags")
         
         if isinstance(result, dict) and result.get("items"):
             tags = result.get("items", [])
@@ -821,8 +821,8 @@ class HuntflowVirtualEngine:
     
     async def _execute_tags_query(self, query) -> List[Dict[str, Any]]:
         """Execute query against applicant_tags virtual table"""
-        # Get full tag data from API
-        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/tags")
+        # Get full tag data from API - tags are account-level, not applicant-specific
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/tags")
         
         if isinstance(result, dict) and result.get("items"):
             return [
