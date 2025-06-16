@@ -9,7 +9,6 @@ from sqlalchemy.sql import select, func
 import asyncio
 import logging
 from functools import wraps
-from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +147,7 @@ class SQLAlchemyHuntflowExecutor:
                 
                 # Validate inputs
                 if not field or not op:
-                    raise ValueError(f"Invalid filter expression: missing field or op")
+                    raise ValueError("Invalid filter expression: missing field or op")
                 
                 if op in ["in", "not_in"] and not isinstance(value, list):
                     raise ValueError(f"Operator '{op}' requires list value, got {type(value)}")
@@ -406,7 +405,7 @@ class SQLAlchemyHuntflowExecutor:
         applicants_data = await self._fetch_data_chunked("applicants", {})
         
         # Use helper to build chart data
-        return self._build_chart_data(applicants_data, 'status_id', status_map)
+        return await self._build_chart_data(applicants_data, 'status_id', status_map)
     
     @handle_errors(default_return={"labels": [], "values": []})
     async def _execute_applicants_by_source(self) -> Dict[str, Any]:
@@ -418,7 +417,7 @@ class SQLAlchemyHuntflowExecutor:
         applicants_data = await self._fetch_data_chunked("applicants", {})
         
         # Use helper to build chart data
-        return self._build_chart_data(applicants_data, 'source_id', sources_map)
+        return await self._build_chart_data(applicants_data, 'source_id', sources_map)
     
     @handle_errors(default_return={"labels": [], "values": []})
     async def _execute_applicant_links_by_status(self, filter_expr: FilterExpr) -> Dict[str, Any]:
@@ -450,7 +449,7 @@ class SQLAlchemyHuntflowExecutor:
             logger.debug(f"Filtered to {len(all_links)} links from open vacancies")
         
         # Use helper to build chart data
-        chart_data = self._build_chart_data(all_links, 'status_id', status_map)
+        chart_data = await self._build_chart_data(all_links, 'status_id', status_map)
         
         logger.debug(f"Pipeline status distribution: {dict(zip(chart_data['labels'], chart_data['values']))}")
         return chart_data
@@ -462,7 +461,7 @@ class SQLAlchemyHuntflowExecutor:
         vacancies_data = await self.engine._execute_vacancies_query({})
         
         # Use helper to build chart data (no mapping needed for state)
-        return self._build_chart_data(vacancies_data, 'state')
+        return await self._build_chart_data(vacancies_data, 'state')
     
     async def execute_chart_data(self, chart_spec: Dict[str, Any]) -> Dict[str, Any]:
         """Execute chart data generation using SQL approach"""
@@ -495,7 +494,7 @@ class SQLAlchemyHuntflowExecutor:
         applicants_with_status = [app for app in applicants_data if 'status_id' in app and app['status_id']]
         
         # Use helper to build chart data
-        chart_data = self._build_chart_data(applicants_with_status, 'status_id', status_mapping)
+        chart_data = await self._build_chart_data(applicants_with_status, 'status_id', status_mapping)
         
         logger.debug(f"Status chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
         
@@ -515,7 +514,7 @@ class SQLAlchemyHuntflowExecutor:
         valid_applicants = [app for app in applicants_data if app.get('recruiter_name') and app.get('recruiter_name') != 'Unknown']
         
         # Use helper to build chart data with limit
-        chart_data = self._build_chart_data(valid_applicants, 'recruiter_name', limit=5)
+        chart_data = await self._build_chart_data(valid_applicants, 'recruiter_name', limit=5)
         
         logger.debug(f"Recruiter chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
         
@@ -531,7 +530,7 @@ class SQLAlchemyHuntflowExecutor:
         valid_vacancies = [vac for vac in vacancies_data if vac.get('company')]
         
         # Use helper to build chart data with limit
-        chart_data = self._build_chart_data(valid_vacancies, 'company', limit=10)
+        chart_data = await self._build_chart_data(valid_vacancies, 'company', limit=10)
         
         logger.debug(f"Company chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
         
