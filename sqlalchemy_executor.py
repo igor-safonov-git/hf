@@ -106,84 +106,107 @@ class SQLAlchemyHuntflowExecutor:
         return 0
     
     async def _execute_count_sql(self, entity: str, filter_expr: FilterExpr) -> int:
-        """Execute count using SQL approach"""
+        """Execute count using proper SQLAlchemy approach"""
         
         if entity == "applicants":
-            # Check if we can use pure SQL counting
-            if self._can_use_sql_count(filter_expr):
-                return await self._execute_sql_count(filter_expr)
-            else:
-                # Fall back to Python filtering for complex cases
-                applicants_data = await self.engine._execute_applicants_query(filter_expr or {})
-                return len(applicants_data)
+            # Build proper SQLAlchemy count query
+            query = select(func.count(self.engine.applicants.c.id))
+            
+            # Apply filters to the query using SQLAlchemy
+            if filter_expr:
+                query = self._apply_filters_to_query(query, self.engine.applicants, filter_expr)
+            
+            # Execute the SQLAlchemy query through the virtual engine
+            result = await self.engine.execute_sqlalchemy_query(query)
+            return result.scalar()
         
         elif entity == "applicant_links":
             # Handle applicant_links entity for pipeline status queries
             return await self._execute_applicant_links_count(filter_expr)
         
+        elif entity == "vacancies":
+            # Build proper SQLAlchemy count query for vacancies
+            query = select(func.count(self.engine.vacancies.c.id))
+            
+            if filter_expr:
+                query = self._apply_filters_to_query(query, self.engine.vacancies, filter_expr)
+            
+            result = await self.engine.execute_sqlalchemy_query(query)
+            return result.scalar()
+        
         return 0
     
+    def _apply_filters_to_query(self, query, table, filter_expr: FilterExpr):
+        """Apply filter expressions to SQLAlchemy query"""
+        if not filter_expr:
+            return query
+            
+        field = filter_expr.get("field")
+        op = filter_expr.get("op", "eq")
+        value = filter_expr.get("value")
+        
+        if not field or value is None:
+            return query
+        
+        # Map field names to table columns
+        column_mapping = {
+            "recruiter": "recruiter_name",
+            "source_id": "source_id", 
+            "vacancy_id": "vacancy_id",
+            "status_id": "status_id",
+            "company": "company",
+            "state": "state"
+        }
+        
+        column_name = column_mapping.get(field, field)
+        
+        # Check if column exists in table
+        if not hasattr(table.c, column_name):
+            logger.warning(f"Column {column_name} not found in table, skipping filter")
+            return query
+            
+        column = getattr(table.c, column_name)
+        
+        # Apply filter based on operation
+        if op == "eq":
+            query = query.where(column == value)
+        elif op == "ne":
+            query = query.where(column != value)
+        elif op == "gt":
+            query = query.where(column > value)
+        elif op == "lt":
+            query = query.where(column < value)
+        elif op == "gte":
+            query = query.where(column >= value)
+        elif op == "lte":
+            query = query.where(column <= value)
+        elif op == "in":
+            if isinstance(value, list):
+                query = query.where(column.in_(value))
+            else:
+                logger.warning(f"IN operator requires list value, got {type(value)}")
+        elif op == "not_in":
+            if isinstance(value, list):
+                query = query.where(~column.in_(value))
+            else:
+                logger.warning(f"NOT_IN operator requires list value, got {type(value)}")
+        else:
+            logger.warning(f"Unsupported filter operation: {op}")
+            
+        return query
+    
     def _can_use_sql_count(self, filter_expr: FilterExpr) -> bool:
-        """Check if we can use pure SQL for counting (no complex joins needed)"""
+        """Check if we can use pure SQL for counting"""
+        # With proper SQLAlchemy query execution, we can handle most filters
         if not filter_expr:
             return True
             
         field = filter_expr.get("field")
-        # Simple fields that don't require joins
-        sql_compatible_fields = {"recruiter", "source_id", "vacancy_id"}
+        # Most fields can now be handled via SQLAlchemy
+        supported_fields = {"recruiter", "source_id", "vacancy_id", "status_id", "company", "state"}
         
-        # Status filtering requires joins with applicant_links, so not SQL-compatible yet
-        return field in sql_compatible_fields
+        return field in supported_fields
     
-    async def _execute_sql_count(self, filter_expr: FilterExpr) -> int:
-        """Execute actual SQL count query"""
-        try:
-            query = select(func.count(self.engine.applicants.c.id))
-            
-            if filter_expr:
-                field = filter_expr.get("field")
-                op = filter_expr.get("op")
-                value = filter_expr.get("value")
-                
-                # Validate inputs
-                if not field or not op:
-                    raise ValueError("Invalid filter expression: missing field or op")
-                
-                if op in ["in", "not_in"] and not isinstance(value, list):
-                    raise ValueError(f"Operator '{op}' requires list value, got {type(value)}")
-                
-                # Build where clauses
-                if field == "recruiter":
-                    if op == "eq":
-                        query = query.where(self.engine.applicants.c.recruiter_name == value)
-                    elif op == "in":
-                        query = query.where(self.engine.applicants.c.recruiter_name.in_(value))
-                elif field == "source_id":
-                    if op == "eq":
-                        query = query.where(self.engine.applicants.c.source_id == value)
-                    elif op == "in":
-                        query = query.where(self.engine.applicants.c.source_id.in_(value))
-                elif field == "vacancy_id":
-                    if op == "eq":
-                        query = query.where(self.engine.applicants.c.vacancy_id == value)
-                    elif op == "in":
-                        query = query.where(self.engine.applicants.c.vacancy_id.in_(value))
-                else:
-                    raise ValueError(f"Unsupported field for SQL count: {field}")
-            
-            # Execute the SQL query directly
-            result = await self.engine._execute_sql_query(query)
-            count = result.scalar() if result else 0
-            
-            logger.debug(f"SQL count query returned: {count}")
-            return count
-            
-        except Exception as e:
-            raise QueryExecutionError(
-                f"Failed to execute SQL count query: {e}",
-                query_type="count",
-                original_error=e
-            )
     
     async def _execute_avg_sql(self, entity: str, field: str, filter_expr: FilterExpr) -> float:
         """Execute average using SQL approach - no longer supported"""

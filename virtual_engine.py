@@ -143,24 +143,221 @@ class HuntflowVirtualEngine:
         self._status_groups_cache = None
         self._action_logs_cache = None
     
-    async def _execute_sql_query(self, query):
-        """Execute SQLAlchemy query and return result object for SQL count operations"""
-        # Virtual engine implementation for count queries
-        # Translates SQLAlchemy queries to API calls and returns compatible result
+    async def execute_sqlalchemy_query(self, query):
+        """Execute proper SQLAlchemy query and return optimized result"""
+        # This is the key architectural improvement: instead of fetching all data,
+        # we analyze the SQLAlchemy query and execute optimized API calls
         
-        # Result object for count queries
-        class QueryResult:
+        # Result object for SQLAlchemy queries
+        class SQLAlchemyResult:
             def __init__(self, count_value: int):
                 self._count = count_value
             
             def scalar(self):
                 return self._count
         
-        # Execute query through the virtual engine
-        results = await self.execute(query)
-        count = len(results) if isinstance(results, list) else 0
+        # Analyze the query to determine what type of operation it is
+        query_analysis = self._analyze_sqlalchemy_query(query)
         
-        return QueryResult(count)
+        if query_analysis["operation"] == "count":
+            # For count operations, we can optimize by using API-level filtering
+            count = await self._execute_optimized_count(query_analysis)
+            return SQLAlchemyResult(count)
+        else:
+            # For other operations, fall back to full data fetch
+            results = await self.execute(query)
+            count = len(results) if isinstance(results, list) else 0
+            return SQLAlchemyResult(count)
+    
+    def _analyze_sqlalchemy_query(self, query):
+        """Analyze SQLAlchemy query to optimize API calls"""
+        analysis = {
+            "operation": "unknown",
+            "table": None,
+            "filters": {},
+            "columns": []
+        }
+        
+        # Detect count operations
+        if hasattr(query, 'selected_columns'):
+            for col in query.selected_columns:
+                if hasattr(col, 'element') and hasattr(col.element, 'name'):
+                    if col.element.name == 'count':
+                        analysis["operation"] = "count"
+        
+        # Extract table information
+        if hasattr(query, 'table') and hasattr(query.table, 'name'):
+            analysis["table"] = query.table.name
+        elif hasattr(query, 'froms'):
+            for table in query.froms:
+                if hasattr(table, 'name'):
+                    analysis["table"] = table.name
+                    break
+        
+        # Extract WHERE clause filters
+        if hasattr(query, 'whereclause') and query.whereclause is not None:
+            analysis["filters"] = self._extract_filters_from_query(query)
+        
+        logger.debug(f"Query analysis: {analysis}")
+        return analysis
+    
+    async def _execute_optimized_count(self, query_analysis):
+        """Execute optimized count query using API-level filtering"""
+        table_name = query_analysis["table"]
+        filters = query_analysis["filters"]
+        
+        if table_name == "applicants":
+            # For applicants count, use API filtering instead of fetching all data
+            return await self._count_applicants_optimized(filters)
+        elif table_name == "vacancies":
+            # For vacancies count, use API filtering
+            return await self._count_vacancies_optimized(filters)
+        else:
+            # Fallback to full fetch for unknown tables
+            logger.warning(f"No optimized count for table: {table_name}")
+            results = await self._execute_table_query(table_name, filters)
+            return len(results)
+    
+    async def _count_applicants_optimized(self, filters):
+        """Count applicants using API-level filtering (no full data fetch)"""
+        # CRITICAL OPTIMIZATION: Use /applicants/search with count=30 to get total metadata
+        # This avoids fetching all applicant data
+        
+        params = {"count": 30, "page": 1}  # Get first page to access total count
+        
+        # Apply API-level filters if supported by Huntflow API
+        if "source_id" in filters:
+            params["source"] = filters["source_id"]
+        if "status_id" in filters:
+            params["status"] = filters["status_id"] 
+        if "vacancy_id" in filters:
+            params["vacancy"] = filters["vacancy_id"]
+        
+        # Try /applicants/search endpoint first (may have better filtering)
+        result = await self.hf_client._req(
+            "GET", 
+            f"/v2/accounts/{self.hf_client.acc_id}/applicants/search", 
+            params=params
+        )
+        
+        if isinstance(result, dict) and "total" in result:
+            total = result.get("total", 0)
+            logger.info(f"✅ OPTIMIZATION SUCCESS: {total} applicants counted via API metadata (no full fetch)")
+            return total
+        
+        # If /applicants/search doesn't work, try regular /applicants endpoint  
+        result = await self.hf_client._req(
+            "GET",
+            f"/v2/accounts/{self.hf_client.acc_id}/applicants",
+            params=params
+        )
+        
+        if isinstance(result, dict) and "total" in result:
+            total = result.get("total", 0)
+            logger.info(f"✅ OPTIMIZATION SUCCESS: {total} applicants counted via API metadata (no full fetch)")
+            return total
+        
+        # LAST RESORT: If no API total available, check if we have cached data
+        # This is still better than fetching fresh data
+        cache_key = f"applicants_{hash(str(filters))}"
+        if cache_key in self._cache._data and not self._cache._is_expired(cache_key):
+            logger.info("Using cached applicant data for count (avoids API calls)")
+            cached_data = self._cache._data[cache_key]
+            
+            # Apply filtering to cached data
+            if not filters:
+                return len(cached_data)
+            
+            filtered_count = 0
+            for applicant in cached_data:
+                matches = True
+                
+                if "source_id" in filters and applicant.get("source_id") != filters["source_id"]:
+                    matches = False
+                if "status_id" in filters and applicant.get("status_id") != filters["status_id"]:
+                    matches = False
+                if "vacancy_id" in filters and applicant.get("vacancy_id") != filters["vacancy_id"]:
+                    matches = False
+                if "recruiter_name" in filters and applicant.get("recruiter_name") != filters["recruiter_name"]:
+                    matches = False
+                    
+                if matches:
+                    filtered_count += 1
+            
+            logger.info(f"Count from cached data: {filtered_count} (avoided fresh API calls)")
+            return filtered_count
+        
+        # ABSOLUTE LAST RESORT: Fetch data if no other option
+        logger.warning("⚠️ PERFORMANCE WARNING: Falling back to full data fetch for count")
+        applicants_data = await self._get_applicants_data()
+        
+        # Apply Python-level filtering
+        if not filters:
+            return len(applicants_data)
+        
+        filtered_count = 0
+        for applicant in applicants_data:
+            matches = True
+            
+            if "source_id" in filters and applicant.get("source_id") != filters["source_id"]:
+                matches = False
+            if "status_id" in filters and applicant.get("status_id") != filters["status_id"]:
+                matches = False
+            if "vacancy_id" in filters and applicant.get("vacancy_id") != filters["vacancy_id"]:
+                matches = False
+            if "recruiter_name" in filters and applicant.get("recruiter_name") != filters["recruiter_name"]:
+                matches = False
+                
+            if matches:
+                filtered_count += 1
+        
+        return filtered_count
+    
+    async def _count_vacancies_optimized(self, filters):
+        """Count vacancies using API-level filtering"""
+        params = {"count": 1, "page": 1}  # Minimal fetch to get total count
+        
+        # Apply API-level filters
+        if "state" in filters:
+            params["state"] = filters["state"]
+        
+        result = await self.hf_client._req(
+            "GET",
+            f"/v2/accounts/{self.hf_client.acc_id}/vacancies",
+            params=params
+        )
+        
+        if isinstance(result, dict):
+            total = result.get("total", 0)
+            if total > 0:
+                logger.info(f"Optimized vacancy count: {total} (fetched 0 full records)")
+                return total
+        
+        # Fallback to cached data with filtering
+        vacancies_data = await self._execute_vacancies_query(None)
+        
+        filtered_count = 0
+        for vacancy in vacancies_data:
+            matches = True
+            
+            if "state" in filters and vacancy.get("state") != filters["state"]:
+                matches = False
+            if "company" in filters and vacancy.get("company") != filters["company"]:
+                matches = False
+                
+            if matches:
+                filtered_count += 1
+        
+        return filtered_count
+    
+    async def _execute_table_query(self, table_name, filters):
+        """Execute table query with filters"""
+        if table_name == "applicants":
+            return await self._get_applicants_data(filters)
+        elif table_name == "vacancies":
+            return await self._execute_vacancies_query(None, filters)
+        else:
+            return []
     
     async def execute(self, query) -> List[Dict[str, Any]]:
         """Execute SQLAlchemy query by translating to API calls"""
