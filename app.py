@@ -1,6 +1,7 @@
 import os
 import json
 import asyncio
+import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -11,6 +12,13 @@ from fastapi.responses import FileResponse
 from openai import AsyncOpenAI
 import httpx
 from hr_analytics_prompt import get_unified_prompt
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -70,12 +78,12 @@ class HuntflowClient:
                 response = await client.request(method, url, headers=headers, **kwargs)
                 
                 if response.status_code == 401:
-                    print("🔒 Authentication failed for Huntflow API")
+                    logger.error("Authentication failed for Huntflow API")
                     return {}
                     
                 if response.status_code == 429:
                     retry_after = int(response.headers.get("Retry-After", "1"))
-                    print(f"⏱️ Rate limited, waiting {retry_after}s...")
+                    logger.warning(f"Rate limited, waiting {retry_after}s...")
                     await asyncio.sleep(retry_after)
                     response = await client.request(method, url, headers=headers, **kwargs)
                     
@@ -83,7 +91,7 @@ class HuntflowClient:
                 return response.json()
                 
             except httpx.HTTPError as e:
-                print(f"❌ HTTP error: {e}")
+                logger.error(f"HTTP error: {e}")
                 return {}
                     
         return {}
@@ -122,7 +130,7 @@ async def update_huntflow_context():
     global huntflow_context
     
     if not hf_client.token or not hf_client.acc_id:
-        print("⚠️ Huntflow credentials not configured")
+        logger.warning("Huntflow credentials not configured")
         # Set empty values - no sample data
         huntflow_context.update({
             "vacancy_statuses": [],
@@ -143,7 +151,7 @@ async def update_huntflow_context():
         return
     
     try:
-        print("🔄 Fetching Huntflow data...")
+        logger.info("Fetching Huntflow data...")
         
         # Fetch open vacancies
         open_vacancies = await hf_client.get_open_vacancies()
@@ -159,21 +167,21 @@ async def update_huntflow_context():
             vacancy_statuses = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/vacancies/statuses")
             huntflow_context["vacancy_statuses"] = vacancy_statuses.get("items", [])
         except Exception as e:
-            print(f"❌ Error fetching vacancy statuses: {e}")
+            logger.error(f"Error fetching vacancy statuses: {e}")
             huntflow_context["vacancy_statuses"] = [{"id": 1, "name": "New"}, {"id": 2, "name": "Interview"}]
         
         try:
             # Fetch coworkers/recruiters with user type info
             coworkers_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/coworkers")
             huntflow_context["coworkers"] = coworkers_data.get("items", [])
-            print(f"📊 Fetched {len(huntflow_context['coworkers'])} coworkers")
+            logger.info(f"Fetched {len(huntflow_context['coworkers'])} coworkers")
         except Exception as e:
-            print(f"❌ Error fetching coworkers: {e}")
+            logger.error(f"Error fetching coworkers: {e}")
             huntflow_context["coworkers"] = [{"id": 1, "name": "Recruiter", "type": "recruiter"}]
         
         try:
             # Fetch applicants count - using larger sample to estimate total
-            print(f"🔍 Fetching applicants from /v2/accounts/{hf_client.acc_id}/applicants/search...")
+            logger.info(f"Fetching applicants from /v2/accounts/{hf_client.acc_id}/applicants/search...")
             applicants_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/applicants/search", params={"count": 100})
             api_total = applicants_data.get("total", 0)
             items_count = len(applicants_data.get('items', []))
@@ -187,31 +195,31 @@ async def update_huntflow_context():
                 if page_2_count > 0:
                     # If we have a second page, estimate there are more
                     estimated_total = items_count * 5  # Conservative estimate
-                    print(f"📊 Applicants API: API total={api_total}, page1={items_count}, page2={page_2_count}, estimated={estimated_total}")
+                    logger.debug(f"Applicants API: API total={api_total}, page1={items_count}, page2={page_2_count}, estimated={estimated_total}")
                     huntflow_context["total_applicants"] = estimated_total
                 else:
                     # Only one page of results
-                    print(f"📊 Applicants API: API total={api_total}, actual items={items_count}")
+                    logger.debug(f"Applicants API: API total={api_total}, actual items={items_count}")
                     huntflow_context["total_applicants"] = items_count
             else:
-                print(f"📊 Applicants API: total={api_total}, items={items_count}")
+                logger.info(f"Applicants API: total={api_total}, items={items_count}")
                 huntflow_context["total_applicants"] = api_total
             
             # If still 0, try the main applicants endpoint
             if huntflow_context["total_applicants"] == 0:
-                print("🔍 Trying alternative applicants endpoint...")
+                logger.info("Trying alternative applicants endpoint...")
                 alt_applicants_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/applicants", params={"count": 100})
                 alt_api_total = alt_applicants_data.get("total", 0)
                 alt_items_count = len(alt_applicants_data.get('items', []))
                 
                 if alt_api_total == 0 and alt_items_count > 0:
                     huntflow_context["total_applicants"] = alt_items_count
-                    print(f"📊 Alternative endpoint: API total={alt_api_total}, actual items={alt_items_count}")
+                    logger.debug(f"Alternative endpoint: API total={alt_api_total}, actual items={alt_items_count}")
                 else:
                     huntflow_context["total_applicants"] = alt_api_total
-                    print(f"📊 Alternative endpoint: total={alt_api_total}, items={alt_items_count}")
+                    logger.debug(f"Alternative endpoint: total={alt_api_total}, items={alt_items_count}")
         except Exception as e:
-            print(f"❌ Error fetching applicants count: {e}")
+            logger.error(f"Error fetching applicants count: {e}")
             huntflow_context["total_applicants"] = 0
         
         try:
@@ -219,9 +227,9 @@ async def update_huntflow_context():
             sources_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/applicants/sources")
             sources_list = sources_data.get("items", [])
             huntflow_context["sources"] = sources_list
-            print(f"📊 Fetched {len(huntflow_context['sources'])} sources")
+            logger.info(f"Fetched {len(huntflow_context['sources'])} sources")
         except Exception as e:
-            print(f"❌ Error fetching sources: {e}")
+            logger.error(f"Error fetching sources: {e}")
             huntflow_context["sources"] = []
         
         try:
@@ -229,62 +237,62 @@ async def update_huntflow_context():
             orgs_data = await hf_client._req("GET", f"/v2/accounts")
             huntflow_context["organizations"] = orgs_data.get("items", [])
         except Exception as e:
-            print(f"❌ Error fetching organizations: {e}")
+            logger.error(f"Error fetching organizations: {e}")
             huntflow_context["organizations"] = []
         
         try:
             # Fetch tags
             tags_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/tags")
             huntflow_context["tags"] = tags_data.get("items", [])
-            print(f"📊 Fetched {len(huntflow_context['tags'])} tags")
+            logger.info(f"Fetched {len(huntflow_context['tags'])} tags")
         except Exception as e:
-            print(f"❌ Error fetching tags: {e}")
+            logger.error(f"Error fetching tags: {e}")
             huntflow_context["tags"] = [{"id": 1, "name": "Python"}]
         
         try:
             # Fetch divisions
             divisions_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/divisions")
             huntflow_context["divisions"] = divisions_data.get("items", [])
-            print(f"📊 Fetched {len(huntflow_context['divisions'])} divisions")
+            logger.info(f"Fetched {len(huntflow_context['divisions'])} divisions")
         except Exception as e:
-            print(f"❌ Error fetching divisions: {e}")
+            logger.error(f"Error fetching divisions: {e}")
             huntflow_context["divisions"] = [{"id": 1, "name": "IT Department"}]
         
         try:
             # Fetch additional vacancy fields
             additional_fields_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/vacancies/additional_fields")
             huntflow_context["additional_fields"] = additional_fields_data.get("items", [])
-            print(f"📊 Fetched {len(huntflow_context['additional_fields'])} additional fields")
+            logger.info(f"Fetched {len(huntflow_context['additional_fields'])} additional fields")
         except Exception as e:
-            print(f"❌ Error fetching additional fields: {e}")
+            logger.error(f"Error fetching additional fields: {e}")
             huntflow_context["additional_fields"] = []
         
         try:
             # Fetch rejection reasons
             rejection_reasons_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/rejection_reasons")
             huntflow_context["rejection_reasons"] = rejection_reasons_data.get("items", [])
-            print(f"📊 Fetched {len(huntflow_context['rejection_reasons'])} rejection reasons")
+            logger.info(f"Fetched {len(huntflow_context['rejection_reasons'])} rejection reasons")
         except Exception as e:
-            print(f"❌ Error fetching rejection reasons: {e}")
+            logger.error(f"Error fetching rejection reasons: {e}")
             huntflow_context["rejection_reasons"] = [{"id": 1, "name": "Not qualified"}]
         
         try:
             # Fetch dictionaries
             dictionaries_data = await hf_client._req("GET", f"/v2/accounts/{hf_client.acc_id}/dictionaries")
             huntflow_context["dictionaries"] = dictionaries_data.get("items", [])
-            print(f"📊 Fetched {len(huntflow_context['dictionaries'])} dictionaries")
+            logger.info(f"Fetched {len(huntflow_context['dictionaries'])} dictionaries")
         except Exception as e:
-            print(f"❌ Error fetching dictionaries: {e}")
+            logger.error(f"Error fetching dictionaries: {e}")
             huntflow_context["dictionaries"] = []
         
         huntflow_context["total_vacancies"] = len(open_vacancies) + len(closed_vacancies)
         
         huntflow_context["last_updated"] = datetime.now().isoformat()
         
-        print(f"✅ Updated context: {len(open_vacancies)} open, {len(closed_vacancies)} recently closed vacancies")
+        logger.info(f"Updated context: {len(open_vacancies)} open, {len(closed_vacancies)} recently closed vacancies")
         
     except Exception as e:
-        print(f"❌ Error updating Huntflow context: {e}")
+        logger.error(f"Error updating Huntflow context: {e}")
         # Set empty values on error - no sample data
         huntflow_context.update({
             "vacancy_statuses": [],
@@ -353,7 +361,7 @@ async def chat(request: ChatRequest):
         try:
             import os
             prompt_file_path = os.path.join(os.getcwd(), "current_system_prompt.txt")
-            print(f"💾 Saving system prompt to: {prompt_file_path}")
+            logger.debug(f"Saving system prompt to: {prompt_file_path}")
             
             with open(prompt_file_path, "w", encoding="utf-8") as f:
                 f.write("=== SYSTEM PROMPT ===\n")
@@ -365,9 +373,9 @@ async def chat(request: ChatRequest):
                 f.write("\n\n" + "="*50 + "\n")
                 f.write("Additional system message: Return only valid JSON. No markdown formatting or explanations.\n")
             
-            print(f"✅ System prompt saved successfully to {prompt_file_path}")
+            logger.info(f"System prompt saved successfully to {prompt_file_path}")
         except Exception as e:
-            print(f"❌ Error saving system prompt: {e}")
+            logger.error(f"Error saving system prompt: {e}")
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -427,7 +435,7 @@ async def chat(request: ChatRequest):
                 ai_response = json.dumps(response_data)
         
         except (json.JSONDecodeError, ImportError, Exception) as e:
-            print(f"⚠️ Real data execution failed: {e}")
+            logger.warning(f"Real data execution failed: {e}")
             # Continue with original response if execution fails
         
         return ChatResponse(
