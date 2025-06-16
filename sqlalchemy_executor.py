@@ -58,12 +58,11 @@ class SQLAlchemyHuntflowExecutor:
         self.metrics = HuntflowComputedMetrics(self.engine)
         self.metrics_helper = HuntflowMetricsHelper(self)
         
-        # Configuration for hired status detection (robust system-level detection)
+        # Configuration for hired status detection (robust system-level detection only)
         self.hired_status_config = hired_status_config or {
-            "method": "auto_detect",  # "system_types", "status_ids", "status_groups"
+            "method": "auto_detect",  # "system_types", "status_ids" 
             "status_ids": [],  # Explicit list of hired status IDs if known
             "system_types": ["hired"],  # System-level status types (most reliable)
-            "status_groups": ["hired", "successful", "completed"],  # Status groups to look for
             "cache_duration": 3600  # Cache hired status detection for 1 hour
         }
         self._hired_status_cache = None
@@ -844,12 +843,8 @@ class SQLAlchemyHuntflowExecutor:
                 # Method 2: Use system-level status types (very reliable)
                 hired_status_ids = await self._get_hired_status_ids_from_system_types()
                 
-            elif method == "status_groups":
-                # Method 3: Use status groups API if available
-                hired_status_ids = await self._get_hired_status_ids_from_groups()
-                
             elif method == "auto_detect":
-                # Method 4: Try multiple approaches in order of reliability
+                # Method 3: Use only robust system types detection
                 hired_status_ids = await self._auto_detect_hired_status_ids()
                 
             else:
@@ -868,38 +863,21 @@ class SQLAlchemyHuntflowExecutor:
             return []
     
     async def _auto_detect_hired_status_ids(self) -> List[int]:
-        """Auto-detect hired status IDs using multiple approaches"""
+        """Auto-detect hired status IDs using only robust system types"""
         
-        # Try system types first (most reliable)
+        # Use only system types (most reliable) - no fragile fallbacks
         try:
             system_type_ids = await self._get_hired_status_ids_from_system_types()
             if system_type_ids:
                 logger.info("Auto-detect: Found hired statuses via system types")
                 return system_type_ids
+            else:
+                logger.warning("Auto-detect: No hired statuses found via system types")
+                return []
         except Exception as e:
             logger.debug(f"System types approach failed: {e}")
-        
-        # Try status groups next
-        try:
-            group_based_ids = await self._get_hired_status_ids_from_groups()
-            if group_based_ids:
-                logger.info("Auto-detect: Found hired statuses via status groups")
-                return group_based_ids
-        except Exception as e:
-            logger.debug(f"Status groups approach failed: {e}")
-        
-        # Try pattern analysis (more sophisticated than simple string matching)
-        try:
-            pattern_based_ids = await self._get_hired_status_ids_pattern_analysis()
-            if pattern_based_ids:
-                logger.info("Auto-detect: Found hired statuses via pattern analysis")
-                return pattern_based_ids
-        except Exception as e:
-            logger.debug(f"Pattern analysis approach failed: {e}")
-        
-        # No more fallbacks - return empty if all robust methods fail
-        logger.warning("Auto-detect: All detection methods failed")
-        return []
+            logger.warning("Auto-detect: System types detection failed")
+            return []
     
     async def _get_hired_status_ids_from_system_types(self) -> List[int]:
         """Get hired status IDs using system-level status types (most reliable method)"""
@@ -932,87 +910,7 @@ class SQLAlchemyHuntflowExecutor:
             logger.debug(f"System types detection failed: {e}")
             return []
     
-    async def _get_hired_status_ids_from_groups(self) -> List[int]:
-        """Get hired status IDs from status groups API"""
-        try:
-            # Try to get status groups
-            status_groups_result = await self.engine.hf_client._req(
-                "GET",
-                f"/v2/accounts/{self.engine.hf_client.acc_id}/vacancies/status_groups"
-            )
-            
-            if not isinstance(status_groups_result, dict):
-                return []
-            
-            hired_group_ids = []
-            target_groups = self.hired_status_config["status_groups"]
-            
-            for group in status_groups_result.get("items", []):
-                group_name = group.get("name", "").lower()
-                if any(target in group_name for target in target_groups):
-                    hired_group_ids.append(group.get("id"))
-            
-            if not hired_group_ids:
-                return []
-            
-            # Get statuses and filter by group
-            status_mapping = await self.engine._get_status_mapping()
-            hired_status_ids = []
-            
-            for status_id, status_info in status_mapping.items():
-                if isinstance(status_info, dict):
-                    status_group_id = status_info.get("group_id") or status_info.get("status_group_id")
-                    if status_group_id in hired_group_ids:
-                        hired_status_ids.append(status_id)
-            
-            return hired_status_ids
-            
-        except Exception as e:
-            logger.debug(f"Status groups API not available or failed: {e}")
-            return []
     
-    async def _get_hired_status_ids_pattern_analysis(self) -> List[int]:
-        """Analyze status patterns to identify hired statuses (more sophisticated than string matching)"""
-        try:
-            status_mapping = await self.engine._get_status_mapping()
-            hired_status_ids = []
-            
-            # Analysis patterns for different languages
-            positive_patterns = [
-                # English patterns
-                r"\b(hired|accepted|successful|completed|final|offer\s+accepted|job\s+offer)\b",
-                # Russian patterns  
-                r"\b(принят|принято|успешно|завершен|финал|трудоустроен)\b",
-                # Universal patterns
-                r"\b(success|complete|final|end)\b"
-            ]
-            
-            negative_patterns = [
-                r"\b(reject|decline|fail|cancel|refused|отказ|отклонен)\b"
-            ]
-            
-            import re
-            
-            for status_id, status_info in status_mapping.items():
-                if not isinstance(status_info, dict):
-                    continue
-                
-                status_name = status_info.get("name", "").lower()
-                
-                # Skip if negative pattern matches
-                if any(re.search(pattern, status_name, re.IGNORECASE) for pattern in negative_patterns):
-                    continue
-                
-                # Check for positive patterns
-                if any(re.search(pattern, status_name, re.IGNORECASE) for pattern in positive_patterns):
-                    hired_status_ids.append(status_id)
-                    logger.debug(f"Pattern match: '{status_name}' -> hired status ID {status_id}")
-            
-            return hired_status_ids
-            
-        except Exception as e:
-            logger.debug(f"Pattern analysis failed: {e}")
-            return []
     
     
     # ==================== READY-TO-USE METRICS ====================
