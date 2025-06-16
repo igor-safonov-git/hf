@@ -190,13 +190,13 @@ class HuntflowVirtualEngine:
             if isinstance(result, dict):
                 items = result.get("items", [])
                 if not items:
+                    # No more items returned, we've reached the end
                     break
                 all_applicants.extend(items)
                 
-                # Check if we have more pages using total count
-                total = result.get("total", 0)
-                current_count = len(all_applicants)
-                if current_count >= total:
+                # Continue to next page if we got a full page (100 items)
+                # If we got less than 100 items, this is likely the last page
+                if len(items) < 100:
                     break
                     
                 page += 1
