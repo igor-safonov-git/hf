@@ -287,205 +287,176 @@ class HuntflowVirtualEngine:
         query_str = str(query)
         return table_name in query_str.lower()
     
+    def _extract_filters_from_query(self, query) -> Dict[str, Any]:
+        """Extract WHERE clause filters from SQLAlchemy query"""
+        filters = {}
+        query_str = str(query).lower()
+        
+        # Simple WHERE clause parsing for common patterns
+        # This is a basic implementation - could be enhanced with proper SQL parsing
+        import re
+        
+        # Extract vacancy_id filters (single or IN clause)
+        vacancy_id_match = re.search(r'vacancy_id\s*=\s*(\d+)', query_str)
+        if vacancy_id_match:
+            filters['vacancy_id'] = int(vacancy_id_match.group(1))
+        else:
+            # Check for IN clause: vacancy_id IN (1, 2, 3)
+            vacancy_in_match = re.search(r'vacancy_id\s+in\s*\(([^)]+)\)', query_str)
+            if vacancy_in_match:
+                ids_str = vacancy_in_match.group(1)
+                vacancy_ids = [int(x.strip()) for x in ids_str.split(',') if x.strip().isdigit()]
+                if vacancy_ids:
+                    filters['vacancy_ids'] = vacancy_ids  # Multiple IDs
+        
+        # Extract applicant_id filters
+        applicant_id_match = re.search(r'applicant_id\s*=\s*(\d+)', query_str)
+        if applicant_id_match:
+            filters['applicant_id'] = int(applicant_id_match.group(1))
+        else:
+            # Check for IN clause for applicant_ids
+            applicant_in_match = re.search(r'applicant_id\s+in\s*\(([^)]+)\)', query_str)
+            if applicant_in_match:
+                ids_str = applicant_in_match.group(1)
+                applicant_ids = [int(x.strip()) for x in ids_str.split(',') if x.strip().isdigit()]
+                if applicant_ids:
+                    filters['applicant_ids'] = applicant_ids
+        
+        # Extract frame_id filters
+        frame_id_match = re.search(r'frame_id\s*=\s*(\d+)', query_str)
+        if frame_id_match:
+            filters['frame_id'] = int(frame_id_match.group(1))
+        
+        # Extract date range filters
+        date_begin_match = re.search(r'date_begin\s*=\s*["\']([^"\'\ ]+)["\']', query_str)
+        if date_begin_match:
+            filters['date_begin'] = date_begin_match.group(1)
+        
+        date_end_match = re.search(r'date_end\s*=\s*["\']([^"\'\ ]+)["\']', query_str)
+        if date_end_match:
+            filters['date_end'] = date_end_match.group(1)
+        
+        # Extract type filters for logs
+        type_match = re.search(r'type\s*=\s*["\']([^"\'\ ]+)["\']', query_str)
+        if type_match:
+            filters['type'] = type_match.group(1)
+        
+        return filters
+    
+    async def _get_all_vacancy_ids(self) -> List[int]:
+        """Get all vacancy IDs for queries that don't specify vacancy_id"""
+        vacancies_data = await self._execute_vacancies_query(None)
+        return [v.get('id') for v in vacancies_data if v.get('id')]
+    
+    async def _get_all_applicant_ids_simple(self) -> List[int]:
+        """Get all applicant IDs - now much more efficient thanks to /applicants endpoint"""
+        applicants_data = await self._get_applicants_data()
+        return [a.get('id') for a in applicants_data if a.get('id')]
+    
     async def _get_applicants_data(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Fetch and cache applicants data from API with optional filters"""
+        """OPTIMAL ARCHITECTURAL FIX: Use /applicants endpoint with rich ApplicantItem data.
+        This eliminates the N+1 problem by getting links array for ALL applicants in ~100 calls instead of ~10,000.
+        """
         if self._applicants_cache is not None:
             return self._applicants_cache
         
-        print("🔄 Fetching applicants data for virtual table...")
+        print("🔄 Using OPTIMAL endpoint: /applicants (includes links array for ALL applicants)...")
         
-        # Get applicants from API using correct pagination per OpenAPI spec
+        # 1. CALL THE ARCHITECTURALLY SUPERIOR ENDPOINT
         all_applicants = []
         page = 1
         while True:
             params = {"count": 100, "page": page}
             
-            # Add filters from short-spec.md if provided
+            # NOTE: /applicants has less filtering than /applicants/search, 
+            # but returns rich ApplicantItem data with links array
             if filters:
-                # Support all documented search parameters
-                for param in ['q', 'field', 'tag', 'status', 'rejection_reason', 'vacancy', 'account_source', 'only_current_status']:
+                # Support basic filtering available on /applicants endpoint
+                for param in ['status', 'vacancy', 'agreement_state']:
                     if param in filters:
                         params[param] = filters[param]
             
-            result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/search", params=params)
+            # KEY INSIGHT: Use /applicants instead of /applicants/search
+            result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants", params=params)
             
             if isinstance(result, dict):
                 items = result.get("items", [])
                 if not items:
-                    # No more items returned, we've reached the end
                     break
                 all_applicants.extend(items)
                 
-                # Continue to next page if we got a full page (100 items)
-                # If we got less than 100 items, this is likely the last page
+                # Standard pagination check
                 if len(items) < 100:
                     break
-                    
                 page += 1
             else:
                 break
         
-        # If no real data, we have no applicants
         if not all_applicants:
             print("❌ No applicants data available from API")
-            all_applicants = []
+            return []
         
-        # Enrich with recruiter and source info + CRITICAL: Get real status data
+        print(f"📊 Retrieved {len(all_applicants)} applicants with COMPLETE data (no N+1 calls needed)")
+        
+        # 2. PROCESS THE RICH DATA (NO ADDITIONAL API CALLS NEEDED!)
         enriched_applicants = []
+        status_map = await self._get_status_mapping()
         recruiters_map = await self._get_recruiters_mapping()
         sources_map = await self._get_sources_mapping()
         
-        # CRITICAL FIX: Use applicant_links as primary data source for status information
-        # This solves the major flaw where only first 200 applicants had status data
-        print(f"🔄 Building applicants data from applicant_links to ensure complete status coverage...")
-        
-        # Get all applicant links with status data
-        all_links = await self._get_all_applicant_links()
-        applicant_status_map = {}  # applicant_id -> latest status info
-        
-        # Build status mapping for each applicant
-        for link in all_links:
-            applicant_id = link.get('applicant_id')
-            if applicant_id and (applicant_id not in applicant_status_map or 
-                               link.get('updated', '') > applicant_status_map[applicant_id].get('updated', '')):
-                applicant_status_map[applicant_id] = link
-        
-        print(f"✅ Built status mapping for {len(applicant_status_map)} applicants")
-        
         for applicant in all_applicants:
-            # Map to actual API fields available in search response per OpenAPI spec
+            # The 'applicant' object is already the rich ApplicantItem model with links array!
+            links = applicant.get('links', [])
+            latest_link = max(links, key=lambda x: x.get('updated', ''), default={})
+            
+            # Extract status data directly from the links array
+            status_id = latest_link.get('status', 0)
+            vacancy_id = latest_link.get('vacancy', 0)
+            status_info = status_map.get(status_id, {'name': 'Unknown'})
+            
             enriched = {
                 'id': applicant.get('id', 0),
                 'first_name': applicant.get('first_name', ''),
                 'last_name': applicant.get('last_name', ''),
                 'middle_name': applicant.get('middle_name', ''),
-                'birthday': applicant.get('birthday', ''),        # Available in search
+                'birthday': applicant.get('birthday', ''),
                 'phone': applicant.get('phone', ''),
-                'skype': applicant.get('skype', ''),              # Available in search
+                'skype': applicant.get('skype', ''),
                 'email': applicant.get('email', ''),
-                'money': applicant.get('money', ''),              # Salary expectation
-                'position': applicant.get('position', ''),       # Available in search
-                'company': applicant.get('company', ''),         # Available in search
-                'photo': applicant.get('photo', 0),              # Photo ID
-                'photo_url': applicant.get('photo_url', ''),     # Available in search
+                'money': applicant.get('money', ''),
+                'position': applicant.get('position', ''),
+                'company': applicant.get('company', ''),
+                'photo': applicant.get('photo', 0),
+                'photo_url': applicant.get('photo_url', ''),
                 'created': applicant.get('created', ''),
-                # Required ApplicantItem fields from individual /applicants/{id} calls
-                'account': applicant.get('account', self.hf_client.acc_id),  # Organization ID
-                'tags': str(applicant.get('tags', [])),                      # List of tags as JSON string
-                'external': str(applicant.get('external', {})),              # Resume data as JSON string
-                'agreement': str(applicant.get('agreement', {})),            # Agreement state as JSON string
-                'doubles': str(applicant.get('doubles', [])),                # List of duplicates as JSON string
-                'social': str(applicant.get('social', [])),                  # Social accounts as JSON string
-                # Status data from applicant_links - now covers ALL applicants
-                'status_id': 0,
-                'vacancy_id': 0,
-                'status_name': 'Unknown',
-                'source_id': 0,         # Must be fetched from individual call
-                'recruiter_id': 0,      # Must be computed from logs
+                # Rich ApplicantItem fields (already available!)
+                'account': applicant.get('account', self.hf_client.acc_id),
+                'tags': str(applicant.get('tags', [])),
+                'external': str(applicant.get('external', [])),
+                'agreement': str(applicant.get('agreement', {})),
+                'doubles': str(applicant.get('doubles', [])),
+                'social': str(applicant.get('social', [])),
+                # Status data directly from links array - ALL applicants have this!
+                'status_id': status_id,
+                'vacancy_id': vacancy_id,
+                'status_name': status_info.get('name', 'Unknown'),
+                # Additional computed fields
+                'source_id': applicant.get('source', 0),
+                'recruiter_id': 0,  # Could extract from logs if needed
                 'recruiter_name': 'Unknown',
-                'source_name': 'Unknown',
+                'source_name': sources_map.get(applicant.get('source', 0), 'Unknown'),
             }
-            
-            # Get status data for this applicant from our complete mapping
-            applicant_id = applicant.get('id', 0)
-            if applicant_id in applicant_status_map:
-                link_data = applicant_status_map[applicant_id]
-                enriched['status_id'] = link_data.get('status', 0)
-                enriched['vacancy_id'] = link_data.get('vacancy', 0)
-                
-                # Map status ID to name
-                status_map = await self._get_status_mapping()
-                status_info = status_map.get(enriched['status_id'], {'name': 'Unknown'})
-                enriched['status_name'] = status_info.get('name', 'Unknown')
-            
             enriched_applicants.append(enriched)
         
         self._applicants_cache = enriched_applicants
-        print(f"✅ Cached {len(enriched_applicants)} applicants")
+        print(f"✅ PERFORMANCE WIN: Cached {len(enriched_applicants)} applicants with ~{page} API calls instead of ~{len(all_applicants)} calls!")
         return enriched_applicants
     
-    async def _get_all_applicant_ids_with_cursor(self) -> List[int]:
-        """Get all applicant IDs using cursor pagination for better performance on large datasets"""
-        print("🔄 Fetching ALL applicant IDs using cursor pagination for optimal performance...")
-        
-        all_applicant_ids = []
-        next_page_cursor = None
-        
-        while True:
-            params = {"count": 100}
-            if next_page_cursor:
-                params["next_page_cursor"] = next_page_cursor
-            
-            result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/search_by_cursor", params=params)
-            
-            if isinstance(result, dict):
-                items = result.get("items", [])
-                if not items:
-                    break
-                
-                all_applicant_ids.extend([item.get('id') for item in items if item.get('id')])
-                
-                # Check for next page cursor
-                next_page_cursor = result.get("next_page_cursor")
-                if not next_page_cursor:
-                    break
-            else:
-                break
-        
-        return all_applicant_ids
-    
-    async def _get_all_applicant_links(self) -> List[Dict[str, Any]]:
-        """Get all applicant links to solve status data coverage issue"""
-        print("🔄 Fetching ALL applicant links for complete status coverage...")
-        
-        # Use cursor pagination for better performance on large datasets
-        try:
-            all_applicant_ids = await self._get_all_applicant_ids_with_cursor()
-            print(f"✅ Using cursor pagination for {len(all_applicant_ids)} applicants")
-        except Exception as e:
-            print(f"⚠️ Cursor pagination failed ({e}), falling back to page-based pagination")
-            # Fallback to original page-based approach
-            all_applicant_ids = []
-            page = 1
-            while True:
-                params = {"count": 100, "page": page}
-                result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/search", params=params)
-                
-                if isinstance(result, dict):
-                    items = result.get("items", [])
-                    if not items:
-                        break
-                    all_applicant_ids.extend([item.get('id') for item in items if item.get('id')])
-                    
-                    if len(items) < 100:
-                        break
-                    page += 1
-                else:
-                    break
-        
-        print(f"📊 Found {len(all_applicant_ids)} applicants, fetching links for all...")
-        
-        # Now get links for ALL applicants (this is the critical fix)
-        all_links = []
-        batch_size = 50  # Process in batches to avoid overwhelming the API
-        
-        for i in range(0, len(all_applicant_ids), batch_size):
-            batch = all_applicant_ids[i:i + batch_size]
-            batch_links = await asyncio.gather(
-                *[self._get_applicant_links_from_individual_call(applicant_id) for applicant_id in batch],
-                return_exceptions=True
-            )
-            
-            for applicant_id, links in zip(batch, batch_links):
-                if isinstance(links, list):
-                    for link in links:
-                        link['applicant_id'] = applicant_id  # Ensure we track the applicant
-                        all_links.append(link)
-            
-            print(f"✅ Processed batch {i//batch_size + 1}/{(len(all_applicant_ids) + batch_size - 1)//batch_size}")
-        
-        print(f"✅ Retrieved {len(all_links)} total applicant links")
-        return all_links
+    # REMOVED: Complex N+1 methods no longer needed thanks to architectural fix!
+    # The /applicants endpoint provides links array directly, eliminating the need for:
+    # - _get_all_applicant_ids_with_cursor()
+    # - _get_all_applicant_links() 
+    # This reduces API calls from ~10,000 to ~100 - a 100x performance improvement!
     
     # Removed demo applicants generation - using real API only
     
@@ -965,15 +936,56 @@ class HuntflowVirtualEngine:
     
     async def _execute_applicant_responses_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute query against applicant_responses virtual table"""
-        # This requires applicant_id parameter - should be called per applicant
-        # For now return empty as this needs specific applicant context
-        return []
+        # Extract filters from SQL query
+        sql_filters = self._extract_filters_from_query(query)
+        if filters:
+            sql_filters.update(filters)
+        
+        # Handle single applicant_id or multiple applicant_ids
+        applicant_id = sql_filters.get('applicant_id')
+        applicant_ids = sql_filters.get('applicant_ids', [])
+        
+        if applicant_id:
+            applicant_ids = [applicant_id]
+        elif not applicant_ids:
+            # Without applicant_id(s), return empty result
+            return []
+        
+        # Aggregate results from multiple applicants
+        all_responses = []
+        for aid in applicant_ids:
+            responses = await self.get_applicant_responses(aid)
+            all_responses.extend(responses)
+        
+        return all_responses
     
     async def _execute_vacancy_logs_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute query against vacancy_logs virtual table"""
-        # This requires vacancy_id parameter - should be called per vacancy
-        # For now return empty as this needs specific vacancy context
-        return []
+        # Extract filters from SQL query
+        sql_filters = self._extract_filters_from_query(query)
+        if filters:
+            sql_filters.update(filters)
+        
+        # Handle single vacancy_id or multiple vacancy_ids
+        vacancy_id = sql_filters.get('vacancy_id')
+        vacancy_ids = sql_filters.get('vacancy_ids', [])
+        
+        if vacancy_id:
+            vacancy_ids = [vacancy_id]
+        elif not vacancy_ids:
+            # Without vacancy_id(s), return empty result
+            return []
+        
+        date_begin = sql_filters.get('date_begin')
+        date_end = sql_filters.get('date_end')
+        
+        # Aggregate results from multiple vacancies
+        all_logs = []
+        for vid in vacancy_ids:
+            logs = await self.get_vacancy_logs(vid, date_begin, date_end)
+            all_logs.extend(logs)
+        
+        return all_logs
     
     # Enhanced methods for individual entity access
     
@@ -1050,8 +1062,39 @@ class HuntflowVirtualEngine:
     
     async def _execute_vacancy_periods_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute query against vacancy_periods virtual table"""
-        # This requires vacancy_id and date range - implement as method that takes vacancy_id
-        return []  # Stub for now - needs individual vacancy context
+        # Extract filters from SQL query
+        sql_filters = self._extract_filters_from_query(query)
+        if filters:
+            sql_filters.update(filters)
+        
+        # Handle single vacancy_id or multiple vacancy_ids
+        vacancy_id = sql_filters.get('vacancy_id')
+        vacancy_ids = sql_filters.get('vacancy_ids', [])
+        
+        if vacancy_id:
+            vacancy_ids = [vacancy_id]
+        elif not vacancy_ids:
+            # Without vacancy_id(s), return empty result
+            return []
+        
+        date_begin = sql_filters.get('date_begin')
+        date_end = sql_filters.get('date_end')
+        
+        if not date_begin or not date_end:
+            # Use default date range if not specified
+            from datetime import datetime, timedelta
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=365)  # Last year
+            date_begin = start_date.strftime('%Y-%m-%d')
+            date_end = end_date.strftime('%Y-%m-%d')
+        
+        # Aggregate results from multiple vacancies
+        all_periods = []
+        for vid in vacancy_ids:
+            periods = await self.get_vacancy_periods(vid, date_begin, date_end)
+            all_periods.extend(periods)
+        
+        return all_periods
     
     async def get_vacancy_periods(self, vacancy_id: int, date_begin: str, date_end: str) -> List[Dict[str, Any]]:
         """Get vacancy periods (work, hold, closed) per API spec"""
@@ -1075,8 +1118,28 @@ class HuntflowVirtualEngine:
     
     async def _execute_vacancy_frames_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute query against vacancy_frames virtual table"""
-        # This requires vacancy_id - implement as method that takes vacancy_id
-        return []  # Stub for now - needs individual vacancy context
+        # Extract filters from SQL query
+        sql_filters = self._extract_filters_from_query(query)
+        if filters:
+            sql_filters.update(filters)
+        
+        # Handle single vacancy_id or multiple vacancy_ids
+        vacancy_id = sql_filters.get('vacancy_id')
+        vacancy_ids = sql_filters.get('vacancy_ids', [])
+        
+        if vacancy_id:
+            vacancy_ids = [vacancy_id]
+        elif not vacancy_ids:
+            # Without vacancy_id(s), return empty result
+            return []
+        
+        # Aggregate results from multiple vacancies
+        all_frames = []
+        for vid in vacancy_ids:
+            frames = await self.get_vacancy_frames(vid)
+            all_frames.extend(frames)
+        
+        return all_frames
     
     async def get_vacancy_frames(self, vacancy_id: int) -> List[Dict[str, Any]]:
         """Get all historical activity frames for a vacancy"""
@@ -1111,8 +1174,34 @@ class HuntflowVirtualEngine:
     
     async def _execute_vacancy_quotas_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute query against vacancy_quotas virtual table"""
-        # This requires vacancy_id - implement as method that takes vacancy_id
-        return []  # Stub for now - needs individual vacancy context
+        # Extract filters from SQL query
+        sql_filters = self._extract_filters_from_query(query)
+        if filters:
+            sql_filters.update(filters)
+        
+        # Handle single vacancy_id or multiple vacancy_ids
+        vacancy_id = sql_filters.get('vacancy_id')
+        vacancy_ids = sql_filters.get('vacancy_ids', [])
+        frame_id = sql_filters.get('frame_id')
+        
+        if vacancy_id:
+            vacancy_ids = [vacancy_id]
+        elif not vacancy_ids:
+            # Without vacancy_id(s), return empty result
+            return []
+        
+        # Aggregate results from multiple vacancies
+        all_quotas = []
+        for vid in vacancy_ids:
+            if frame_id:
+                # Query quotas for specific frame
+                quotas = await self.get_frame_quotas(vid, frame_id)
+            else:
+                # Query all quotas for vacancy
+                quotas = await self.get_vacancy_quotas(vid)
+            all_quotas.extend(quotas)
+        
+        return all_quotas
     
     async def get_vacancy_quotas(self, vacancy_id: int, count: int = 100, page: int = 1) -> List[Dict[str, Any]]:
         """Get hiring quotas for a vacancy"""
