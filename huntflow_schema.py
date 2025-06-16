@@ -318,6 +318,16 @@ class HuntflowVirtualEngine:
         # Cache invalidation methods for users
         self.invalidate_cache = self._cache.invalidate
         self.get_cache_stats = self._cache.get_stats
+        
+        # Legacy cache attributes (for methods not yet converted to TTL cache)
+        self._sources_cache = None
+        self._divisions_cache = None
+        self._tags_cache = None
+        self._regions_cache = None
+        self._rejection_reasons_cache = None
+        self._dictionaries_cache = None
+        self._status_groups_cache = None
+        self._action_logs_cache = None
     
     async def execute(self, query) -> List[Dict[str, Any]]:
         """Execute SQLAlchemy query by translating to API calls"""
