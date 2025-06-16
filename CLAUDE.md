@@ -198,3 +198,7 @@ scaled_counts = {k: int(v * scale_factor) for k, v in status_counts.items()}
 - HTTP 429: Respects Retry-After header with exponential backoff
 - Missing env vars: Returns graceful error messages
 - API errors: Detailed error info preserved in function call responses
+
+## Additional Notes
+
+- `@short-spec.md` is a source of thruth for Huntflow api

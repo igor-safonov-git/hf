@@ -141,6 +141,56 @@ class HuntflowVirtualEngine:
             Column('vacancy', Integer)            # Required per OpenAPI
         )
         
+        # Add regions table per short-spec.md
+        self.regions = Table('regions', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('name', String),
+            Column('order', Integer),
+            Column('foreign', String)
+        )
+        
+        # Add rejection reasons table per short-spec.md
+        self.rejection_reasons = Table('rejection_reasons', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('name', String),
+            Column('order', Integer)
+        )
+        
+        # Add dictionaries table per short-spec.md
+        self.dictionaries = Table('dictionaries', self.metadata,
+            Column('code', String, primary_key=True),
+            Column('name', String),
+            Column('items', String)  # JSON string of dictionary items
+        )
+        
+        # Add applicant responses table per short-spec.md
+        self.applicant_responses = Table('applicant_responses', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('applicant_id', Integer),
+            Column('vacancy_id', Integer),
+            Column('source', String),
+            Column('created', DateTime),
+            Column('response_data', String)  # JSON string
+        )
+        
+        # Add vacancy logs table per short-spec.md  
+        self.vacancy_logs = Table('vacancy_logs', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('vacancy_id', Integer),
+            Column('type', String),
+            Column('created', DateTime),
+            Column('account_info', String),  # JSON string
+            Column('data', String)  # JSON string of log data
+        )
+        
+        # Add status groups table per short-spec.md
+        self.status_groups = Table('status_groups', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('name', String),
+            Column('order', Integer),
+            Column('statuses', String)  # JSON array of status IDs
+        )
+        
         # Cache for API data
         self._applicants_cache = None
         self._status_cache = None
@@ -148,6 +198,10 @@ class HuntflowVirtualEngine:
         self._sources_cache = None
         self._divisions_cache = None
         self._tags_cache = None
+        self._regions_cache = None
+        self._rejection_reasons_cache = None
+        self._dictionaries_cache = None
+        self._status_groups_cache = None
     
     async def execute(self, query) -> List[Dict[str, Any]]:
         """Execute SQLAlchemy query by translating to API calls"""
@@ -165,6 +219,18 @@ class HuntflowVirtualEngine:
             return await self._execute_tags_query(query)
         elif self._is_table_in_query(query, 'sources'):
             return await self._execute_sources_query(query)
+        elif self._is_table_in_query(query, 'regions'):
+            return await self._execute_regions_query(query)
+        elif self._is_table_in_query(query, 'rejection_reasons'):
+            return await self._execute_rejection_reasons_query(query)
+        elif self._is_table_in_query(query, 'dictionaries'):
+            return await self._execute_dictionaries_query(query)
+        elif self._is_table_in_query(query, 'status_groups'):
+            return await self._execute_status_groups_query(query)
+        elif self._is_table_in_query(query, 'applicant_responses'):
+            return await self._execute_applicant_responses_query(query)
+        elif self._is_table_in_query(query, 'vacancy_logs'):
+            return await self._execute_vacancy_logs_query(query)
         else:
             return []
     
@@ -173,8 +239,8 @@ class HuntflowVirtualEngine:
         query_str = str(query)
         return table_name in query_str.lower()
     
-    async def _get_applicants_data(self) -> List[Dict[str, Any]]:
-        """Fetch and cache applicants data from API"""
+    async def _get_applicants_data(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Fetch and cache applicants data from API with optional filters"""
         if self._applicants_cache is not None:
             return self._applicants_cache
         
@@ -185,6 +251,14 @@ class HuntflowVirtualEngine:
         page = 1
         while True:
             params = {"count": 100, "page": page}
+            
+            # Add filters from short-spec.md if provided
+            if filters:
+                # Support all documented search parameters
+                for param in ['q', 'field', 'tag', 'status', 'rejection_reason', 'vacancy', 'account_source', 'only_current_status']:
+                    if param in filters:
+                        params[param] = filters[param]
+            
             result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/search", params=params)
             
             if isinstance(result, dict):
@@ -213,8 +287,8 @@ class HuntflowVirtualEngine:
         recruiters_map = await self._get_recruiters_mapping()
         sources_map = await self._get_sources_mapping()
         
-        # Sample first 30 applicants for individual API calls to get real status data
-        sample_size = min(30, len(all_applicants))
+        # Sample first 200 applicants for individual API calls to get real status data
+        sample_size = min(200, len(all_applicants))
         print(f"🔄 Enriching {sample_size} of {len(all_applicants)} applicants with individual API calls...")
         
         for i, applicant in enumerate(all_applicants):
@@ -492,12 +566,20 @@ class HuntflowVirtualEngine:
         
         return applicants_data
     
-    async def _execute_recruiters_query(self, query) -> List[Dict[str, Any]]:
-        """Execute query against recruiters virtual table"""
+    async def _execute_recruiters_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against recruiters virtual table with optional filters"""
         recruiters_map = await self._get_recruiters_mapping()
         
+        # Prepare parameters with filters from short-spec.md
+        params = {}
+        if filters:
+            # Support documented coworkers parameters: type, vacancy_id, fetch_permissions, count, page
+            for param in ['type', 'vacancy_id', 'fetch_permissions', 'count', 'page']:
+                if param in filters:
+                    params[param] = filters[param]
+        
         # Get actual coworkers data to return proper fields
-        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/coworkers")
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/coworkers", params=params if params else None)
         
         if isinstance(result, dict) and result.get("items"):
             return [
@@ -517,13 +599,21 @@ class HuntflowVirtualEngine:
         else:
             return []
     
-    async def _execute_vacancies_query(self, query) -> List[Dict[str, Any]]:
-        """Execute query against vacancies virtual table"""
+    async def _execute_vacancies_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against vacancies virtual table with optional filters"""
         # Get all vacancies with proper pagination
         all_vacancies = []
         page = 1
         while True:
             params = {"count": 100, "page": page}
+            
+            # Add filters from short-spec.md if provided
+            if filters:
+                # Support documented vacancy parameters: mine, state
+                for param in ['mine', 'state']:
+                    if param in filters:
+                        params[param] = filters[param]
+            
             result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies", params=params)
             
             if isinstance(result, dict):
@@ -574,10 +664,18 @@ class HuntflowVirtualEngine:
         
         return mapped_vacancies
     
-    async def _execute_divisions_query(self, query) -> List[Dict[str, Any]]:
-        """Execute query against divisions virtual table"""
+    async def _execute_divisions_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against divisions virtual table with optional filters"""
+        # Prepare parameters with filters from short-spec.md
+        params = {}
+        if filters:
+            # Support documented divisions parameters: only_available
+            for param in ['only_available']:
+                if param in filters:
+                    params[param] = filters[param]
+        
         # Get full divisions data from API to return all OpenAPI fields
-        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/divisions")
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/divisions", params=params if params else None)
         
         if isinstance(result, dict) and result.get("items"):
             return [
@@ -632,6 +730,181 @@ class HuntflowVirtualEngine:
             ]
         else:
             return []
+    
+    # New endpoint methods from short-spec.md
+    
+    async def _execute_regions_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against regions virtual table"""
+        if self._regions_cache is not None:
+            return list(self._regions_cache.values())
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/regions")
+        
+        if isinstance(result, dict) and result.get("items"):
+            regions = [
+                {
+                    'id': r.get('id', 0),
+                    'name': r.get('name', ''),
+                    'order': r.get('order', 0),
+                    'foreign': r.get('foreign', '')
+                }
+                for r in result.get("items", []) if r.get('id')
+            ]
+            self._regions_cache = {r['id']: r for r in regions}
+            return regions
+        else:
+            self._regions_cache = {}
+            return []
+    
+    async def _execute_rejection_reasons_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against rejection_reasons virtual table"""
+        if self._rejection_reasons_cache is not None:
+            return list(self._rejection_reasons_cache.values())
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/rejection_reasons")
+        
+        if isinstance(result, dict) and result.get("items"):
+            reasons = [
+                {
+                    'id': r.get('id', 0),
+                    'name': r.get('name', ''),
+                    'order': r.get('order', 0)
+                }
+                for r in result.get("items", []) if r.get('id')
+            ]
+            self._rejection_reasons_cache = {r['id']: r for r in reasons}
+            return reasons
+        else:
+            self._rejection_reasons_cache = {}
+            return []
+    
+    async def _execute_dictionaries_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against dictionaries virtual table"""
+        if self._dictionaries_cache is not None:
+            return list(self._dictionaries_cache.values())
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/dictionaries")
+        
+        if isinstance(result, dict) and result.get("items"):
+            dictionaries = [
+                {
+                    'code': d.get('code', ''),
+                    'name': d.get('name', ''),
+                    'items': str(d.get('items', []))
+                }
+                for d in result.get("items", []) if d.get('code')
+            ]
+            self._dictionaries_cache = {d['code']: d for d in dictionaries}
+            return dictionaries
+        else:
+            self._dictionaries_cache = {}
+            return []
+    
+    async def _execute_status_groups_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against status_groups virtual table"""
+        if self._status_groups_cache is not None:
+            return list(self._status_groups_cache.values())
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies/status_groups")
+        
+        if isinstance(result, dict) and result.get("items"):
+            groups = [
+                {
+                    'id': g.get('id', 0),
+                    'name': g.get('name', ''),
+                    'order': g.get('order', 0),
+                    'statuses': str(g.get('statuses', []))
+                }
+                for g in result.get("items", []) if g.get('id')
+            ]
+            self._status_groups_cache = {g['id']: g for g in groups}
+            return groups
+        else:
+            self._status_groups_cache = {}
+            return []
+    
+    async def _execute_applicant_responses_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against applicant_responses virtual table"""
+        # This requires applicant_id parameter - should be called per applicant
+        # For now return empty as this needs specific applicant context
+        return []
+    
+    async def _execute_vacancy_logs_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query against vacancy_logs virtual table"""
+        # This requires vacancy_id parameter - should be called per vacancy
+        # For now return empty as this needs specific vacancy context
+        return []
+    
+    # Enhanced methods for individual entity access
+    
+    async def get_applicant_responses(self, applicant_id: int, count: int = 100, next_page_cursor: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get applicant responses from job sites per short-spec.md"""
+        params = {'count': count}
+        if next_page_cursor:
+            params['next_page_cursor'] = next_page_cursor
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/{applicant_id}/responses", params=params)
+        
+        if isinstance(result, dict) and result.get("items"):
+            return [
+                {
+                    'id': r.get('id', 0),
+                    'applicant_id': applicant_id,
+                    'vacancy_id': r.get('vacancy_id', 0),
+                    'source': r.get('source', ''),
+                    'created': r.get('created', ''),
+                    'response_data': str(r)
+                }
+                for r in result.get("items", [])
+            ]
+        return []
+    
+    async def get_vacancy_logs(self, vacancy_id: int, date_begin: Optional[str] = None, date_end: Optional[str] = None, count: int = 100, page: int = 1) -> List[Dict[str, Any]]:
+        """Get vacancy event logs per short-spec.md"""
+        params = {'count': count, 'page': page}
+        if date_begin:
+            params['date_begin'] = date_begin
+        if date_end:
+            params['date_end'] = date_end
+        
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/vacancies/{vacancy_id}/logs", params=params)
+        
+        if isinstance(result, dict) and result.get("items"):
+            return [
+                {
+                    'id': log.get('id', 0),
+                    'vacancy_id': vacancy_id,
+                    'type': log.get('type', ''),
+                    'created': log.get('created', ''),
+                    'account_info': str(log.get('account_info', {})),
+                    'data': str(log)
+                }
+                for log in result.get("items", [])
+            ]
+        return []
+    
+    async def get_applicant_tags_for_individual(self, applicant_id: int) -> List[Dict[str, Any]]:
+        """Get tags for specific applicant per short-spec.md"""
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/{applicant_id}/tags")
+        
+        if isinstance(result, dict) and result.get("items"):
+            return [
+                {
+                    'id': t.get('id', 0),
+                    'name': t.get('name', ''),
+                    'color': t.get('color', '')
+                }
+                for t in result.get("items", [])
+            ]
+        return []
+    
+    async def get_applicant_external_resume(self, applicant_id: int, external_id: str) -> Dict[str, Any]:
+        """Get specific parsed resume per short-spec.md"""
+        result = await self.hf_client._req("GET", f"/v2/accounts/{self.hf_client.acc_id}/applicants/{applicant_id}/externals/{external_id}")
+        
+        if isinstance(result, dict):
+            return result
+        return {}
 
 
 # Query Builder Helper Functions
