@@ -116,7 +116,7 @@ async def test_robust_detection():
         {"method": "system_types", "system_types": ["hired"]},
         {"method": "system_types", "system_types": ["hired", "successful", "final"]}, 
         {"method": "auto_detect"},
-        {"method": "string_fallback"}
+        {"method": "status_groups"}
     ]
     
     for i, config in enumerate(configs, 1):
@@ -151,6 +151,6 @@ if __name__ == "__main__":
         print("\n💡 Recommendations:")
         print("  • Use system-level 'type' field for most reliable detection")
         print("  • Configure explicit status IDs for production systems")
-        print("  • Keep string patterns as fallback only")
+        print("  • No fragile string matching - only robust API-based detection")
     
     asyncio.run(main())

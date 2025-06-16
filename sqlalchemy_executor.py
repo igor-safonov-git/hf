@@ -58,13 +58,12 @@ class SQLAlchemyHuntflowExecutor:
         self.metrics = HuntflowComputedMetrics(self.engine)
         self.metrics_helper = HuntflowMetricsHelper(self)
         
-        # Configuration for hired status detection (replaces fragile string matching)
+        # Configuration for hired status detection (robust system-level detection)
         self.hired_status_config = hired_status_config or {
-            "method": "auto_detect",  # "system_types", "status_ids", "status_groups", "string_fallback"
+            "method": "auto_detect",  # "system_types", "status_ids", "status_groups"
             "status_ids": [],  # Explicit list of hired status IDs if known
             "system_types": ["hired"],  # System-level status types (most reliable)
             "status_groups": ["hired", "successful", "completed"],  # Status groups to look for
-            "string_patterns": ["принят", "hired", "offer accepted", "successful"],  # Fallback patterns only
             "cache_duration": 3600  # Cache hired status detection for 1 hour
         }
         self._hired_status_cache = None
@@ -854,8 +853,8 @@ class SQLAlchemyHuntflowExecutor:
                 hired_status_ids = await self._auto_detect_hired_status_ids()
                 
             else:
-                # Method 5: Fallback to improved string matching
-                hired_status_ids = await self._get_hired_status_ids_string_fallback()
+                logger.warning(f"Unknown hired status detection method: {method}")
+                hired_status_ids = []
             
             # Cache the result
             self._hired_status_cache = hired_status_ids
@@ -865,8 +864,8 @@ class SQLAlchemyHuntflowExecutor:
             return hired_status_ids
             
         except Exception as e:
-            logger.error(f"Hired status detection failed: {e}, using fallback")
-            return await self._get_hired_status_ids_string_fallback()
+            logger.error(f"Hired status detection failed: {e}")
+            return []
     
     async def _auto_detect_hired_status_ids(self) -> List[int]:
         """Auto-detect hired status IDs using multiple approaches"""
@@ -875,7 +874,7 @@ class SQLAlchemyHuntflowExecutor:
         try:
             system_type_ids = await self._get_hired_status_ids_from_system_types()
             if system_type_ids:
-                logger.info(f"Auto-detect: Found hired statuses via system types")
+                logger.info("Auto-detect: Found hired statuses via system types")
                 return system_type_ids
         except Exception as e:
             logger.debug(f"System types approach failed: {e}")
@@ -884,7 +883,7 @@ class SQLAlchemyHuntflowExecutor:
         try:
             group_based_ids = await self._get_hired_status_ids_from_groups()
             if group_based_ids:
-                logger.info(f"Auto-detect: Found hired statuses via status groups")
+                logger.info("Auto-detect: Found hired statuses via status groups")
                 return group_based_ids
         except Exception as e:
             logger.debug(f"Status groups approach failed: {e}")
@@ -893,14 +892,14 @@ class SQLAlchemyHuntflowExecutor:
         try:
             pattern_based_ids = await self._get_hired_status_ids_pattern_analysis()
             if pattern_based_ids:
-                logger.info(f"Auto-detect: Found hired statuses via pattern analysis")
+                logger.info("Auto-detect: Found hired statuses via pattern analysis")
                 return pattern_based_ids
         except Exception as e:
             logger.debug(f"Pattern analysis approach failed: {e}")
         
-        # Fallback to improved string matching
-        logger.warning("Auto-detect: Falling back to string matching")
-        return await self._get_hired_status_ids_string_fallback()
+        # No more fallbacks - return empty if all robust methods fail
+        logger.warning("Auto-detect: All detection methods failed")
+        return []
     
     async def _get_hired_status_ids_from_system_types(self) -> List[int]:
         """Get hired status IDs using system-level status types (most reliable method)"""
@@ -1015,30 +1014,6 @@ class SQLAlchemyHuntflowExecutor:
             logger.debug(f"Pattern analysis failed: {e}")
             return []
     
-    async def _get_hired_status_ids_string_fallback(self) -> List[int]:
-        """Improved string matching fallback (with better patterns)"""
-        try:
-            status_mapping = await self.engine._get_status_mapping()
-            hired_status_ids = []
-            
-            patterns = self.hired_status_config["string_patterns"]
-            
-            for status_id, status_info in status_mapping.items():
-                if isinstance(status_info, dict):
-                    status_name = status_info.get("name", "").lower()
-                else:
-                    status_name = str(status_info).lower()
-                
-                # Check if any hired pattern matches
-                if any(pattern.lower() in status_name for pattern in patterns):
-                    hired_status_ids.append(status_id)
-                    logger.debug(f"String fallback: '{status_name}' -> hired status ID {status_id}")
-            
-            return hired_status_ids
-            
-        except Exception as e:
-            logger.error(f"String fallback failed: {e}")
-            return []
     
     # ==================== READY-TO-USE METRICS ====================
     
@@ -1075,7 +1050,6 @@ class HuntflowAnalyticsTemplates:
         # Get recruiter hire counts from applicants with hired status
         # Status information now comes from applicant_links table
         applicants_data = await self.executor.engine._get_applicants_data()
-        status_mapping = await self.executor.engine._get_status_mapping()
         
         # Use robust hired status detection (replaces fragile string matching)
         hired_status_ids = await self.executor.get_hired_status_ids()
