@@ -143,6 +143,25 @@ class HuntflowVirtualEngine:
         self._status_groups_cache = None
         self._action_logs_cache = None
     
+    async def _execute_sql_query(self, query):
+        """Execute SQLAlchemy query and return result object for SQL count operations"""
+        # Virtual engine implementation for count queries
+        # Translates SQLAlchemy queries to API calls and returns compatible result
+        
+        # Result object for count queries
+        class QueryResult:
+            def __init__(self, count_value: int):
+                self._count = count_value
+            
+            def scalar(self):
+                return self._count
+        
+        # Execute query through the virtual engine
+        results = await self.execute(query)
+        count = len(results) if isinstance(results, list) else 0
+        
+        return QueryResult(count)
+    
     async def execute(self, query) -> List[Dict[str, Any]]:
         """Execute SQLAlchemy query by translating to API calls"""
         
