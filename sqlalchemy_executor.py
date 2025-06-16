@@ -387,15 +387,16 @@ class SQLAlchemyHuntflowExecutor:
     
     @handle_errors(default_return={"labels": [], "values": []})
     async def execute_grouped_query(self, query_spec: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute grouped query for chart data"""
+        """Execute grouped query for chart data - ENHANCED CONSOLIDATED VERSION"""
         operation = query_spec.get("operation", "count")
         entity = query_spec.get("entity", "")
         group_by_field = query_spec.get("group_by", {}).get("field", "")
         filter_expr = query_spec.get("filter", {})
+        limit = query_spec.get("limit")  # NEW: Support result limiting
         
         logger.info(f"Executing grouped query: {operation} on {entity} grouped by {group_by_field}")
         
-        # Check for computed chart entities
+        # Check for computed chart entities first
         if entity == "active_candidates" and group_by_field == "status_id":
             return await self.metrics.active_candidates_by_status_chart()
         elif entity == "vacancies" and group_by_field == "state":
@@ -405,15 +406,13 @@ class SQLAlchemyHuntflowExecutor:
         elif entity == "recruiters" and group_by_field == "hirings":
             return await self.metrics.recruiter_performance_chart()
         
-        # Regular entity queries
-        elif entity == "applicants" and group_by_field == "status_id":
-            return await self._execute_applicants_by_status()
-        elif entity == "applicants" and group_by_field == "source_id":
-            return await self._execute_applicants_by_source()
-        elif entity == "applicant_links" and group_by_field == "status_id":
-            return await self._execute_applicant_links_by_status(filter_expr)
-        elif entity == "vacancies" and group_by_field == "state":
-            return await self._execute_vacancies_by_state()
+        # Enhanced regular entity queries with field mapping
+        elif entity == "applicants":
+            return await self._execute_applicants_grouped(group_by_field, filter_expr, limit)
+        elif entity == "applicant_links":
+            return await self._execute_applicant_links_grouped(group_by_field, filter_expr, limit)
+        elif entity == "vacancies":
+            return await self._execute_vacancies_grouped(group_by_field, filter_expr, limit)
         else:
             logger.warning(f"Unsupported grouped query: {entity} by {group_by_field}")
             return {"labels": [], "values": []}
@@ -486,92 +485,110 @@ class SQLAlchemyHuntflowExecutor:
         # Use helper to build chart data (no mapping needed for state)
         return await self._build_chart_data(vacancies_data, 'state')
     
-    async def execute_chart_data(self, chart_spec: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute chart data generation using SQL approach"""
-        x_axis_spec = chart_spec.get("x_axis", {})
-        y_axis_spec = chart_spec.get("y_axis", {})
+    # ==================== ENHANCED GROUPED QUERY METHODS ====================
+    
+    async def _execute_applicants_grouped(self, group_by_field: str, filter_expr: FilterExpr, limit: Optional[int] = None) -> Dict[str, Any]:
+        """Enhanced applicants grouping with field mapping support"""
+        # Field mapping for applicants
+        field_mapping = {
+            "status_id": {"mapping_func": "_get_status_mapping"},
+            "source_id": {"mapping_func": "_get_sources_mapping"},
+            "recruiter_name": {"mapping_func": None, "filter_unknown": True},
+            "division_id": {"mapping_func": "_get_divisions_mapping"},
+            "company": {"mapping_func": None}  # Company from vacancy relationship
+        }
         
+        if group_by_field not in field_mapping:
+            logger.warning(f"Unsupported applicants grouping field: {group_by_field}")
+            return {"labels": [], "values": []}
+        
+        # Get applicants data with filtering
+        applicants_data = await self._fetch_data_chunked("applicants", filter_expr)
+        
+        # Apply field-specific processing
+        field_config = field_mapping[group_by_field]
+        mapping = None
+        
+        if field_config.get("mapping_func"):
+            mapping_func = getattr(self.engine, field_config["mapping_func"])
+            mapping = await mapping_func()
+        
+        # Filter unknown values if specified
+        if field_config.get("filter_unknown"):
+            applicants_data = [app for app in applicants_data 
+                             if app.get(group_by_field) and app.get(group_by_field) != 'Unknown']
+        
+        return await self._build_chart_data(applicants_data, group_by_field, mapping, limit=limit)
+    
+    async def _execute_applicant_links_grouped(self, group_by_field: str, filter_expr: FilterExpr, limit: Optional[int] = None) -> Dict[str, Any]:
+        """Enhanced applicant links grouping"""
+        if group_by_field == "status_id":
+            return await self._execute_applicant_links_by_status(filter_expr)
+        else:
+            logger.warning(f"Unsupported applicant_links grouping field: {group_by_field}")
+            return {"labels": [], "values": []}
+    
+    async def _execute_vacancies_grouped(self, group_by_field: str, filter_expr: FilterExpr, limit: Optional[int] = None) -> Dict[str, Any]:
+        """Enhanced vacancies grouping with field mapping support"""
+        # Field mapping for vacancies
+        field_mapping = {
+            "state": {"mapping_func": None},
+            "company": {"mapping_func": None, "filter_empty": True},
+            "division_id": {"mapping_func": "_get_divisions_mapping"}
+        }
+        
+        if group_by_field not in field_mapping:
+            logger.warning(f"Unsupported vacancies grouping field: {group_by_field}")
+            return {"labels": [], "values": []}
+        
+        # Get vacancies data with filtering
+        vacancies_data = await self.engine._execute_vacancies_query(filter_expr)
+        
+        # Apply field-specific processing
+        field_config = field_mapping[group_by_field]
+        mapping = None
+        
+        if field_config.get("mapping_func"):
+            mapping_func = getattr(self.engine, field_config["mapping_func"])
+            mapping = await mapping_func()
+        
+        # Filter empty values if specified
+        if field_config.get("filter_empty"):
+            vacancies_data = [vac for vac in vacancies_data if vac.get(group_by_field)]
+        
+        return await self._build_chart_data(vacancies_data, group_by_field, mapping, limit=limit)
+    
+    # DEPRECATED: Use execute_grouped_query instead
+    async def execute_chart_data(self, chart_spec: Dict[str, Any]) -> Dict[str, Any]:
+        """DEPRECATED: Use execute_grouped_query instead for better flexibility"""
+        logger.warning("execute_chart_data is deprecated. Use execute_grouped_query instead.")
+        
+        # Convert old format to new format and delegate
+        x_axis_spec = chart_spec.get("x_axis", {})
         x_field = x_axis_spec.get("field")
         
-        if x_field == "status":
-            return await self._status_chart_sql()
-        elif x_field in ["recruiter", "coworkers"]:
-            return await self._recruiter_chart_sql(y_axis_spec)
-        elif x_field == "company":
-            return await self._company_chart_sql()
-        elif x_field in ["divisions", "account_division"]:
-            return await self._divisions_chart_sql()
+        # Map old field names to new grouped query format
+        field_mapping = {
+            "status": {"entity": "applicants", "group_by": {"field": "status_id"}},
+            "recruiter": {"entity": "applicants", "group_by": {"field": "recruiter_name"}},
+            "coworkers": {"entity": "applicants", "group_by": {"field": "recruiter_name"}},
+            "company": {"entity": "vacancies", "group_by": {"field": "company"}},
+            "divisions": {"entity": "applicants", "group_by": {"field": "division_id"}},
+            "account_division": {"entity": "applicants", "group_by": {"field": "division_id"}}
+        }
+        
+        if x_field in field_mapping:
+            query_spec = {
+                "operation": "count",
+                **field_mapping[x_field],
+                "filter": chart_spec.get("y_axis", {}).get("filter", {})
+            }
+            return await self.execute_grouped_query(query_spec)
         
         return {"labels": [], "values": []}
     
-    @handle_errors(default_return={"labels": [], "values": []})
-    async def _status_chart_sql(self) -> Dict[str, Any]:
-        """Generate status distribution chart using SQL approach"""
-        
-        # Status information now comes from applicant_links table
-        # Get status distribution from applicants with status info
-        applicants_data = await self.engine._get_applicants_data()
-        status_mapping = await self.engine._get_status_mapping()
-        
-        # Filter to only applicants with status info
-        applicants_with_status = [app for app in applicants_data if 'status_id' in app and app['status_id']]
-        
-        # Use helper to build chart data
-        chart_data = await self._build_chart_data(applicants_with_status, 'status_id', status_mapping)
-        
-        logger.debug(f"Status chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
-        
-        return chart_data
-    
-    @handle_errors(default_return={"labels": [], "values": []})
-    async def _recruiter_chart_sql(self, y_axis_spec: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate recruiter performance chart using SQL approach"""
-        
-        applicants_data = await self.engine._get_applicants_data()
-        
-        # Build base query with filters from y_axis_spec
-        filter_expr = y_axis_spec.get("filter", {})
-        applicants_data = await self.engine._execute_applicants_query(filter_expr)
-        
-        # Filter out unknown recruiters
-        valid_applicants = [app for app in applicants_data if app.get('recruiter_name') and app.get('recruiter_name') != 'Unknown']
-        
-        # Use helper to build chart data with limit
-        chart_data = await self._build_chart_data(valid_applicants, 'recruiter_name', limit=5)
-        
-        logger.debug(f"Recruiter chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
-        
-        return chart_data
-    
-    @handle_errors(default_return={"labels": [], "values": []})
-    async def _company_chart_sql(self) -> Dict[str, Any]:
-        """Generate company distribution chart using SQL approach"""
-        
-        vacancies_data = await self.engine._execute_vacancies_query(None)
-        
-        # Filter out vacancies without company
-        valid_vacancies = [vac for vac in vacancies_data if vac.get('company')]
-        
-        # Use helper to build chart data with limit
-        chart_data = await self._build_chart_data(valid_vacancies, 'company', limit=10)
-        
-        logger.debug(f"Company chart data: {dict(zip(chart_data['labels'], chart_data['values']))}")
-        
-        return chart_data
-    
-    @handle_errors(default_return={"labels": [], "values": []})
-    async def _divisions_chart_sql(self) -> Dict[str, Any]:
-        """Generate divisions distribution chart using SQL approach"""
-        
-        divisions_map = await self.engine._get_divisions_mapping()
-        
-        # Count applicants or vacancies by division - simplified approach
-        labels = list(divisions_map.values())[:10]  # Top 10 divisions
-        values = [1] * len(labels)  # Placeholder counts
-        
-        logger.debug(f"Divisions chart data: {dict(zip(labels, values))}")
-        
-        return {"labels": labels, "values": values}
+    # DEPRECATED CHART HELPERS - Functionality moved to execute_grouped_query
+    # These methods are preserved for compatibility but no longer used
     
     # ==================== READY-TO-USE METRICS ====================
     
