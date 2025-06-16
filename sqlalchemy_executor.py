@@ -4,6 +4,7 @@ Replaces the complex huntflow_query_executor.py with clean SQL-like operations
 """
 from typing import Dict, Any, List, Union
 from huntflow_schema import HuntflowVirtualEngine, HuntflowQueryBuilder
+from huntflow_metrics import HuntflowComputedMetrics, HuntflowMetricsHelper
 from sqlalchemy.sql import select, func
 import asyncio
 
@@ -13,6 +14,8 @@ class SQLAlchemyHuntflowExecutor:
     def __init__(self, hf_client):
         self.engine = HuntflowVirtualEngine(hf_client)
         self.builder = HuntflowQueryBuilder(self.engine)
+        self.metrics = HuntflowComputedMetrics(self.engine)
+        self.metrics_helper = HuntflowMetricsHelper(self)
     
     async def execute_expression(self, expression: Dict[str, Any]) -> Union[int, float, List[Any]]:
         """Execute analytics expression using SQL approach"""
@@ -421,6 +424,26 @@ class SQLAlchemyHuntflowExecutor:
         print(f"📊 SQLAlchemy divisions chart: {dict(zip(labels, values))}")
         
         return {"labels": labels, "values": values}
+    
+    # ==================== READY-TO-USE METRICS ====================
+    
+    async def get_ready_metric(self, metric_name: str, **kwargs) -> Union[int, float, List[Any], Dict[str, Any]]:
+        """Execute ready-to-use metrics"""
+        return await self.metrics_helper.execute_metric(metric_name, **kwargs)
+    
+    async def get_ready_chart(self, chart_type: str) -> Dict[str, Any]:
+        """Get ready-to-use chart data"""
+        return await self.metrics_helper.get_metric_chart_data(chart_type)
+    
+    async def get_dashboard_data(self) -> Dict[str, Any]:
+        """Get all dashboard data in one call"""
+        key_metrics = await self.metrics.get_all_key_metrics()
+        chart_data = await self.metrics.get_all_chart_data()
+        
+        return {
+            "metrics": key_metrics,
+            "charts": chart_data
+        }
 
 
 # Predefined Query Templates for Common Analytics
