@@ -865,19 +865,13 @@ class SQLAlchemyHuntflowExecutor:
     async def _auto_detect_hired_status_ids(self) -> List[int]:
         """Auto-detect hired status IDs using only robust system types"""
         
-        # Use only system types (most reliable) - no fragile fallbacks
-        try:
-            system_type_ids = await self._get_hired_status_ids_from_system_types()
-            if system_type_ids:
-                logger.info("Auto-detect: Found hired statuses via system types")
-                return system_type_ids
-            else:
-                logger.warning("Auto-detect: No hired statuses found via system types")
-                return []
-        except Exception as e:
-            logger.debug(f"System types approach failed: {e}")
-            logger.warning("Auto-detect: System types detection failed")
-            return []
+        # Use only system types (most reliable) - method handles its own errors
+        system_type_ids = await self._get_hired_status_ids_from_system_types()
+        if system_type_ids:
+            logger.info("Auto-detect: Found hired statuses via system types")
+        else:
+            logger.warning("Auto-detect: No hired statuses found via system types")
+        return system_type_ids
     
     async def _get_hired_status_ids_from_system_types(self) -> List[int]:
         """Get hired status IDs using system-level status types (most reliable method)"""
@@ -933,31 +927,3 @@ class SQLAlchemyHuntflowExecutor:
             "charts": chart_data
         }
 
-
-# Predefined Query Templates for Common Analytics
-class HuntflowAnalyticsTemplates:
-    """Pre-built analytics queries using SQLAlchemy expressions"""
-    
-    def __init__(self, executor: SQLAlchemyHuntflowExecutor):
-        self.executor = executor
-        self.builder = executor.builder
-    
-    async def recruiter_performance_report(self) -> Dict[str, Any]:
-        """Generate complete recruiter performance report"""
-        
-        # Get recruiter hire counts from applicants with hired status
-        # Status information now comes from applicant_links table
-        applicants_data = await self.executor.engine._get_applicants_data()
-        
-        # Use robust hired status detection (replaces fragile string matching)
-        hired_status_ids = await self.executor.get_hired_status_ids()
-        
-        # Use thread pool for CPU-intensive recruiter stats calculation on large datasets
-        if len(applicants_data) > 1000:
-            logger.debug(f"Processing recruiter stats for {len(applicants_data)} applicants in thread pool")
-            return await asyncio.to_thread(
-                SQLAlchemyHuntflowExecutor._calculate_recruiter_stats_cpu,
-                applicants_data, hired_status_ids
-            )
-        else:
-            return SQLAlchemyHuntflowExecutor._calculate_recruiter_stats_cpu(applicants_data, hired_status_ids)
