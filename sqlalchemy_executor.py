@@ -73,6 +73,10 @@ class SQLAlchemyHuntflowExecutor:
             else:
                 return len(applicants_data)
         
+        elif entity == "applicant_links":
+            # Handle applicant_links entity for pipeline status queries
+            return await self._execute_applicant_links_count(filter_expr)
+        
         return 0
     
     async def _execute_avg_sql(self, entity: str, field: str, filter_expr: Dict[str, Any]) -> float:
@@ -105,6 +109,207 @@ class SQLAlchemyHuntflowExecutor:
             return list(tags_map.values())
         
         return []
+    
+    async def _execute_applicant_links_count(self, filter_expr: Dict[str, Any]) -> int:
+        """Execute count on applicant_links with filtering"""
+        try:
+            # Get all applicants with their links
+            applicants_data = await self.engine._get_applicants_data()
+            
+            # Extract all links and apply filters
+            all_links = []
+            for applicant in applicants_data:
+                # Check if applicant has status_id (from enriched individual calls)
+                if 'status_id' in applicant and applicant['status_id']:
+                    # Create synthetic link from enriched applicant data
+                    synthetic_link = {
+                        'id': f"synthetic_{applicant['id']}",
+                        'applicant': applicant['id'],
+                        'status_id': applicant['status_id'],
+                        'vacancy': applicant.get('vacancy_id', 0)
+                    }
+                    all_links.append(synthetic_link)
+            
+            # Apply filters
+            if not filter_expr:
+                return len(all_links)
+            
+            field = filter_expr.get("field")
+            op = filter_expr.get("op")
+            value = filter_expr.get("value")
+            
+            if field == "vacancy.state" and op == "eq" and value == "OPEN":
+                # Filter to only links connected to open vacancies
+                open_vacancies = await self.engine._execute_vacancies_query(None)
+                open_vacancy_ids = {v['id'] for v in open_vacancies if v.get('state') == 'OPEN'}
+                
+                filtered_links = [link for link in all_links if link.get('vacancy') in open_vacancy_ids]
+                return len(filtered_links)
+            
+            return len(all_links)
+            
+        except Exception as e:
+            print(f"❌ Error in applicant_links count: {e}")
+            return 0
+    
+    async def execute_grouped_query(self, query_spec: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute grouped query for chart data"""
+        try:
+            operation = query_spec.get("operation", "count")
+            entity = query_spec.get("entity", "")
+            group_by_field = query_spec.get("group_by", {}).get("field", "")
+            filter_expr = query_spec.get("filter", {})
+            
+            print(f"🔧 Executing grouped query: {operation} on {entity} grouped by {group_by_field}")
+            
+            if entity == "applicants" and group_by_field == "status_id":
+                return await self._execute_applicants_by_status()
+            elif entity == "applicants" and group_by_field == "source_id":
+                return await self._execute_applicants_by_source()
+            elif entity == "applicant_links" and group_by_field == "status_id":
+                return await self._execute_applicant_links_by_status(filter_expr)
+            elif entity == "vacancies" and group_by_field == "state":
+                return await self._execute_vacancies_by_state()
+            else:
+                print(f"⚠️ Unsupported grouped query: {entity} by {group_by_field}")
+                return {"labels": [], "values": []}
+                
+        except Exception as e:
+            print(f"❌ Error in grouped query: {e}")
+            return {"labels": [], "values": []}
+    
+    async def _execute_applicants_by_status(self) -> Dict[str, Any]:
+        """Get applicant counts by status"""
+        try:
+            # Get vacancy statuses for labels
+            status_map = await self.engine._get_status_mapping()
+            
+            # Get all applicants data
+            applicants_data = await self.engine._execute_applicants_query({})
+            
+            # Count by status_id (using virtual field from schema)
+            status_counts = {}
+            for applicant in applicants_data:
+                status_id = applicant.get('status_id', 'Unknown')
+                status_counts[status_id] = status_counts.get(status_id, 0) + 1
+            
+            # Convert to chart format
+            labels = []
+            values = []
+            for status_id, count in status_counts.items():
+                status_name = status_map.get(status_id, f"Status {status_id}")
+                labels.append(status_name)
+                values.append(count)
+            
+            return {"labels": labels, "values": values}
+            
+        except Exception as e:
+            print(f"❌ Error getting applicants by status: {e}")
+            return {"labels": [], "values": []}
+    
+    async def _execute_applicants_by_source(self) -> Dict[str, Any]:
+        """Get applicant counts by source"""
+        try:
+            # Get sources for labels
+            sources_map = await self.engine._get_sources_mapping()
+            
+            # Get all applicants data
+            applicants_data = await self.engine._execute_applicants_query({})
+            
+            # Count by source_id
+            source_counts = {}
+            for applicant in applicants_data:
+                source_id = applicant.get('source_id', 'Unknown')
+                source_counts[source_id] = source_counts.get(source_id, 0) + 1
+            
+            # Convert to chart format
+            labels = []
+            values = []
+            for source_id, count in source_counts.items():
+                source_name = sources_map.get(source_id, f"Source {source_id}")
+                labels.append(source_name)
+                values.append(count)
+            
+            return {"labels": labels, "values": values}
+            
+        except Exception as e:
+            print(f"❌ Error getting applicants by source: {e}")
+            return {"labels": [], "values": []}
+    
+    async def _execute_applicant_links_by_status(self, filter_expr: Dict[str, Any]) -> Dict[str, Any]:
+        """Get applicant link counts by status (for pipeline analysis)"""
+        try:
+            # Get vacancy statuses for labels
+            status_map = await self.engine._get_status_mapping()
+            
+            # Get all applicants with their links/status info
+            applicants_data = await self.engine._get_applicants_data()
+            
+            # Extract links and apply filters
+            all_links = []
+            for applicant in applicants_data:
+                if 'status_id' in applicant and applicant['status_id']:
+                    synthetic_link = {
+                        'status_id': applicant['status_id'],
+                        'vacancy_id': applicant.get('vacancy_id', 0)
+                    }
+                    all_links.append(synthetic_link)
+            
+            # Apply vacancy.state = "OPEN" filter if specified
+            if filter_expr and filter_expr.get("field") == "vacancy.state" and filter_expr.get("value") == "OPEN":
+                # Get open vacancy IDs
+                open_vacancies = await self.engine._execute_vacancies_query(None)
+                open_vacancy_ids = {v['id'] for v in open_vacancies if v.get('state') == 'OPEN'}
+                
+                # Filter links to only those connected to open vacancies
+                all_links = [link for link in all_links if link.get('vacancy_id') in open_vacancy_ids]
+                print(f"🎯 Filtered to {len(all_links)} links from open vacancies")
+            
+            # Count by status_id
+            status_counts = {}
+            for link in all_links:
+                status_id = link.get('status_id', 'Unknown')
+                status_counts[status_id] = status_counts.get(status_id, 0) + 1
+            
+            # Convert to chart format using status names instead of raw status objects
+            labels = []
+            values = []
+            for status_id, count in status_counts.items():
+                if status_id == 'Unknown':
+                    labels.append("Status Unknown")
+                else:
+                    status_info = status_map.get(status_id, {'name': f'Status {status_id}'})
+                    labels.append(status_info.get('name', f'Status {status_id}'))
+                values.append(count)
+            
+            print(f"📊 Pipeline status distribution: {dict(zip(labels, values))}")
+            return {"labels": labels, "values": values}
+            
+        except Exception as e:
+            print(f"❌ Error getting applicant links by status: {e}")
+            return {"labels": [], "values": []}
+    
+    async def _execute_vacancies_by_state(self) -> Dict[str, Any]:
+        """Get vacancy counts by state"""
+        try:
+            # Get all vacancies data
+            vacancies_data = await self.engine._execute_vacancies_query({})
+            
+            # Count by state
+            state_counts = {}
+            for vacancy in vacancies_data:
+                state = vacancy.get('state', 'Unknown')
+                state_counts[state] = state_counts.get(state, 0) + 1
+            
+            # Convert to chart format
+            labels = list(state_counts.keys())
+            values = list(state_counts.values())
+            
+            return {"labels": labels, "values": values}
+            
+        except Exception as e:
+            print(f"❌ Error getting vacancies by state: {e}")
+            return {"labels": [], "values": []}
     
     async def execute_chart_data(self, chart_spec: Dict[str, Any]) -> Dict[str, Any]:
         """Execute chart data generation using SQL approach"""

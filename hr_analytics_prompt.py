@@ -22,10 +22,18 @@ def get_unified_prompt(huntflow_context: Optional[dict] = None) -> str:
     
     # Prepare entity lists for injection into prompt
     statuses_list = chr(10).join([f"  - {s['name']} (ID: {s['id']})" for s in huntflow_context.get('vacancy_statuses', [])])
-    sources_list = chr(10).join([f"  - {source}" for source in huntflow_context.get('sources', [])])
+    sources_list = chr(10).join([f"  - {s.get('name', 'Unknown')} (ID: {s.get('id', 'N/A')}, Type: {s.get('type', 'unknown')})" for s in huntflow_context.get('sources', [])])
     tags_list = chr(10).join([f"  - {t['name']} (ID: {t['id']})" for t in huntflow_context.get('tags', [])])
     divisions_list = chr(10).join([f"  - {d['name']} (ID: {d['id']})" for d in huntflow_context.get('divisions', [])])
-    coworkers_list = chr(10).join([f"  - {c['name']} (ID: {c['id']})" for c in huntflow_context.get('coworkers', [])])
+    
+    # Separate coworkers by role: recruiters (owner/manager) vs hiring managers (watcher)
+    coworkers = huntflow_context.get('coworkers', [])
+    recruiters = [c for c in coworkers if c.get('type') in ['owner', 'manager']]
+    hiring_managers = [c for c in coworkers if c.get('type') == 'watcher']
+    
+    recruiters_list = chr(10).join([f"  - {c['name']} (ID: {c['id']}, Type: {c.get('type', 'unknown')})" for c in recruiters])
+    hiring_managers_list = chr(10).join([f"  - {c['name']} (ID: {c['id']}, Type: {c.get('type', 'unknown')})" for c in hiring_managers])
+    
     orgs_list = chr(10).join([f"  - {o['name']} (ID: {o['id']})" for o in huntflow_context.get('organizations', [])])
     fields_list = chr(10).join([f"  - {f['name']} (ID: {f['id']}, Type: {f['type']})" for f in huntflow_context.get('additional_fields', [])])
     rejection_list = chr(10).join([f"  - {r['name']} (ID: {r['id']})" for r in huntflow_context.get('rejection_reasons', [])])
@@ -36,8 +44,12 @@ def get_unified_prompt(huntflow_context: Optional[dict] = None) -> str:
     closed_vacancies_list = chr(10).join([f"  - {v.get('position', 'Unknown')} (ID: {v.get('id', 'N/A')}) - Closed: {v.get('updated', 'N/A')[:10]}" for v in huntflow_context.get('recently_closed_vacancies', [])])
     
     # Prepare dynamic examples
-    source_examples = ", ".join(huntflow_context.get('sources', ['LinkedIn', 'Referral', 'Direct', 'Agency'])[:5])
-    status_examples = ", ".join([s['name'] for s in huntflow_context.get('vacancy_statuses', [])][:8])
+    sources_raw = huntflow_context.get('sources', [])
+    if sources_raw and isinstance(sources_raw[0], dict):
+        source_examples = ", ".join([s.get('name', 'Unknown') for s in sources_raw[:5]])
+    else:
+        source_examples = ", ".join(['LinkedIn', 'Referral', 'Direct', 'Agency'])
+    status_examples = ", ".join([s['name'] for s in huntflow_context.get('vacancy_statuses', [])])
     
     prompt_base = """You are an HR-analytics expert with comprehensive knowledge of Huntflow's data structure.
 
@@ -64,6 +76,7 @@ Only these entities and fields are allowed in metrics, filters and group-bys.
 
 Кандидаты / applicants
 id, first_name, last_name, middle_name, phone, email, position, company, money, photo, birthday, created, tags
+NOTE: Applicants do NOT have direct status fields. Status comes from applicant_links.
 
 Вакансии / vacancies
 id, position, account_division, account_region, money, priority, state, hidden, created, updated, multiple, parent, body, requirements, conditions, files, fill_quotas, account_vacancy_status_group, source
@@ -107,6 +120,25 @@ id, applicant_on_vacancy, money, status, created, updated
 Связь кандидат-вакансия / applicant_links
 id, applicant, vacancy, status_id, created, updated
 
+# 2.1 CRITICAL: Pipeline Status Workflow
+
+**To get candidates in active pipeline with their status:**
+
+1. Get open vacancies (state = "OPEN")
+2. Get applicants who have links to those open vacancies
+3. Use status_id from the applicant_links, NOT from applicants directly
+
+**Why this matters:**
+- Applicants don't have a direct status field
+- Status information is in the applicant_links table
+- Only applicants linked to open vacancies represent active pipeline
+- Each applicant can have multiple links (to different vacancies) with different statuses
+
+**Implementation:**
+- For pipeline reports: Filter applicant_links by vacancy.state = "OPEN"
+- Use applicant_links.status_id to get the pipeline stage
+- Join with vacancy_statuses to get status names
+- Count applicants grouped by their status in active vacancies
 
 # 3. Real account entities. Use exact id's to reference in JSON.
 
@@ -117,10 +149,10 @@ id, applicant, vacancy, status_id, created, updated
 {orgs_list}
 
 **Recruiters**
-{coworkers_list}
+{recruiters_list}
 
 **Hiring managers**
-{coworkers_list}
+{hiring_managers_list}
 
 **Stages (statuses)***
 {statuses_list}
@@ -156,9 +188,12 @@ id, applicant, vacancy, status_id, created, updated
 - Visualise with a bar, line or scatter chart unless a table is clearly better.
 
 #5. Generation rules
+- Before generating any report, CHECK if all fields exist in the target entity from section #2.
 - Return one valid JSON object and nothing else.
 - Use the Report schema if the query is answerable; use Impossible schema otherwise.
 - Use only real IDs—never demo or placeholder values.
+- If ANY field referenced in your query does not exist in the target entity, immediately return impossible_query format.
+- Do NOT attempt to generate reports with non-existent fields.
 
 #6 Allowed filter & grouping operators
 
@@ -175,7 +210,7 @@ Date range: combine gte and lt on the same field (ISO-8601 UTC).
     "label": "Main metric caption",
     "value": {
       "operation": "count | sum | avg | max | min",
-      "entity": "applicants | vacancies | applicant_resumes | applicant_responses | vacancy_requests | sources | applicant_tags | users",
+      "entity": "applicants | vacancies | applicant_links | applicant_resumes | applicant_responses | vacancy_requests | sources | applicant_tags | users",
       "filter": { "field": "<field>", "op": "eq", "value": "<value>" } | [
         { "field": "<field1>", "op": "eq", "value": "<val1>" },
         { "field": "<field2>", "op": "gte", "value": "<val2>" }
@@ -218,11 +253,137 @@ Date range: combine gte and lt on the same field (ISO-8601 UTC).
 
 JSON keys use camelCase. Entity field names use snake_case.
 
-#10. Examples and references"""
+#10. Field validation examples
+
+Before generating any report, CHECK if all fields exist in the target entity from section #2.
+
+IMPOSSIBLE QUERY EXAMPLES (use these patterns when fields don't exist):
+
+Query: "какой процент кандидатов отваливается на первом этапе?"
+{
+  "impossible_query": true,
+  "reason": "Cannot directly link applicants to rejection_reasons. The applicants entity does not have a rejection_reason_id field to connect to the rejection_reasons entity."
+}
+
+VALID QUERY EXAMPLES:
+
+Query: "сколько у нас кандидатов сейчас в воронке?"
+{
+  "report_title": "Current Candidates in Pipeline",
+  "main_metric": {
+    "label": "Total Candidates in Pipeline",
+    "value": {
+      "operation": "count",
+      "entity": "applicant_links",
+      "filter": {
+        "field": "vacancy.state",
+        "op": "eq",
+        "value": "OPEN"
+      }
+    }
+  },
+  "chart": {
+    "graph_description": "Distribution of candidates across pipeline stages in open vacancies",
+    "chart_type": "bar",
+    "x_axis_name": "Pipeline Stage",
+    "y_axis_name": "Number of Candidates",
+    "x_axis": {
+      "operation": "field",
+      "field": "status_id"
+    },
+    "y_axis": {
+      "operation": "count",
+      "entity": "applicant_links",
+      "filter": {
+        "field": "vacancy.state",
+        "op": "eq",
+        "value": "OPEN"
+      },
+      "group_by": {
+        "field": "status_id"
+      }
+    }
+  }
+}
+
+Query: "сколько всего сейчас открытых вакансий?"
+{
+  "report_title": "Total Open Vacancies",
+  "main_metric": {
+    "label": "Open Vacancies Count",
+    "value": {
+      "operation": "count",
+      "entity": "vacancies",
+      "filter": {
+        "field": "state",
+        "op": "eq",
+        "value": "OPEN"
+      }
+    }
+  },
+  "chart": {
+    "graph_description": "Number of open vacancies",
+    "chart_type": "bar",
+    "x_axis_name": "Status",
+    "y_axis_name": "Count",
+    "x_axis": {
+      "operation": "field",
+      "field": "state"
+    },
+    "y_axis": {
+      "operation": "count",
+      "entity": "vacancies",
+      "filter": {
+        "field": "state",
+        "op": "eq",
+        "value": "OPEN"
+      },
+      "group_by": {
+        "field": "state"
+      }
+    }
+  }
+}
+
+Query: "сколько у нас заявок с каждого источника?"
+{
+  "report_title": "Applications by Source",
+  "main_metric": {
+    "label": "Total Applications",
+    "value": {
+      "operation": "count",
+      "entity": "applicants"
+    }
+  },
+  "chart": {
+    "graph_description": "Number of applications by source",
+    "chart_type": "bar",
+    "x_axis_name": "Source",
+    "y_axis_name": "Number of Applications",
+    "x_axis": {
+      "operation": "field",
+      "field": "source_name"
+    },
+    "y_axis": {
+      "operation": "count",
+      "entity": "applicants",
+      "group_by": {
+        "field": "source_id"
+      }
+    }
+  }
+}
+
+IMPORTANT: 
+- If a field does not exist in the entity, you MUST return impossible_query format, NOT attempt to create a report with invalid fields.
+- Use source_id and source_name fields from applicants entity for source analysis.
+- Rejection reasons cannot be linked to applicants directly - mark such queries as impossible.
+- Always ensure axis names and descriptions are not empty."""
     
     # Replace placeholders with actual values
     full_prompt = prompt_base.replace("{orgs_list}", orgs_list)
-    full_prompt = full_prompt.replace("{coworkers_list}", coworkers_list)
+    full_prompt = full_prompt.replace("{recruiters_list}", recruiters_list)
+    full_prompt = full_prompt.replace("{hiring_managers_list}", hiring_managers_list)
     full_prompt = full_prompt.replace("{statuses_list}", statuses_list)
     full_prompt = full_prompt.replace("{tags_list}", tags_list)
     full_prompt = full_prompt.replace("{rejection_list}", rejection_list)
