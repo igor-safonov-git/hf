@@ -2,7 +2,7 @@
 Huntflow Virtual Schema using SQLAlchemy Core
 Maps Huntflow API endpoints to virtual SQL tables
 """
-from sqlalchemy import MetaData, Table, Column, Integer, String, DateTime, Boolean, Float
+from sqlalchemy import MetaData
 from sqlalchemy.sql import select, func, and_, or_
 from sqlalchemy.sql.visitors import traverse
 from sqlalchemy.sql.elements import BinaryExpression, BindParameter
@@ -12,6 +12,9 @@ import asyncio
 import logging
 import time
 from datetime import datetime
+
+# Import clean table schema definitions
+from schema import create_huntflow_tables
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -100,217 +103,29 @@ class HuntflowVirtualEngine:
         self.hf_client = hf_client
         self.metadata = MetaData()
         
-        # Define virtual tables that map to Huntflow API endpoints
-        # Based on OpenAPI spec: applicants/search returns ApplicantSearchItem - NO STATUS FIELDS
-        self.applicants = Table('applicants', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('first_name', String),
-            Column('last_name', String),
-            Column('middle_name', String),  # Available in search response
-            Column('birthday', String),     # Available in search response
-            Column('phone', String),        # Available in search response
-            Column('skype', String),        # Available in search response
-            Column('email', String),        # Available in search response
-            Column('money', String),        # Salary expectation in search response
-            Column('position', String),     # Available in search response
-            Column('company', String),      # Available in search response
-            Column('photo', Integer),       # Photo ID in search response
-            Column('photo_url', String),    # Available in search response
-            Column('created', DateTime),
-            # Required ApplicantItem fields from individual /applicants/{id} calls
-            Column('account', Integer),           # Organization ID
-            Column('tags', String),              # List of tags (JSON string)
-            Column('external', String),          # Resume data (JSON string)
-            Column('agreement', String),         # Agreement state (JSON string)
-            Column('doubles', String),           # List of duplicates (JSON string)
-            Column('social', String),            # Social accounts (JSON string)
-            # Computed fields from logs or individual calls
-            Column('source_id', Integer),      # From logs or individual call
-            Column('recruiter_id', Integer),   # From logs or individual call
-            Column('recruiter_name', String),  # Computed from coworkers mapping
-            Column('source_name', String),     # Computed from sources mapping
-        )
+        # Create all virtual tables using clean schema definitions
+        tables = create_huntflow_tables(self.metadata)
         
-        self.vacancies = Table('vacancies', self.metadata,
-            Column('id', Integer, primary_key=True),     # Required field per OpenAPI
-            Column('position', String),                  # Required field per OpenAPI spec
-            Column('company', String),                   # Optional field per OpenAPI
-            Column('account_division', Integer),         # Optional field per OpenAPI
-            Column('account_region', Integer),           # Optional field per OpenAPI  
-            Column('money', String),                     # Optional field per OpenAPI
-            Column('priority', Integer),                 # Optional field: 0-1 range per OpenAPI
-            Column('hidden', Boolean),                   # Optional field: default false per OpenAPI
-            Column('state', String),                     # Optional field per OpenAPI
-            Column('created', DateTime),                 # Required field per OpenAPI
-            Column('multiple', Boolean),                 # Optional field per OpenAPI
-            Column('parent', Integer),                   # Optional field per OpenAPI
-            Column('account_vacancy_status_group', Integer),  # Optional field per OpenAPI
-            Column('additional_fields_list', String),   # Optional field per OpenAPI spec
-            # Additional fields from VacancyItem that were missing
-            Column('updated', DateTime),                 # Optional field per OpenAPI
-            Column('body', String),                      # Optional field: responsibilities in HTML
-            Column('requirements', String),              # Optional field: requirements in HTML
-            Column('conditions', String),                # Optional field: conditions in HTML
-            Column('files', String),                     # Optional field: list as JSON string
-            Column('coworkers', String),                 # Optional field: list as JSON string
-            Column('source', Integer),                   # Optional field: vacancy source ID
-            Column('blocks', String),                    # Optional field: affiliate vacancies as JSON
-            Column('vacancy_request', Integer)           # Optional field: vacancy request ID
-        )
-        
-        self.status_mapping = Table('status_mapping', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('name', String),
-            Column('type', String),                      # Required per OpenAPI VacancyStatus
-            Column('removed', String),                   # Optional per OpenAPI VacancyStatus
-            Column('order', Integer),                    # Required per OpenAPI VacancyStatus  
-            Column('stay_duration', Integer)             # Optional per OpenAPI VacancyStatus (null=unlimited)
-        )
-        
-        self.recruiters = Table('recruiters', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('name', String),           # Correct field name per OpenAPI CoworkerResponse
-            Column('email', String),          # Correct field name per OpenAPI
-            Column('member', Integer),        # User ID per OpenAPI CoworkerResponse
-            Column('type', String),           # Correct field name (not 'role') per OpenAPI
-            Column('head', Integer),          # Head user ID per OpenAPI
-            Column('meta', String),           # Additional meta information (JSON string)
-            Column('permissions', String),    # Coworker permissions (JSON string)
-            Column('full_name', String)       # Computed field
-        )
-        
-        # Add sources table per CLAUDE.md line 121 - Updated per OpenAPI spec
-        self.sources = Table('sources', self.metadata,
-            Column('id', Integer, primary_key=True),     # Required per OpenAPI
-            Column('name', String),                      # Required per OpenAPI
-            Column('type', String),                      # Required per OpenAPI
-            Column('foreign', String)                    # Missing field from OpenAPI spec
-        )
-        
-        # Add divisions table per CLAUDE.md line 124 - Updated per OpenAPI spec
-        self.divisions = Table('divisions', self.metadata,
-            Column('id', Integer, primary_key=True),     # Required per OpenAPI
-            Column('name', String),                      # Required per OpenAPI
-            Column('order', Integer),                    # Required per OpenAPI
-            Column('active', Boolean),                   # Required per OpenAPI
-            Column('deep', Integer),                     # Required per OpenAPI
-            Column('parent', Integer),                   # Optional per OpenAPI
-            Column('foreign', String),                   # Optional per OpenAPI
-            Column('meta', String)                       # Optional per OpenAPI (object as JSON string)
-        )
-        
-        # Add applicant tags table per OpenAPI spec
-        self.applicant_tags = Table('applicant_tags', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('name', String),
-            Column('color', String)
-        )
-        
-        # Add offers table per OpenAPI spec
-        self.offers = Table('offers', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('applicant_id', Integer),
-            Column('vacancy_id', Integer),
-            Column('status', String),
-            Column('created', DateTime),
-            Column('updated', DateTime)
-        )
-        
-        # Add applicant links virtual table for status tracking per OpenAPI ApplicantLink schema
-        self.applicant_links = Table('applicant_links', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('applicant_id', Integer),
-            Column('status', Integer),            # Required per OpenAPI
-            Column('updated', DateTime),          # Required per OpenAPI  
-            Column('changed', DateTime),          # Required per OpenAPI
-            Column('vacancy', Integer)            # Required per OpenAPI
-        )
-        
-        # Add regions table per short-spec.md
-        self.regions = Table('regions', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('name', String),
-            Column('order', Integer),
-            Column('foreign', String)
-        )
-        
-        # Add rejection reasons table per short-spec.md
-        self.rejection_reasons = Table('rejection_reasons', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('name', String),
-            Column('order', Integer)
-        )
-        
-        # Add dictionaries table per short-spec.md
-        self.dictionaries = Table('dictionaries', self.metadata,
-            Column('code', String, primary_key=True),
-            Column('name', String),
-            Column('items', String)  # JSON string of dictionary items
-        )
-        
-        # Add applicant responses table per short-spec.md
-        self.applicant_responses = Table('applicant_responses', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('applicant_id', Integer),
-            Column('vacancy_id', Integer),
-            Column('source', String),
-            Column('created', DateTime),
-            Column('response_data', String)  # JSON string
-        )
-        
-        # Add vacancy logs table per short-spec.md  
-        self.vacancy_logs = Table('vacancy_logs', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('vacancy_id', Integer),
-            Column('type', String),
-            Column('created', DateTime),
-            Column('account_info', String),  # JSON string
-            Column('data', String)  # JSON string of log data
-        )
-        
-        # Add status groups table per short-spec.md
-        self.status_groups = Table('status_groups', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('name', String),
-            Column('order', Integer),
-            Column('statuses', String)  # JSON array of status IDs
-        )
-        
-        # Add missing vacancy detail tables per your analysis
-        self.vacancy_periods = Table('vacancy_periods', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('vacancy_id', Integer),
-            Column('period_type', String),  # work, hold, closed
-            Column('start_date', DateTime),
-            Column('end_date', DateTime),
-            Column('duration_days', Integer)
-        )
-        
-        self.vacancy_frames = Table('vacancy_frames', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('vacancy_id', Integer),
-            Column('created', DateTime),
-            Column('is_current', Boolean),
-            Column('data', String)  # JSON string of frame data
-        )
-        
-        self.vacancy_quotas = Table('vacancy_quotas', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('vacancy_id', Integer),
-            Column('frame_id', Integer),
-            Column('quota_value', Integer),
-            Column('filled', Integer),
-            Column('created', DateTime)
-        )
-        
-        # Add account action logs table
-        self.action_logs = Table('action_logs', self.metadata,
-            Column('id', Integer, primary_key=True),
-            Column('type', String),
-            Column('created', DateTime),
-            Column('account_info', String),  # JSON string
-            Column('data', String)  # JSON string of log data
-        )
+        # Assign tables to instance attributes for backward compatibility
+        self.applicants = tables['applicants']
+        self.vacancies = tables['vacancies']
+        self.status_mapping = tables['status_mapping']
+        self.recruiters = tables['recruiters']
+        self.sources = tables['sources']
+        self.divisions = tables['divisions']
+        self.applicant_tags = tables['applicant_tags']
+        self.offers = tables['offers']
+        self.applicant_links = tables['applicant_links']
+        self.regions = tables['regions']
+        self.rejection_reasons = tables['rejection_reasons']
+        self.dictionaries = tables['dictionaries']
+        self.applicant_responses = tables['applicant_responses']
+        self.vacancy_logs = tables['vacancy_logs']
+        self.status_groups = tables['status_groups']
+        self.vacancy_periods = tables['vacancy_periods']
+        self.vacancy_frames = tables['vacancy_frames']
+        self.vacancy_quotas = tables['vacancy_quotas']
+        self.action_logs = tables['action_logs']
         
         # TTL Cache with concurrency protection (5 min TTL by default)
         self._cache = TTLCache(ttl_seconds=300)
@@ -332,41 +147,31 @@ class HuntflowVirtualEngine:
     async def execute(self, query) -> List[Dict[str, Any]]:
         """Execute SQLAlchemy query by translating to API calls"""
         
-        # Determine which table is being queried
-        if self._query_references_table(query, 'applicants'):
-            return await self._execute_applicants_query(query)
-        elif self._query_references_table(query, 'recruiters'):
-            return await self._execute_recruiters_query(query)
-        elif self._query_references_table(query, 'vacancies'):
-            return await self._execute_vacancies_query(query)
-        elif self._query_references_table(query, 'divisions'):
-            return await self._execute_divisions_query(query)
-        elif self._query_references_table(query, 'applicant_tags'):
-            return await self._execute_tags_query(query)
-        elif self._query_references_table(query, 'sources'):
-            return await self._execute_sources_query(query)
-        elif self._query_references_table(query, 'regions'):
-            return await self._execute_regions_query(query)
-        elif self._query_references_table(query, 'rejection_reasons'):
-            return await self._execute_rejection_reasons_query(query)
-        elif self._query_references_table(query, 'dictionaries'):
-            return await self._execute_dictionaries_query(query)
-        elif self._query_references_table(query, 'status_groups'):
-            return await self._execute_status_groups_query(query)
-        elif self._query_references_table(query, 'applicant_responses'):
-            return await self._execute_applicant_responses_query(query)
-        elif self._query_references_table(query, 'vacancy_logs'):
-            return await self._execute_vacancy_logs_query(query)
-        elif self._query_references_table(query, 'vacancy_periods'):
-            return await self._execute_vacancy_periods_query(query)
-        elif self._query_references_table(query, 'vacancy_frames'):
-            return await self._execute_vacancy_frames_query(query)
-        elif self._query_references_table(query, 'vacancy_quotas'):
-            return await self._execute_vacancy_quotas_query(query)
-        elif self._query_references_table(query, 'action_logs'):
-            return await self._execute_action_logs_query(query)
-        else:
-            return []
+        # Generic table dispatch - eliminates 16 nearly identical methods
+        table_handlers = {
+            'applicants': self._execute_applicants_query,
+            'recruiters': self._execute_recruiters_query, 
+            'vacancies': self._execute_vacancies_query,
+            'divisions': self._execute_divisions_query,
+            'applicant_tags': self._execute_tags_query,
+            'sources': self._execute_sources_query,
+            'regions': self._execute_regions_query,
+            'rejection_reasons': self._execute_rejection_reasons_query,
+            'dictionaries': self._execute_dictionaries_query,
+            'status_groups': self._execute_status_groups_query,
+            'applicant_responses': self._execute_applicant_responses_query,
+            'vacancy_logs': self._execute_vacancy_logs_query,
+            'vacancy_periods': self._execute_vacancy_periods_query,
+            'vacancy_frames': self._execute_vacancy_frames_query,
+            'vacancy_quotas': self._execute_vacancy_quotas_query,
+            'action_logs': self._execute_action_logs_query
+        }
+        
+        for table_name, handler in table_handlers.items():
+            if self._query_references_table(query, table_name):
+                return await handler(query)
+        
+        return []
     
     def _query_references_table(self, query, table_name: str) -> bool:
         """Check if a specific table is referenced in the query using proper AST traversal"""
@@ -439,6 +244,60 @@ class HuntflowVirtualEngine:
         logger.debug(f"Extracted filters from query: {filters}")
         return filters
     
+    async def fan_out(self, ids: List[int], fetch_fn, cache_key: Optional[str] = None, mapper=None) -> List[Dict[str, Any]]:
+        """Generic helper to eliminate boilerplate in execute methods.
+        
+        Args:
+            ids: List of entity IDs to fetch (applicant_ids, vacancy_ids, etc.)
+            fetch_fn: Async function that takes an ID and returns data for that entity
+            cache_key: Optional cache key prefix for TTL caching
+            mapper: Optional function to transform API response to schema format
+            
+        Returns:
+            Aggregated list of all results from fetch_fn calls
+        """
+        if not ids:
+            return []
+        
+        # Use TTL cache if cache_key provided
+        if cache_key:
+            cache_key_full = f"{cache_key}_{hash(str(sorted(ids)))}"
+            
+            async def fetch_all():
+                results = []
+                for entity_id in ids:
+                    try:
+                        data = await fetch_fn(entity_id)
+                        if isinstance(data, list):
+                            results.extend(data)
+                        elif data:  # Single item
+                            results.append(data)
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch data for {entity_id}: {e}")
+                        continue
+                return results
+            
+            results = await self._cache.get_or_fetch(cache_key_full, fetch_all)
+        else:
+            # No caching - direct fan-out
+            results = []
+            for entity_id in ids:
+                try:
+                    data = await fetch_fn(entity_id)
+                    if isinstance(data, list):
+                        results.extend(data)
+                    elif data:  # Single item
+                        results.append(data)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch data for {entity_id}: {e}")
+                    continue
+        
+        # Apply mapper function if provided
+        if mapper and results:
+            results = [mapper(item) for item in results]
+        
+        return results
+    
     async def _get_all_vacancy_ids(self) -> List[int]:
         """Get all vacancy IDs for queries that don't specify vacancy_id"""
         vacancies_data = await self._execute_vacancies_query(None)
@@ -468,7 +327,7 @@ class HuntflowVirtualEngine:
         all_applicants = []
         page = 1
         while True:
-            params = {"count": 100, "page": page}
+            params = {"count": 30, "page": page}  # Max 30 per API specification
             
             # NOTE: /applicants has less filtering than /applicants/search, 
             # but returns rich ApplicantItem data with links array
@@ -488,7 +347,7 @@ class HuntflowVirtualEngine:
                 all_applicants.extend(items)
                 
                 # Standard pagination check
-                if len(items) < 100:
+                if len(items) < 30:
                     break
                 page += 1
             else:
@@ -1062,16 +921,14 @@ class HuntflowVirtualEngine:
         if applicant_id:
             applicant_ids = [applicant_id]
         elif not applicant_ids:
-            # Without applicant_id(s), return empty result
             return []
         
-        # Aggregate results from multiple applicants
-        all_responses = []
-        for aid in applicant_ids:
-            responses = await self.get_applicant_responses(aid)
-            all_responses.extend(responses)
-        
-        return all_responses
+        # Use generic fan_out helper - eliminates boilerplate loop
+        return await self.fan_out(
+            ids=applicant_ids,
+            fetch_fn=self.get_applicant_responses,
+            cache_key="applicant_responses"
+        )
     
     async def _execute_vacancy_logs_query(self, query, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute query against vacancy_logs virtual table"""
@@ -1087,19 +944,21 @@ class HuntflowVirtualEngine:
         if vacancy_id:
             vacancy_ids = [vacancy_id]
         elif not vacancy_ids:
-            # Without vacancy_id(s), return empty result
             return []
         
         date_begin = sql_filters.get('date_begin')
         date_end = sql_filters.get('date_end')
         
-        # Aggregate results from multiple vacancies
-        all_logs = []
-        for vid in vacancy_ids:
-            logs = await self.get_vacancy_logs(vid, date_begin, date_end)
-            all_logs.extend(logs)
+        # Create closure to capture date parameters
+        async def fetch_logs_with_dates(vid):
+            return await self.get_vacancy_logs(vid, date_begin, date_end)
         
-        return all_logs
+        # Use generic fan_out helper - eliminates boilerplate loop
+        return await self.fan_out(
+            ids=vacancy_ids,
+            fetch_fn=fetch_logs_with_dates,
+            cache_key="vacancy_logs"
+        )
     
     # Enhanced methods for individual entity access
     
@@ -1188,7 +1047,6 @@ class HuntflowVirtualEngine:
         if vacancy_id:
             vacancy_ids = [vacancy_id]
         elif not vacancy_ids:
-            # Without vacancy_id(s), return empty result
             return []
         
         date_begin = sql_filters.get('date_begin')
@@ -1202,13 +1060,16 @@ class HuntflowVirtualEngine:
             date_begin = start_date.strftime('%Y-%m-%d')
             date_end = end_date.strftime('%Y-%m-%d')
         
-        # Aggregate results from multiple vacancies
-        all_periods = []
-        for vid in vacancy_ids:
-            periods = await self.get_vacancy_periods(vid, date_begin, date_end)
-            all_periods.extend(periods)
+        # Create closure to capture date parameters
+        async def fetch_periods_with_dates(vid):
+            return await self.get_vacancy_periods(vid, date_begin, date_end)
         
-        return all_periods
+        # Use generic fan_out helper - eliminates boilerplate loop
+        return await self.fan_out(
+            ids=vacancy_ids,
+            fetch_fn=fetch_periods_with_dates,
+            cache_key="vacancy_periods"
+        )
     
     async def get_vacancy_periods(self, vacancy_id: int, date_begin: str, date_end: str) -> List[Dict[str, Any]]:
         """Get vacancy periods (work, hold, closed) per API spec"""
@@ -1244,16 +1105,14 @@ class HuntflowVirtualEngine:
         if vacancy_id:
             vacancy_ids = [vacancy_id]
         elif not vacancy_ids:
-            # Without vacancy_id(s), return empty result
             return []
         
-        # Aggregate results from multiple vacancies
-        all_frames = []
-        for vid in vacancy_ids:
-            frames = await self.get_vacancy_frames(vid)
-            all_frames.extend(frames)
-        
-        return all_frames
+        # Use generic fan_out helper - eliminates boilerplate loop
+        return await self.fan_out(
+            ids=vacancy_ids,
+            fetch_fn=self.get_vacancy_frames,
+            cache_key="vacancy_frames"
+        )
     
     async def get_vacancy_frames(self, vacancy_id: int) -> List[Dict[str, Any]]:
         """Get all historical activity frames for a vacancy"""
@@ -1301,21 +1160,21 @@ class HuntflowVirtualEngine:
         if vacancy_id:
             vacancy_ids = [vacancy_id]
         elif not vacancy_ids:
-            # Without vacancy_id(s), return empty result
             return []
         
-        # Aggregate results from multiple vacancies
-        all_quotas = []
-        for vid in vacancy_ids:
+        # Create closure to handle frame_id parameter
+        async def fetch_quotas_conditional(vid):
             if frame_id:
-                # Query quotas for specific frame
-                quotas = await self.get_frame_quotas(vid, frame_id)
+                return await self.get_frame_quotas(vid, frame_id)
             else:
-                # Query all quotas for vacancy
-                quotas = await self.get_vacancy_quotas(vid)
-            all_quotas.extend(quotas)
+                return await self.get_vacancy_quotas(vid)
         
-        return all_quotas
+        # Use generic fan_out helper - eliminates boilerplate loop
+        return await self.fan_out(
+            ids=vacancy_ids,
+            fetch_fn=fetch_quotas_conditional,
+            cache_key="vacancy_quotas"
+        )
     
     async def get_vacancy_quotas(self, vacancy_id: int, count: int = 100, page: int = 1) -> List[Dict[str, Any]]:
         """Get hiring quotas for a vacancy"""
