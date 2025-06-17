@@ -12,6 +12,13 @@ import asyncio
 import logging
 import time
 
+# Public API exports
+__all__ = [
+    'HuntflowVirtualEngine',
+    'HuntflowQueryBuilder', 
+    'TTLCache'
+]
+
 # Import clean table schema definitions
 from schema import create_huntflow_tables
 

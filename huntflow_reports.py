@@ -5,8 +5,14 @@ Pre-built analytics queries using SQLAlchemy expressions for common reporting ne
 from typing import Dict, Any
 import asyncio
 import logging
+from dataclasses import asdict
 
 logger = logging.getLogger(__name__)
+
+# Public API exports  
+__all__ = [
+    'HuntflowAnalyticsTemplates'
+]
 
 # Predefined Query Templates for Common Analytics
 class HuntflowAnalyticsTemplates:
@@ -28,14 +34,17 @@ class HuntflowAnalyticsTemplates:
         
         # Use thread pool for CPU-intensive recruiter stats calculation on large datasets
         if len(applicants_data) > 1000:
-            logger.debug(f"Processing recruiter stats for {len(applicants_data)} applicants in thread pool")
+            logger.debug("Processing recruiter stats for %s applicants in thread pool", len(applicants_data))
             # Import here to avoid circular imports
             from sqlalchemy_executor import SQLAlchemyHuntflowExecutor
-            return await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 SQLAlchemyHuntflowExecutor._calculate_recruiter_stats_cpu,
                 applicants_data, hired_status_ids
             )
         else:
             # Import here to avoid circular imports  
             from sqlalchemy_executor import SQLAlchemyHuntflowExecutor
-            return SQLAlchemyHuntflowExecutor._calculate_recruiter_stats_cpu(applicants_data, hired_status_ids)
+            result = SQLAlchemyHuntflowExecutor._calculate_recruiter_stats_cpu(applicants_data, hired_status_ids)
+        
+        # Convert dataclass to dict for backward compatibility with existing API consumers
+        return asdict(result)

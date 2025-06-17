@@ -7,6 +7,12 @@ from sqlalchemy.sql import Select
 from typing import Dict, Any, List, Optional
 from virtual_engine import HuntflowVirtualEngine
 
+# Public API exports
+__all__ = [
+    'HuntflowComputedMetrics',
+    'HuntflowMetricsHelper'
+]
+
 class HuntflowComputedMetrics:
     """Ready-to-use metrics that the AI model can use when generating charts"""
     

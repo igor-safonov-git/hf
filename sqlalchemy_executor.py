@@ -9,10 +9,33 @@ from sqlalchemy.sql import select, func
 import asyncio
 import logging
 from functools import wraps
+from dataclasses import dataclass
+from chart_helpers import build_chart_data_async, build_status_chart_data_cpu
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
+
+# Public API exports
+__all__ = [
+    'SQLAlchemyHuntflowExecutor',
+    'RecruiterStats', 
+    'RecruiterPerformanceResult',
+    'QueryExecutionError',
+    'FilterExpr'
+]
+
+@dataclass(slots=True)
+class RecruiterStats:
+    """Recruiter performance statistics - optimized with slots for reduced GC churn"""
+    hires: int = 0
+
+@dataclass(slots=True) 
+class RecruiterPerformanceResult:
+    """Complete recruiter performance report - optimized with slots for reduced GC churn"""
+    top_recruiter: str
+    hires: int
+    all_stats: Dict[str, RecruiterStats]
 
 class QueryExecutionError(Exception):
     """Custom exception for query execution errors"""
@@ -30,15 +53,15 @@ def handle_errors(default_return: Optional[T] = None, error_prefix: str = "Error
                 return await func(*args, **kwargs)
             except QueryExecutionError as e:
                 # Re-raise our custom errors to preserve context
-                logger.error(f"{error_prefix} in {func.__name__}: {e} (query_type: {e.query_type})")
+                logger.error("%s in %s: %s (query_type: %s)", error_prefix, func.__name__, e, e.query_type)
                 raise
             except (ValueError, TypeError) as e:
                 # Handle specific expected errors
-                logger.error(f"{error_prefix} in {func.__name__} - Invalid input: {e}")
+                logger.error("%s in %s - Invalid input: %s", error_prefix, func.__name__, e)
                 return default_return
             except Exception as e:
                 # Log unexpected errors with more context
-                logger.error(f"{error_prefix} in {func.__name__} - Unexpected error: {type(e).__name__}: {e}")
+                logger.error("%s in %s - Unexpected error: %s: %s", error_prefix, func.__name__, type(e).__name__, e)
                 return default_return
         return wrapper
     return decorator
@@ -75,7 +98,7 @@ class SQLAlchemyHuntflowExecutor:
         field = expression.get("field")
         filter_expr = expression.get("filter", {})
         
-        logger.info(f"Executing {operation} on {entity}")
+        logger.info("Executing %s on %s", operation, entity)
         
         # Check if this is a computed metric entity
         if entity in ["active_candidates", "open_vacancies", "closed_vacancies", "get_recruiters", "active_statuses"]:
@@ -88,7 +111,7 @@ class SQLAlchemyHuntflowExecutor:
         elif operation == "field":
             return await self._execute_field_sql(field)
         else:
-            logger.warning(f"Unsupported operation: {operation}")
+            logger.warning("Unsupported operation: %s", operation)
             return 0
     
     async def _execute_computed_metric(self, entity: str, operation: str) -> Union[int, List[str]]:
@@ -112,7 +135,7 @@ class SQLAlchemyHuntflowExecutor:
             elif entity == "active_statuses":
                 return await self.metrics.active_statuses()
         
-        logger.warning(f"Unsupported computed metric: {operation} on {entity}")
+        logger.warning("Unsupported computed metric: %s on %s", operation, entity)
         return 0
     
     async def _execute_count_sql(self, entity: str, filter_expr: FilterExpr) -> int:
@@ -172,7 +195,7 @@ class SQLAlchemyHuntflowExecutor:
         
         # Check if column exists in table
         if not hasattr(table.c, column_name):
-            logger.warning(f"Column {column_name} not found in table, skipping filter")
+            logger.warning("Column %s not found in table, skipping filter", column_name)
             return query
             
         column = getattr(table.c, column_name)
@@ -194,14 +217,14 @@ class SQLAlchemyHuntflowExecutor:
             if isinstance(value, list):
                 query = query.where(column.in_(value))
             else:
-                logger.warning(f"IN operator requires list value, got {type(value)}")
+                logger.warning("IN operator requires list value, got %s", type(value))
         elif op == "not_in":
             if isinstance(value, list):
                 query = query.where(~column.in_(value))
             else:
-                logger.warning(f"NOT_IN operator requires list value, got {type(value)}")
+                logger.warning("NOT_IN operator requires list value, got %s", type(value))
         else:
-            logger.warning(f"Unsupported filter operation: {op}")
+            logger.warning("Unsupported filter operation: %s", op)
             
         return query
     
@@ -229,12 +252,12 @@ class SQLAlchemyHuntflowExecutor:
             # For now, delegate to engine but add size limit awareness
             data = await self.engine._execute_applicants_query(filter_expr or {})
             if len(data) > chunk_size * 10:  # If more than 10 chunks worth
-                logger.warning(f"Large dataset detected: {len(data)} records. Consider adding pagination.")
+                logger.warning("Large dataset detected: %s records. Consider adding pagination.", len(data))
             return data
         elif entity == "vacancies":
             data = await self.engine._execute_vacancies_query(filter_expr or {})
             if len(data) > chunk_size * 5:  # Vacancies typically smaller
-                logger.warning(f"Large vacancy dataset: {len(data)} records.")
+                logger.warning("Large vacancy dataset: %s records.", len(data))
             return data
         else:
             return []
@@ -254,7 +277,7 @@ class SQLAlchemyHuntflowExecutor:
             vacancies_data = await self.engine._execute_vacancies_query(None)
             # Use thread pool for CPU-intensive unique extraction on large datasets
             if len(vacancies_data) > 500:
-                logger.debug(f"Processing {len(vacancies_data)} vacancies for company extraction in thread pool")
+                logger.debug("Processing %s vacancies for company extraction in thread pool", len(vacancies_data))
                 return await asyncio.to_thread(self._extract_unique_companies_cpu, vacancies_data)
             else:
                 return self._extract_unique_companies_cpu(vacancies_data)
@@ -275,87 +298,43 @@ class SQLAlchemyHuntflowExecutor:
         companies = list(set(v.get('company', 'Unknown') for v in vacancies_data if v.get('company')))
         return companies or ["Unknown"]
     
-    @staticmethod
-    def _build_chart_data_cpu(items: List[Dict[str, Any]], field: str, 
-                             mapping: Optional[Dict[str, Any]] = None, sort_by_count: bool = True, 
-                             limit: Optional[int] = None) -> Dict[str, Any]:
-        """CPU-bound: Convert item counts by field into chart format"""
-        # Count by field
-        field_counts: Dict[Any, int] = {}
-        for item in items:
-            field_value = item.get(field, 'Unknown')
-            # Convert None to 'Unknown' as well
-            if field_value is None:
-                field_value = 'Unknown'
-            field_counts[field_value] = field_counts.get(field_value, 0) + 1
-        
-        # Convert to chart format with mapping
-        chart_items = []
-        for field_id, count in field_counts.items():
-            if mapping and field_id != 'Unknown':
-                if isinstance(mapping.get(field_id), dict):
-                    # Handle mapping values that are dicts (like status objects)
-                    field_name = mapping.get(field_id, {}).get('name', f"{field} {field_id}")
-                else:
-                    # Handle mapping values that are strings
-                    field_name = mapping.get(field_id, f"{field} {field_id}")
-            else:
-                field_name = str(field_id) if field_id != 'Unknown' else "Unknown"
-            
-            chart_items.append((field_name, count))
-        
-        # Sort and limit if specified
-        if sort_by_count:
-            chart_items.sort(key=lambda x: x[1], reverse=True)
-        
-        if limit:
-            chart_items = chart_items[:limit]
-        
-        labels = [item[0] for item in chart_items]
-        values = [item[1] for item in chart_items]
-        
-        return {"labels": labels, "values": values}
+    # Chart building moved to chart_helpers module for better FE organization
     
     @staticmethod
     def _calculate_recruiter_stats_cpu(applicants_data: List[Dict[str, Any]], 
-                                     hired_status_ids: List[Any]) -> Dict[str, Any]:
-        """CPU-bound: Calculate recruiter performance statistics"""
+                                     hired_status_ids: List[Any]) -> RecruiterPerformanceResult:
+        """CPU-bound: Calculate recruiter performance statistics using dataclasses for efficiency"""
         # Filter hired applicants
         hired_applicants = [app for app in applicants_data if app.get('status_id') in hired_status_ids]
         
-        recruiter_stats = {}
+        recruiter_stats: Dict[str, RecruiterStats] = {}
         for applicant in hired_applicants:
             recruiter = applicant.get('recruiter_name', 'Unknown')
             if recruiter and recruiter != 'Unknown':
                 if recruiter not in recruiter_stats:
-                    recruiter_stats[recruiter] = {'hires': 0}
-                recruiter_stats[recruiter]['hires'] += 1
+                    recruiter_stats[recruiter] = RecruiterStats()
+                recruiter_stats[recruiter].hires += 1
         
         # Find top performer
         if recruiter_stats:
-            top_recruiter = max(recruiter_stats.items(), key=lambda x: x[1]['hires'])
-            return {
-                "top_recruiter": top_recruiter[0],
-                "hires": top_recruiter[1]['hires'],
-                "all_stats": recruiter_stats
-            }
+            top_recruiter = max(recruiter_stats.items(), key=lambda x: x[1].hires)
+            return RecruiterPerformanceResult(
+                top_recruiter=top_recruiter[0],
+                hires=top_recruiter[1].hires,
+                all_stats=recruiter_stats
+            )
         
-        return {"top_recruiter": "No Data", "hires": 0, "all_stats": {}}
+        return RecruiterPerformanceResult(
+            top_recruiter="No Data", 
+            hires=0, 
+            all_stats={}
+        )
     
     async def _build_chart_data(self, items: List[Dict[str, Any]], field: str, 
                           mapping: Optional[Dict[str, Any]] = None, sort_by_count: bool = True, 
                           limit: Optional[int] = None) -> Dict[str, Any]:
-        """Convert item counts by field into chart format (async wrapper for CPU-bound work)"""
-        # For small datasets, do it synchronously to avoid thread overhead
-        if len(items) < 1000:
-            return self._build_chart_data_cpu(items, field, mapping, sort_by_count, limit)
-        
-        # For large datasets, offload to thread pool to prevent blocking event loop
-        logger.debug(f"Processing large dataset ({len(items)} items) in thread pool")
-        return await asyncio.to_thread(
-            self._build_chart_data_cpu, 
-            items, field, mapping, sort_by_count, limit
-        )
+        """Convert item counts by field into chart format using centralized chart helpers"""
+        return await build_chart_data_async(items, field, mapping, sort_by_count, limit)
 
     @handle_errors(default_return=0)
     async def _execute_applicant_links_count(self, filter_expr: FilterExpr) -> int:
@@ -381,7 +360,7 @@ class SQLAlchemyHuntflowExecutor:
             
             if isinstance(result, dict) and "total" in result:
                 total_applicants = result.get("total", 0)
-                logger.info(f"✅ OPTIMIZED: Counted {total_applicants} applicant links via API metadata")
+                logger.info("✅ OPTIMIZED: Counted %s applicant links via API metadata", total_applicants)
                 return total_applicants
             
             # Fallback to old method if API doesn't provide metadata
@@ -389,7 +368,7 @@ class SQLAlchemyHuntflowExecutor:
             return await self._count_applicant_links_fallback()
             
         except Exception as e:
-            logger.error(f"Optimized count failed: {e}, falling back")
+            logger.error("Optimized count failed: %s, falling back", e)
             return await self._count_applicant_links_fallback()
     
     async def _count_applicant_links_with_vacancy_join(self, filter_expr: FilterExpr) -> int:
@@ -453,11 +432,11 @@ class SQLAlchemyHuntflowExecutor:
                     logger.warning("JOIN query reached page limit, results may be incomplete")
                     break
             
-            logger.info(f"✅ OPTIMIZED JOIN: Counted {applicant_count} applicant links for {len(open_vacancy_ids)} open vacancies")
+            logger.info("✅ OPTIMIZED JOIN: Counted %s applicant links for %s open vacancies", applicant_count, len(open_vacancy_ids))
             return applicant_count
             
         except Exception as e:
-            logger.error(f"Optimized JOIN count failed: {e}, falling back")
+            logger.error("Optimized JOIN count failed: %s, falling back", e)
             return await self._count_applicant_links_fallback()
     
     async def _count_applicant_links_fallback(self) -> int:
@@ -474,7 +453,7 @@ class SQLAlchemyHuntflowExecutor:
         filter_expr = query_spec.get("filter", {})
         limit = query_spec.get("limit")  # NEW: Support result limiting
         
-        logger.info(f"Executing grouped query: {operation} on {entity} grouped by {group_by_field}")
+        logger.info("Executing grouped query: %s on %s grouped by %s", operation, entity, group_by_field)
         
         # Check for computed chart entities first
         if entity == "active_candidates" and group_by_field == "status_id":
@@ -494,7 +473,7 @@ class SQLAlchemyHuntflowExecutor:
         elif entity == "vacancies":
             return await self._execute_vacancies_grouped(group_by_field, filter_expr, limit)
         else:
-            logger.warning(f"Unsupported grouped query: {entity} by {group_by_field}")
+            logger.warning("Unsupported grouped query: %s by %s", entity, group_by_field)
             return {"labels": [], "values": []}
     
     @handle_errors(default_return={"labels": [], "values": []})
@@ -574,31 +553,16 @@ class SQLAlchemyHuntflowExecutor:
                     logger.warning("Status grouping reached page limit, results may be incomplete")
                     break
             
-            # Convert to chart format
-            chart_items = []
-            for status_id, count in status_counts.items():
-                if status_id in status_map:
-                    status_info = status_map[status_id]
-                    if isinstance(status_info, dict):
-                        status_name = status_info.get('name', f'Status {status_id}')
-                    else:
-                        status_name = str(status_info)
-                else:
-                    status_name = f'Status {status_id}'
-                
-                chart_items.append((status_name, count))
-            
-            # Sort by count descending
-            chart_items.sort(key=lambda x: x[1], reverse=True)
-            
-            labels = [item[0] for item in chart_items]
-            values = [item[1] for item in chart_items]
+            # Use centralized chart helper for status distribution
+            chart_data = build_status_chart_data_cpu(status_counts, status_map)
+            labels = chart_data["labels"]
+            values = chart_data["values"]
             
             logger.info("✅ OPTIMIZED: Status distribution via streaming processing")
             return {"labels": labels, "values": values}
             
         except Exception as e:
-            logger.error(f"Optimized status grouping failed: {e}, falling back")
+            logger.error("Optimized status grouping failed: %s, falling back", e)
             return await self._execute_applicant_links_by_status_fallback(status_map)
     
     async def _execute_applicant_links_by_status_with_vacancy_join(self, status_map: Dict[str, Any], filter_expr: FilterExpr) -> Dict[str, Any]:
@@ -661,31 +625,16 @@ class SQLAlchemyHuntflowExecutor:
                     logger.warning("JOIN query reached page limit, results may be incomplete")
                     break
             
-            # Convert to chart format
-            chart_items = []
-            for status_id, count in status_counts.items():
-                if status_id in status_map:
-                    status_info = status_map[status_id]
-                    if isinstance(status_info, dict):
-                        status_name = status_info.get('name', f'Status {status_id}')
-                    else:
-                        status_name = str(status_info)
-                else:
-                    status_name = f'Status {status_id}'
-                
-                chart_items.append((status_name, count))
+            # Use centralized chart helper for status distribution
+            chart_data = build_status_chart_data_cpu(status_counts, status_map)
+            labels = chart_data["labels"]
+            values = chart_data["values"]
             
-            # Sort by count descending
-            chart_items.sort(key=lambda x: x[1], reverse=True)
-            
-            labels = [item[0] for item in chart_items]
-            values = [item[1] for item in chart_items]
-            
-            logger.info(f"✅ OPTIMIZED JOIN: Status distribution for {len(open_vacancy_ids)} open vacancies via streaming")
+            logger.info("✅ OPTIMIZED JOIN: Status distribution for %s open vacancies via streaming", len(open_vacancy_ids))
             return {"labels": labels, "values": values}
             
         except Exception as e:
-            logger.error(f"Optimized JOIN status grouping failed: {e}, falling back")
+            logger.error("Optimized JOIN status grouping failed: %s, falling back", e)
             return await self._execute_applicant_links_by_status_fallback(status_map)
     
     async def _execute_applicant_links_by_status_fallback(self, status_map: Dict[str, Any]) -> Dict[str, Any]:
@@ -726,7 +675,7 @@ class SQLAlchemyHuntflowExecutor:
         }
         
         if group_by_field not in field_mapping:
-            logger.warning(f"Unsupported applicants grouping field: {group_by_field}")
+            logger.warning("Unsupported applicants grouping field: %s", group_by_field)
             return {"labels": [], "values": []}
         
         # Get applicants data with filtering
@@ -752,7 +701,7 @@ class SQLAlchemyHuntflowExecutor:
         if group_by_field == "status_id":
             return await self._execute_applicant_links_by_status(filter_expr)
         else:
-            logger.warning(f"Unsupported applicant_links grouping field: {group_by_field}")
+            logger.warning("Unsupported applicant_links grouping field: %s", group_by_field)
             return {"labels": [], "values": []}
     
     async def _execute_vacancies_grouped(self, group_by_field: str, filter_expr: FilterExpr, limit: Optional[int] = None) -> Dict[str, Any]:
@@ -765,7 +714,7 @@ class SQLAlchemyHuntflowExecutor:
         }
         
         if group_by_field not in field_mapping:
-            logger.warning(f"Unsupported vacancies grouping field: {group_by_field}")
+            logger.warning("Unsupported vacancies grouping field: %s", group_by_field)
             return {"labels": [], "values": []}
         
         # Get vacancies data with filtering
@@ -827,7 +776,7 @@ class SQLAlchemyHuntflowExecutor:
         current_time = time.time()
         if (self._hired_status_cache is not None and 
             current_time - self._hired_status_cache_time < self.hired_status_config["cache_duration"]):
-            logger.debug(f"Using cached hired status IDs: {self._hired_status_cache}")
+            logger.debug("Using cached hired status IDs: %s", self._hired_status_cache)
             return self._hired_status_cache
         
         method = self.hired_status_config["method"]
@@ -837,7 +786,7 @@ class SQLAlchemyHuntflowExecutor:
             if method == "status_ids" and self.hired_status_config["status_ids"]:
                 # Method 1: Use explicitly configured status IDs (most reliable)
                 hired_status_ids = self.hired_status_config["status_ids"]
-                logger.info(f"Using configured hired status IDs: {hired_status_ids}")
+                logger.info("Using configured hired status IDs: %s", hired_status_ids)
                 
             elif method == "system_types":
                 # Method 2: Use system-level status types (very reliable)
@@ -848,18 +797,18 @@ class SQLAlchemyHuntflowExecutor:
                 hired_status_ids = await self._auto_detect_hired_status_ids()
                 
             else:
-                logger.warning(f"Unknown hired status detection method: {method}")
+                logger.warning("Unknown hired status detection method: %s", method)
                 hired_status_ids = []
             
             # Cache the result
             self._hired_status_cache = hired_status_ids
             self._hired_status_cache_time = current_time
             
-            logger.info(f"✅ Hired status detection: Found {len(hired_status_ids)} hired status IDs using method '{method}'")
+            logger.info("✅ Hired status detection: Found %s hired status IDs using method '%s'", len(hired_status_ids), method)
             return hired_status_ids
             
         except Exception as e:
-            logger.error(f"Hired status detection failed: {e}")
+            logger.error("Hired status detection failed: %s", e)
             return []
     
     async def _auto_detect_hired_status_ids(self) -> List[int]:
@@ -891,17 +840,17 @@ class SQLAlchemyHuntflowExecutor:
                 if status_type in [t.lower() for t in target_types]:
                     hired_status_ids.append(status_id)
                     status_name = status_info.get("name", f"Status {status_id}")
-                    logger.debug(f"System type match: '{status_name}' (type: {status_type}) -> hired status ID {status_id}")
+                    logger.debug("System type match: '%s' (type: %s) -> hired status ID %s", status_name, status_type, status_id)
             
             if hired_status_ids:
-                logger.info(f"✅ System types: Found {len(hired_status_ids)} hired statuses using stable type field")
+                logger.info("✅ System types: Found %s hired statuses using stable type field", len(hired_status_ids))
             else:
                 logger.debug("No statuses found with configured system types")
             
             return hired_status_ids
             
         except Exception as e:
-            logger.debug(f"System types detection failed: {e}")
+            logger.debug("System types detection failed: %s", e)
             return []
     
     
