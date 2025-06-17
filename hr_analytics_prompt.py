@@ -120,6 +120,10 @@ id, applicant_on_vacancy, money, status, created, updated
 Связь кандидат-вакансия / applicant_links
 id, applicant, vacancy, status_id, created, updated
 
+Рекрутеры (виртуальная сущность) / recruiters
+name, hirings, active_candidates, avg_time_to_hire
+NOTE: This virtual entity returns recruiter performance metrics including hiring count, active candidate workload, and average hiring speed.
+
 # 2.1 CRITICAL: Pipeline Status Workflow
 
 **To get candidates in active pipeline with their status:**
@@ -148,6 +152,8 @@ In addition to the standard entities, the system provides these optimized virtua
 - active_candidates: candidates linked to vacancies with state OPEN
 - open_vacancies: vacancies with state OPEN  
 - closed_vacancies: vacancies with state CLOSED
+- recruiters: performance metrics for all recruiters/hiring managers
+- active_statuses: currently used hiring statuses
 
 **Virtual Entity Usage:**
 Use these exactly like regular entities in your queries:
@@ -231,7 +237,7 @@ Date range: combine gte and lt on the same field (ISO-8601 UTC).
     "label": "Main metric caption",
     "value": {
       "operation": "count | sum | avg | max | min",
-      "entity": "applicants | vacancies | applicant_links | applicant_resumes | applicant_responses | vacancy_requests | sources | applicant_tags | users",
+      "entity": "applicants | vacancies | applicant_links | applicant_resumes | applicant_responses | vacancy_requests | sources | applicant_tags | users | active_candidates | open_vacancies | closed_vacancies | recruiters | active_statuses",
       "filter": { "field": "<field>", "op": "eq", "value": "<value>" } | [
         { "field": "<field1>", "op": "eq", "value": "<val1>" },
         { "field": "<field2>", "op": "gte", "value": "<val2>" }
@@ -256,7 +262,7 @@ Date range: combine gte and lt on the same field (ISO-8601 UTC).
     },
     "y_axis": {
       "operation": "count | sum | avg",
-      "entity": "<see entity list above>",
+      "entity": "applicants | vacancies | applicant_links | applicant_resumes | applicant_responses | vacancy_requests | sources | applicant_tags | users | active_candidates | open_vacancies | closed_vacancies | recruiters | active_statuses",
       "filter": { /* same as metric.filter */ },
       "group_by": { "field": "<field>" }
     }
@@ -370,6 +376,35 @@ Query: "сколько у нас заявок с каждого источник
       "entity": "applicants",
       "group_by": {
         "field": "source_id"
+      }
+    }
+  }
+}
+
+Query: "показать эффективность рекрутеров по количеству закрытий"
+{
+  "report_title": "Recruiter Performance by Hirings",
+  "main_metric": {
+    "label": "Total Recruiters",
+    "value": {
+      "operation": "count",
+      "entity": "recruiters"
+    }
+  },
+  "chart": {
+    "graph_description": "Recruiter performance ranked by successful hirings",
+    "chart_type": "bar",
+    "x_axis_name": "Recruiter",
+    "y_axis_name": "Number of Hirings",
+    "x_axis": {
+      "operation": "field",
+      "field": "name"
+    },
+    "y_axis": {
+      "operation": "count",
+      "entity": "recruiters",
+      "group_by": {
+        "field": "hirings"
       }
     }
   }

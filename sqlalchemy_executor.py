@@ -5,7 +5,7 @@ Replaces the complex huntflow_query_executor.py with clean SQL-like operations
 from typing import Dict, Any, List, Union, TypedDict, Literal, Callable, TypeVar, Optional, Generic
 from enum import Enum
 from virtual_engine import HuntflowVirtualEngine, HuntflowQueryBuilder
-from huntflow_metrics import HuntflowComputedMetrics, HuntflowMetricsHelper
+from huntflow_metrics_deprecated import HuntflowComputedMetrics, HuntflowMetricsHelper
 from sqlalchemy.sql import select, func
 import asyncio
 import logging
@@ -67,7 +67,7 @@ OperationType = Literal["count", "avg", "field"]
 EntityType = Literal[
     "applicants", "vacancies", "applicant_links",
     "active_candidates", "open_vacancies", "closed_vacancies", 
-    "get_recruiters", "active_statuses"
+    "recruiters", "active_statuses"
 ]
 FilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 
@@ -156,8 +156,8 @@ class SQLAlchemyHuntflowExecutor:
     CACHE_DURATION_SECONDS = 3600  # 1 hour
     SMALL_COUNT_LIMIT = 30  # For efficient total count queries
     
-    def __init__(self, hf_client, hired_status_config: Optional[Dict[str, Any]] = None):
-        self.engine = HuntflowVirtualEngine(hf_client)
+    def __init__(self, engine, hired_status_config: Optional[Dict[str, Any]] = None):
+        self.engine = engine
         self.builder = HuntflowQueryBuilder(self.engine)
         self.metrics = HuntflowComputedMetrics(self.engine)
         self.metrics_helper = HuntflowMetricsHelper(self)
@@ -190,7 +190,7 @@ class SQLAlchemyHuntflowExecutor:
         logger.info("Executing %s on %s", operation, entity)
         
         # Check if this is a computed metric entity
-        if entity in ["active_candidates", "open_vacancies", "closed_vacancies", "get_recruiters", "active_statuses"]:
+        if entity in ["active_candidates", "open_vacancies", "closed_vacancies", "recruiters", "active_statuses"]:
             return await self._execute_computed_metric(entity, operation)
         
         if operation == "count":
@@ -212,14 +212,14 @@ class SQLAlchemyHuntflowExecutor:
                 return await self.metrics.open_vacancies()
             elif entity == "closed_vacancies":
                 return await self.metrics.closed_vacancies()
-            elif entity == "get_recruiters":
+            elif entity == "recruiters":
                 recruiters = await self.metrics.get_recruiters()
                 return len(recruiters)
             elif entity == "active_statuses":
                 statuses = await self.metrics.active_statuses()
                 return len(statuses)
         elif operation == "field":
-            if entity == "get_recruiters":
+            if entity == "recruiters":
                 return await self.metrics.get_recruiters()
             elif entity == "active_statuses":
                 return await self.metrics.active_statuses()
@@ -591,18 +591,19 @@ class SQLAlchemyHuntflowExecutor:
         return await self._execute_applicant_links_by_status_simple(status_map)
     
     async def _execute_applicant_links_by_status_simple(self, status_map: Dict[str, Any]) -> Dict[str, Any]:
-        """Optimized status grouping without vacancy JOIN"""
+        """Optimized status grouping for applicant links using /applicants endpoint with links data"""
         
-        # Use streaming approach to build status distribution
+        # Use streaming approach to build status distribution from applicant links
         status_counts = {}
         page = 1
         
         try:
             while True:
                 params = {"count": self.DEFAULT_PAGE_SIZE, "page": page}
+                # Use /applicants endpoint which includes links array
                 applicants_result = await self.engine.hf_client._req(
                     "GET",
-                    f"/v2/accounts/{self.engine.hf_client.acc_id}/applicants/search",
+                    f"/v2/accounts/{self.engine.hf_client.acc_id}/applicants",
                     params=params
                 )
                 
@@ -613,11 +614,13 @@ class SQLAlchemyHuntflowExecutor:
                 if not applicants:
                     break
                 
-                # Count by status_id
+                # Count by status_id from links array (this is the actual applicant_links data)
                 for applicant in applicants:
-                    status_id = applicant.get("status_id")
-                    if status_id:
-                        status_counts[status_id] = status_counts.get(status_id, 0) + 1
+                    links = applicant.get("links", [])
+                    for link in links:
+                        status_id = link.get("status")  # API uses 'status' not 'status_id'
+                        if status_id:
+                            status_counts[status_id] = status_counts.get(status_id, 0) + 1
                 
                 # Check if we've reached the end
                 if len(applicants) < self.DEFAULT_PAGE_SIZE:
@@ -634,11 +637,11 @@ class SQLAlchemyHuntflowExecutor:
             labels = chart_data["labels"]
             values = chart_data["values"]
             
-            logger.info("✅ OPTIMIZED: Status distribution via streaming processing")
+            logger.info("✅ OPTIMIZED: Applicant links status distribution via links array processing")
             return {"labels": labels, "values": values}
             
         except Exception as e:
-            logger.error("Optimized status grouping failed: %s, falling back", e)
+            logger.error("Optimized applicant links status grouping failed: %s, falling back", e)
             return await self._execute_applicant_links_by_status_fallback(status_map)
     
     async def _execute_applicant_links_by_status_with_vacancy_join(self, status_map: Dict[str, Any], filter_expr: FilterExpr) -> Dict[str, Any]:
@@ -664,7 +667,7 @@ class SQLAlchemyHuntflowExecutor:
                 logger.debug("No open vacancies found")
                 return {"labels": [], "values": []}
             
-            # Step 2: Stream applicants and count by status for those linked to open vacancies
+            # Step 2: Stream applicants and count by status for links to open vacancies
             status_counts: Dict[int, int] = {}
             page = 1
             
@@ -672,7 +675,7 @@ class SQLAlchemyHuntflowExecutor:
                 params = {"count": self.DEFAULT_PAGE_SIZE, "page": page}
                 applicants_result = await self.engine.hf_client._req(
                     "GET",
-                    f"/v2/accounts/{self.engine.hf_client.acc_id}/applicants/search",
+                    f"/v2/accounts/{self.engine.hf_client.acc_id}/applicants",
                     params=params
                 )
                 
@@ -683,13 +686,15 @@ class SQLAlchemyHuntflowExecutor:
                 if not applicants:
                     break
                 
-                # Count by status_id for applicants linked to open vacancies
+                # Count by status_id for links to open vacancies only
                 for applicant in applicants:
-                    vacancy_id = applicant.get("vacancy_id")
-                    status_id = applicant.get("status_id")
-                    
-                    if vacancy_id in open_vacancy_ids and status_id:
-                        status_counts[status_id] = status_counts.get(status_id, 0) + 1
+                    links = applicant.get("links", [])
+                    for link in links:
+                        vacancy_id = link.get("vacancy")  # API uses 'vacancy' not 'vacancy_id'
+                        status_id = link.get("status")   # API uses 'status' not 'status_id'
+                        
+                        if vacancy_id in open_vacancy_ids and status_id:
+                            status_counts[status_id] = status_counts.get(status_id, 0) + 1
                 
                 # Check if we've reached the end
                 if len(applicants) < self.DEFAULT_PAGE_SIZE:

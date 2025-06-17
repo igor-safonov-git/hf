@@ -202,3 +202,9 @@ scaled_counts = {k: int(v * scale_factor) for k, v in status_counts.items()}
 ## Additional Notes
 
 - `@short-spec.md` is a source of thruth for Huntflow api
+
+## Absolute Rules
+- No mock or test data ever
+
+## Debugging Insights
+- If a metric constantly returns zeros while working with a prod database, then it's NOT working
