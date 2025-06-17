@@ -2,7 +2,8 @@
 SQLAlchemy-based Query Executor for Huntflow Analytics
 Replaces the complex huntflow_query_executor.py with clean SQL-like operations
 """
-from typing import Dict, Any, List, Union, TypedDict, Literal, Callable, TypeVar, Optional
+from typing import Dict, Any, List, Union, TypedDict, Literal, Callable, TypeVar, Optional, Generic
+from enum import Enum
 from virtual_engine import HuntflowVirtualEngine, HuntflowQueryBuilder
 from huntflow_metrics import HuntflowComputedMetrics, HuntflowMetricsHelper
 from sqlalchemy.sql import select, func
@@ -15,6 +16,51 @@ from chart_helpers import build_chart_data_async, build_status_chart_data_cpu
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
+E = TypeVar('E')
+
+# Result pattern for proper error handling - no more silent failures
+class Result(Generic[T, E]):
+    """Result type for proper error handling instead of silent failures"""
+    
+    def __init__(self, value: Optional[T] = None, error: Optional[E] = None):
+        if value is not None and error is not None:
+            raise ValueError("Result cannot have both value and error")
+        if value is None and error is None:
+            raise ValueError("Result must have either value or error")
+        self._value = value
+        self._error = error
+    
+    @classmethod
+    def ok(cls, value: T) -> 'Result[T, E]':
+        """Create a successful result"""
+        return cls(value=value)
+    
+    @classmethod 
+    def error(cls, error: E) -> 'Result[T, E]':
+        """Create an error result"""
+        return cls(error=error)
+    
+    def is_ok(self) -> bool:
+        """Check if result is successful"""
+        return self._value is not None
+    
+    def is_error(self) -> bool:
+        """Check if result is an error"""
+        return self._error is not None
+    
+    def unwrap(self) -> T:
+        """Get the value or raise if error"""
+        if self._error is not None:
+            raise RuntimeError(f"Called unwrap() on error result: {self._error}")
+        return self._value  # type: ignore
+    
+    def unwrap_or(self, default: T) -> T:
+        """Get the value or return default if error"""
+        return self._value if self._value is not None else default
+    
+    def error_value(self) -> Optional[E]:
+        """Get the error value"""
+        return self._error
 
 # Typed Literal unions for type safety - mypy will catch unknown operations
 OperationType = Literal["count", "avg", "field"]
@@ -34,7 +80,8 @@ __all__ = [
     'FilterExpr',
     'OperationType',
     'EntityType', 
-    'FilterOperation'
+    'FilterOperation',
+    'Result'
 ]
 
 @dataclass(slots=True)
@@ -56,25 +103,39 @@ class QueryExecutionError(Exception):
         self.original_error = original_error
         super().__init__(message)
 
+def handle_errors_with_result(error_prefix: str = "Error") -> Callable:
+    """Decorator that returns Result[T, Exception] instead of swallowing errors"""
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args, **kwargs) -> Result[Any, Exception]:
+            try:
+                result = await func(*args, **kwargs)
+                return Result.ok(result)
+            except QueryExecutionError as e:
+                # Log and return our custom errors
+                logger.error("%s in %s: %s (query_type: %s)", error_prefix, func.__name__, e, e.query_type)
+                return Result.error(e)
+            except Exception as e:
+                # Log and return unexpected errors - no silent failures
+                logger.error("%s in %s - Unexpected error: %s: %s", error_prefix, func.__name__, type(e).__name__, e)
+                return Result.error(e)
+        return wrapper
+    return decorator
+
+# Legacy decorator for backward compatibility - should be phased out
 def handle_errors(default_return: Optional[T] = None, error_prefix: str = "Error") -> Callable:
-    """Decorator to handle common error patterns in async methods"""
+    """DEPRECATED: Use handle_errors_with_result instead to avoid silent failures"""
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
             try:
                 return await func(*args, **kwargs)
             except QueryExecutionError as e:
-                # Re-raise our custom errors to preserve context
                 logger.error("%s in %s: %s (query_type: %s)", error_prefix, func.__name__, e, e.query_type)
-                raise
-            except (ValueError, TypeError) as e:
-                # Handle specific expected errors
-                logger.error("%s in %s - Invalid input: %s", error_prefix, func.__name__, e)
-                return default_return
+                raise  # Don't swallow custom errors
             except Exception as e:
-                # Log unexpected errors with more context
                 logger.error("%s in %s - Unexpected error: %s: %s", error_prefix, func.__name__, type(e).__name__, e)
-                return default_return
+                raise  # Don't swallow errors - let caller decide
         return wrapper
     return decorator
 
@@ -87,6 +148,14 @@ class FilterExpr(TypedDict, total=False):
 class SQLAlchemyHuntflowExecutor:
     """Execute analytics expressions using SQLAlchemy virtual tables"""
     
+    # Configuration constants - eliminates magic numbers
+    MAX_PAGINATION_PAGES = 50
+    DEFAULT_PAGE_SIZE = 100  
+    DEFAULT_CHUNK_SIZE = 1000
+    LARGE_DATASET_THRESHOLD = 500
+    CACHE_DURATION_SECONDS = 3600  # 1 hour
+    SMALL_COUNT_LIMIT = 30  # For efficient total count queries
+    
     def __init__(self, hf_client, hired_status_config: Optional[Dict[str, Any]] = None):
         self.engine = HuntflowVirtualEngine(hf_client)
         self.builder = HuntflowQueryBuilder(self.engine)
@@ -98,10 +167,18 @@ class SQLAlchemyHuntflowExecutor:
             "method": "auto_detect",  # "system_types", "status_ids" 
             "status_ids": [],  # Explicit list of hired status IDs if known
             "system_types": ["hired"],  # System-level status types (most reliable)
-            "cache_duration": 3600  # Cache hired status detection for 1 hour
+            "cache_duration": self.CACHE_DURATION_SECONDS  # Cache hired status detection for 1 hour
         }
         self._hired_status_cache = None
         self._hired_status_cache_time = 0
+        
+        # Dispatch table for grouped queries - eliminates complex conditionals
+        self._grouped_query_handlers = {
+            ("active_candidates", "status_id"): self.metrics.active_candidates_by_status_chart,
+            ("vacancies", "state"): self.metrics.vacancy_states_chart,
+            ("applicants", "source_id"): self.metrics.applicants_by_source_chart,
+            ("recruiters", "hirings"): self.metrics.recruiter_performance_chart,
+        }
     
     async def execute_expression(self, expression: Dict[str, Any]) -> Union[int, List[str]]:
         """Execute analytics expression using SQL approach with type-safe operations"""
@@ -246,8 +323,11 @@ class SQLAlchemyHuntflowExecutor:
         logger.warning("Average calculations not supported - use logs-based calculations instead")
         return 0.0
     
-    async def _fetch_data_chunked(self, entity: EntityType, filter_expr: FilterExpr, chunk_size: int = 1000) -> List[Dict[str, Any]]:
+    async def _fetch_data_chunked(self, entity: EntityType, filter_expr: FilterExpr, chunk_size: int = None) -> List[Dict[str, Any]]:
         """Fetch data in chunks to prevent memory overload"""
+        if chunk_size is None:
+            chunk_size = self.DEFAULT_CHUNK_SIZE
+            
         if entity == "applicants":
             # For now, delegate to engine but add size limit awareness
             data = await self.engine._execute_applicants_query(filter_expr or {})
@@ -276,7 +356,7 @@ class SQLAlchemyHuntflowExecutor:
             # Get unique company values from vacancies
             vacancies_data = await self.engine._execute_vacancies_query(None)
             # Use thread pool for CPU-intensive unique extraction on large datasets
-            if len(vacancies_data) > 500:
+            if len(vacancies_data) > self.LARGE_DATASET_THRESHOLD:
                 logger.debug("Processing %s vacancies for company extraction in thread pool", len(vacancies_data))
                 return await asyncio.to_thread(self._extract_unique_companies_cpu, vacancies_data)
             else:
@@ -351,7 +431,7 @@ class SQLAlchemyHuntflowExecutor:
         """Optimized count of applicant links without full data fetch"""
         try:
             # Use API metadata to get count instead of fetching all data
-            params = {"count": 30, "page": 1}  # Small page to get total count
+            params = {"count": self.SMALL_COUNT_LIMIT, "page": 1}  # Small page to get total count
             result = await self.engine.hf_client._req(
                 "GET", 
                 f"/v2/accounts/{self.engine.hf_client.acc_id}/applicants/search",
@@ -382,7 +462,7 @@ class SQLAlchemyHuntflowExecutor:
             vacancies_result = await self.engine.hf_client._req(
                 "GET",
                 f"/v2/accounts/{self.engine.hf_client.acc_id}/vacancies",
-                params={"count": 100}  # Reasonable page size
+                params={"count": self.DEFAULT_PAGE_SIZE}  # Reasonable page size
             )
             
             if not isinstance(vacancies_result, dict):
@@ -403,7 +483,7 @@ class SQLAlchemyHuntflowExecutor:
             page = 1
             
             while True:
-                params = {"count": 100, "page": page}
+                params = {"count": self.DEFAULT_PAGE_SIZE, "page": page}
                 applicants_result = await self.engine.hf_client._req(
                     "GET",
                     f"/v2/accounts/{self.engine.hf_client.acc_id}/applicants/search",
@@ -423,12 +503,12 @@ class SQLAlchemyHuntflowExecutor:
                         applicant_count += 1
                 
                 # Check if we've reached the end
-                if len(applicants) < 100:
+                if len(applicants) < self.DEFAULT_PAGE_SIZE:
                     break
                 page += 1
                 
                 # Safety limit to prevent infinite loops
-                if page > 50:
+                if page > self.MAX_PAGINATION_PAGES:
                     logger.warning("JOIN query reached page limit, results may be incomplete")
                     break
             
@@ -446,7 +526,7 @@ class SQLAlchemyHuntflowExecutor:
     
     @handle_errors(default_return={"labels": [], "values": []})
     async def execute_grouped_query(self, query_spec: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute grouped query for chart data - ENHANCED CONSOLIDATED VERSION"""
+        """Execute grouped query for chart data - dispatch table pattern eliminates complex conditionals"""
         operation = query_spec.get("operation", "count")
         entity = query_spec.get("entity", "")
         group_by_field = query_spec.get("group_by", {}).get("field", "")
@@ -455,18 +535,14 @@ class SQLAlchemyHuntflowExecutor:
         
         logger.info("Executing grouped query: %s on %s grouped by %s", operation, entity, group_by_field)
         
-        # Check for computed chart entities first
-        if entity == "active_candidates" and group_by_field == "status_id":
-            return await self.metrics.active_candidates_by_status_chart()
-        elif entity == "vacancies" and group_by_field == "state":
-            return await self.metrics.vacancy_states_chart()
-        elif entity == "applicants" and group_by_field == "source_id":
-            return await self.metrics.applicants_by_source_chart()
-        elif entity == "recruiters" and group_by_field == "hirings":
-            return await self.metrics.recruiter_performance_chart()
+        # Use dispatch table for computed chart entities - eliminates complex if/elif chains
+        key = (entity, group_by_field)
+        handler = self._grouped_query_handlers.get(key)
+        if handler:
+            return await handler()
         
         # Enhanced regular entity queries with field mapping
-        elif entity == "applicants":
+        if entity == "applicants":
             return await self._execute_applicants_grouped(group_by_field, filter_expr, limit)
         elif entity == "applicant_links":
             return await self._execute_applicant_links_grouped(group_by_field, filter_expr, limit)
@@ -523,7 +599,7 @@ class SQLAlchemyHuntflowExecutor:
         
         try:
             while True:
-                params = {"count": 100, "page": page}
+                params = {"count": self.DEFAULT_PAGE_SIZE, "page": page}
                 applicants_result = await self.engine.hf_client._req(
                     "GET",
                     f"/v2/accounts/{self.engine.hf_client.acc_id}/applicants/search",
@@ -544,12 +620,12 @@ class SQLAlchemyHuntflowExecutor:
                         status_counts[status_id] = status_counts.get(status_id, 0) + 1
                 
                 # Check if we've reached the end
-                if len(applicants) < 100:
+                if len(applicants) < self.DEFAULT_PAGE_SIZE:
                     break
                 page += 1
                 
                 # Safety limit
-                if page > 50:
+                if page > self.MAX_PAGINATION_PAGES:
                     logger.warning("Status grouping reached page limit, results may be incomplete")
                     break
             
@@ -573,7 +649,7 @@ class SQLAlchemyHuntflowExecutor:
             vacancies_result = await self.engine.hf_client._req(
                 "GET",
                 f"/v2/accounts/{self.engine.hf_client.acc_id}/vacancies",
-                params={"count": 100}
+                params={"count": self.DEFAULT_PAGE_SIZE}
             )
             
             if not isinstance(vacancies_result, dict):
@@ -593,7 +669,7 @@ class SQLAlchemyHuntflowExecutor:
             page = 1
             
             while True:
-                params = {"count": 100, "page": page}
+                params = {"count": self.DEFAULT_PAGE_SIZE, "page": page}
                 applicants_result = await self.engine.hf_client._req(
                     "GET",
                     f"/v2/accounts/{self.engine.hf_client.acc_id}/applicants/search",
@@ -616,12 +692,12 @@ class SQLAlchemyHuntflowExecutor:
                         status_counts[status_id] = status_counts.get(status_id, 0) + 1
                 
                 # Check if we've reached the end
-                if len(applicants) < 100:
+                if len(applicants) < self.DEFAULT_PAGE_SIZE:
                     break
                 page += 1
                 
                 # Safety limit
-                if page > 50:
+                if page > self.MAX_PAGINATION_PAGES:
                     logger.warning("JOIN query reached page limit, results may be incomplete")
                     break
             

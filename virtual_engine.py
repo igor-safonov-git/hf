@@ -43,7 +43,7 @@ class TTLCache:
         """Check if cache entry is expired"""
         if key not in self._timestamps:
             return True
-        return time.time() - self._timestamps[key] > self.ttl
+        return time.monotonic() - self._timestamps[key] > self.ttl
     
     async def get_or_fetch(self, key: str, fetch_func):
         """Get cached value or fetch using provided async function with concurrency protection"""
@@ -69,7 +69,7 @@ class TTLCache:
             try:
                 data = await fetch_func()
                 self._data[key] = data
-                self._timestamps[key] = time.time()
+                self._timestamps[key] = time.monotonic()
                 logger.debug(f"Cache STORED for {key}")
                 return data
             except Exception as e:
