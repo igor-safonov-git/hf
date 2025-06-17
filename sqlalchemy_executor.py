@@ -240,18 +240,6 @@ class SQLAlchemyHuntflowExecutor:
             
         return query
     
-    def _can_use_sql_count(self, filter_expr: FilterExpr) -> bool:
-        """Check if we can use pure SQL for counting"""
-        # With proper SQLAlchemy query execution, we can handle most filters
-        if not filter_expr:
-            return True
-            
-        field = filter_expr.get("field")
-        # Most fields can now be handled via SQLAlchemy
-        supported_fields = {"recruiter", "source_id", "vacancy_id", "status_id", "company", "state"}
-        
-        return field in supported_fields
-    
     
     async def _execute_avg_sql(self, entity: str, field: str, filter_expr: FilterExpr) -> float:
         """Execute average using SQL approach - no longer supported"""
