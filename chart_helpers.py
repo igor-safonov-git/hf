@@ -30,7 +30,23 @@ def build_chart_data_cpu(items: List[Dict[str, Any]], field: str,
         
     Returns:
         Dict with 'labels' and 'values' arrays for chart rendering
+        
+    Raises:
+        ValueError: If inputs are invalid
     """
+    # Input validation
+    if not isinstance(items, list):
+        raise ValueError(f"items must be a list, got {type(items)}")
+    if not field:
+        raise ValueError("field parameter is required")
+    if not isinstance(field, str):
+        raise ValueError(f"field must be a string, got {type(field)}")
+    if limit is not None and (not isinstance(limit, int) or limit < 1):
+        raise ValueError(f"limit must be a positive integer, got {limit}")
+    if mapping is not None and not isinstance(mapping, dict):
+        raise ValueError(f"mapping must be a dict, got {type(mapping)}")
+    if not isinstance(sort_by_count, bool):
+        raise ValueError(f"sort_by_count must be a boolean, got {type(sort_by_count)}")
     # Count occurrences of each field value
     field_counts = Counter(item.get(field) for item in items if item.get(field) is not None)
     
@@ -77,7 +93,23 @@ async def build_chart_data_async(items: List[Dict[str, Any]], field: str,
         
     Returns:
         Dict with 'labels' and 'values' arrays for chart rendering
+        
+    Raises:
+        ValueError: If inputs are invalid
     """
+    # Input validation (validates before any processing)
+    if not isinstance(items, list):
+        raise ValueError(f"items must be a list, got {type(items)}")
+    if not field:
+        raise ValueError("field parameter is required")
+    if not isinstance(field, str):
+        raise ValueError(f"field must be a string, got {type(field)}")
+    if limit is not None and (not isinstance(limit, int) or limit < 1):
+        raise ValueError(f"limit must be a positive integer, got {limit}")
+    if mapping is not None and not isinstance(mapping, dict):
+        raise ValueError(f"mapping must be a dict, got {type(mapping)}")
+    if not isinstance(sort_by_count, bool):
+        raise ValueError(f"sort_by_count must be a boolean, got {type(sort_by_count)}")
     # For small datasets, do it synchronously to avoid thread overhead
     if len(items) < 1000:
         return build_chart_data_cpu(items, field, mapping, sort_by_count, limit)
@@ -99,7 +131,22 @@ def build_status_chart_data_cpu(status_counts: Dict[int, int], status_mapping: D
         
     Returns:
         Dict with 'labels' and 'values' arrays for chart rendering
+        
+    Raises:
+        ValueError: If inputs are invalid
     """
+    # Input validation
+    if not isinstance(status_counts, dict):
+        raise ValueError(f"status_counts must be a dict, got {type(status_counts)}")
+    if not isinstance(status_mapping, dict):
+        raise ValueError(f"status_mapping must be a dict, got {type(status_mapping)}")
+    
+    # Validate status_counts values
+    for status_id, count in status_counts.items():
+        if not isinstance(status_id, int):
+            raise ValueError(f"status_counts keys must be integers, got {type(status_id)}")
+        if not isinstance(count, int) or count < 0:
+            raise ValueError(f"status_counts values must be non-negative integers, got {count}")
     chart_items = []
     
     for status_id, count in status_counts.items():
@@ -128,6 +175,9 @@ class ChartDataBuilder:
     def pie_chart(items: List[Dict[str, Any]], field: str, 
                   mapping: Optional[Dict[str, Any]] = None, limit: int = 10) -> Dict[str, Any]:
         """Build data for pie charts with automatic limiting"""
+        # Input validation
+        if not isinstance(limit, int) or limit < 1:
+            raise ValueError(f"limit must be a positive integer, got {limit}")
         return build_chart_data_cpu(items, field, mapping, sort_by_count=True, limit=limit)
     
     @staticmethod  
@@ -139,6 +189,13 @@ class ChartDataBuilder:
     @staticmethod
     def time_series_prep(items: List[Dict[str, Any]], date_field: str, value_field: str) -> List[Tuple[str, Any]]:
         """Prepare data for time series charts"""
+        # Input validation
+        if not isinstance(items, list):
+            raise ValueError(f"items must be a list, got {type(items)}")
+        if not date_field or not isinstance(date_field, str):
+            raise ValueError("date_field must be a non-empty string")
+        if not value_field or not isinstance(value_field, str):
+            raise ValueError("value_field must be a non-empty string")
         # Extract date-value pairs and sort by date
         data_points = []
         for item in items:
@@ -155,6 +212,15 @@ class ChartDataBuilder:
     def top_performers(items: List[Dict[str, Any]], performer_field: str, metric_field: str, 
                       limit: int = 5) -> Dict[str, Any]:
         """Build data for top performer charts (recruiters, sources, etc.)"""
+        # Input validation
+        if not isinstance(items, list):
+            raise ValueError(f"items must be a list, got {type(items)}")
+        if not performer_field or not isinstance(performer_field, str):
+            raise ValueError("performer_field must be a non-empty string")
+        if not metric_field or not isinstance(metric_field, str):
+            raise ValueError("metric_field must be a non-empty string")
+        if not isinstance(limit, int) or limit < 1:
+            raise ValueError(f"limit must be a positive integer, got {limit}")
         # Aggregate metrics by performer
         performer_totals = {}
         for item in items:
