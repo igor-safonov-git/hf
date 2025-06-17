@@ -16,13 +16,25 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
+# Typed Literal unions for type safety - mypy will catch unknown operations
+OperationType = Literal["count", "avg", "field"]
+EntityType = Literal[
+    "applicants", "vacancies", "applicant_links",
+    "active_candidates", "open_vacancies", "closed_vacancies", 
+    "get_recruiters", "active_statuses"
+]
+FilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
+
 # Public API exports
 __all__ = [
     'SQLAlchemyHuntflowExecutor',
     'RecruiterStats', 
     'RecruiterPerformanceResult',
     'QueryExecutionError',
-    'FilterExpr'
+    'FilterExpr',
+    'OperationType',
+    'EntityType', 
+    'FilterOperation'
 ]
 
 @dataclass(slots=True)
@@ -39,7 +51,7 @@ class RecruiterPerformanceResult:
 
 class QueryExecutionError(Exception):
     """Custom exception for query execution errors"""
-    def __init__(self, message: str, query_type: str = None, original_error: Exception = None):
+    def __init__(self, message: str, query_type: Optional[str] = None, original_error: Optional[Exception] = None):
         self.query_type = query_type
         self.original_error = original_error
         super().__init__(message)
@@ -67,9 +79,9 @@ def handle_errors(default_return: Optional[T] = None, error_prefix: str = "Error
     return decorator
 
 class FilterExpr(TypedDict, total=False):
-    """Type definition for filter expressions"""
+    """Type definition for filter expressions with type-safe operations"""
     field: str
-    op: Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
+    op: FilterOperation
     value: Union[str, int, List[Union[str, int]]]
 
 class SQLAlchemyHuntflowExecutor:
@@ -92,9 +104,9 @@ class SQLAlchemyHuntflowExecutor:
         self._hired_status_cache_time = 0
     
     async def execute_expression(self, expression: Dict[str, Any]) -> Union[int, List[str]]:
-        """Execute analytics expression using SQL approach"""
-        operation = expression.get("operation", "")
-        entity = expression.get("entity", "")
+        """Execute analytics expression using SQL approach with type-safe operations"""
+        operation: OperationType = expression.get("operation", "count")  # type: ignore
+        entity: EntityType = expression.get("entity", "applicants")  # type: ignore
         field = expression.get("field")
         filter_expr = expression.get("filter", {})
         
@@ -114,7 +126,7 @@ class SQLAlchemyHuntflowExecutor:
             logger.warning("Unsupported operation: %s", operation)
             return 0
     
-    async def _execute_computed_metric(self, entity: str, operation: str) -> Union[int, List[str]]:
+    async def _execute_computed_metric(self, entity: EntityType, operation: OperationType) -> Union[int, List[str]]:
         """Execute computed metric as virtual entity"""
         if operation == "count":
             if entity == "active_candidates":
@@ -138,7 +150,7 @@ class SQLAlchemyHuntflowExecutor:
         logger.warning("Unsupported computed metric: %s on %s", operation, entity)
         return 0
     
-    async def _execute_count_sql(self, entity: str, filter_expr: FilterExpr) -> int:
+    async def _execute_count_sql(self, entity: EntityType, filter_expr: FilterExpr) -> int:
         """Execute count using proper SQLAlchemy approach"""
         
         if entity == "applicants":
@@ -246,7 +258,7 @@ class SQLAlchemyHuntflowExecutor:
         logger.warning("Average calculations not supported - use logs-based calculations instead")
         return 0.0
     
-    async def _fetch_data_chunked(self, entity: str, filter_expr: FilterExpr, chunk_size: int = 1000) -> List[Dict[str, Any]]:
+    async def _fetch_data_chunked(self, entity: EntityType, filter_expr: FilterExpr, chunk_size: int = 1000) -> List[Dict[str, Any]]:
         """Fetch data in chunks to prevent memory overload"""
         if entity == "applicants":
             # For now, delegate to engine but add size limit awareness
@@ -589,7 +601,7 @@ class SQLAlchemyHuntflowExecutor:
                 return {"labels": [], "values": []}
             
             # Step 2: Stream applicants and count by status for those linked to open vacancies
-            status_counts = {}
+            status_counts: Dict[int, int] = {}
             page = 1
             
             while True:
