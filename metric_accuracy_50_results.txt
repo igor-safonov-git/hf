@@ -1,0 +1,461 @@
+🎯 Testing Metric Calculation Accuracy - ALL 50 QUESTIONS
+Testing 50 questions from complete test suite
+======================================================================
+
+📊 Test 1/50 (Report #1): Сколько у нас сейчас кандидатов в воронке?...
+--------------------------------------------------
+Expected: applicants_by_status.count
+Actual:   applicants_by_status.count
+Entity: ✅ | Operation: ✅
+Score: 1.00
+🎉 PERFECT!
+
+📊 Test 2/50 (Report #2): Сколько открытых вакансий у нас есть?...
+--------------------------------------------------
+Expected: vacancies_open.count
+Actual:   vacancies_open.count
+Entity: ✅ | Operation: ✅
+Score: 1.00
+🎉 PERFECT!
+
+📊 Test 3/50 (Report #3): Как работают наши рекрутеры?...
+--------------------------------------------------
+Expected: actions_by_recruiter.sum
+Actual:   recruiter_performance.avg
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 4/50 (Report #4): Откуда приходят наши кандидаты?...
+--------------------------------------------------
+Expected: applicants_by_source.count
+Actual:   applicants_by_source.count
+Entity: ✅ | Operation: ✅
+Score: 1.00
+🎉 PERFECT!
+
+📊 Test 5/50 (Report #5): Какая конверсия вакансий в найм?...
+--------------------------------------------------
+Expected: vacancy_conversion_summary.avg
+Actual:   vacancy_conversion_summary.avg
+Entity: ✅ | Operation: ✅
+Score: 1.00
+🎉 PERFECT!
+
+📊 Test 6/50 (Report #6): Сколько времени кандидаты проводят в каждом статусе?...
+--------------------------------------------------
+Expected: time_in_status.avg
+Actual:   time_in_status.avg
+Entity: ✅ | Operation: ✅
+Score: 1.00
+🎉 PERFECT!
+
+📊 Test 7/50 (Report #7): Как изменилась активность за последние месяцы?...
+--------------------------------------------------
+Expected: applicants_all.count
+Actual:   applicant_activity_trends.count
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 8/50 (Report #8): Какие причины отказов самые частые?...
+--------------------------------------------------
+Expected: rejections_by_stage.sum
+Actual:   rejections_by_stage.sum
+Entity: ✅ | Operation: ✅
+Score: 1.00
+🎉 PERFECT!
+
+📊 Test 9/50 (Report #9): Сколько вакансий мы закрыли успешно?...
+--------------------------------------------------
+Expected: successful_closures.count
+Actual:   successful_closures.count
+Entity: ✅ | Operation: ✅
+Score: 1.00
+🎉 PERFECT!
+
+📊 Test 10/50 (Report #10): Какая загрузка у каждого рекрутера?...
+--------------------------------------------------
+Expected: applicants_by_recruiter.avg
+Actual:   applicants_by_recruiter.avg
+Entity: ✅ | Operation: ✅
+Score: 1.00
+🎉 PERFECT!
+
+📊 Test 11/50 (Report #11): Кто из рекрутеров лучше всего нанимает?...
+--------------------------------------------------
+Expected: recruiters_by_hirings.sum
+Actual:   recruiter_performance.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 12/50 (Report #12): Как быстро рекрутеры отвечают кандидатам?...
+--------------------------------------------------
+Expected: response_times_by_recruiter.avg
+Actual:   time_in_status.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 13/50 (Report #13): Какая конверсия у каждого источника?...
+--------------------------------------------------
+Expected: source_conversion_rates.max
+Actual:   source_effectiveness.avg
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 14/50 (Report #14): Какая динамика найма за год?...
+--------------------------------------------------
+Expected: yearly_growth.avg
+Actual:   applicant_activity_trends.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 15/50 (Report #15): Сколько движений по воронке делают рекрутеры?...
+--------------------------------------------------
+Expected: moves_by_recruiter.sum
+Actual:   actions_by_recruiter.sum
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 16/50 (Report #16): Какие позиции самые сложные для закрытия?...
+--------------------------------------------------
+Expected: time_to_fill_by_position.avg
+Actual:   vacancies_open.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 17/50 (Report #17): Какой процент кандидатов доходит до оффера?...
+--------------------------------------------------
+Expected: funnel_efficiency.avg
+Actual:   vacancy_conversion_summary.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 18/50 (Report #18): Когда у нас пики активности в течение недели?...
+--------------------------------------------------
+Expected: daily_activity.max
+Actual:   applicant_activity_trends.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 19/50 (Report #19): Насколько качественные кандидаты из разных источников?...
+--------------------------------------------------
+Expected: source_quality_score.avg
+Actual:   source_effectiveness.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 20/50 (Report #20): Какая конверсия по регионам?...
+--------------------------------------------------
+Expected: regional_conversion.max
+Actual:   vacancy_conversion_summary.avg
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 21/50 (Report #21): Сколько кандидатов добавили рекрутеры за месяц?...
+--------------------------------------------------
+Expected: applicants_added_by_recruiter.sum
+Actual:   applicants_by_recruiter.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 22/50 (Report #22): Какие вакансии остались без кандидатов?...
+--------------------------------------------------
+Expected: empty_vacancies.count
+Actual:   vacancies_open.count
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 23/50 (Report #23): Сколько времени уходит на каждый этап найма?...
+--------------------------------------------------
+Expected: total_process_time.avg
+Actual:   time_in_status.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 24/50 (Report #24): Какая загрузка вакансий кандидатами?...
+--------------------------------------------------
+Expected: candidates_per_vacancy.avg
+Actual:   applicants_by_recruiter.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 25/50 (Report #25): Сколько интервью назначено на ближайшую неделю?...
+--------------------------------------------------
+Expected: scheduled_interviews.count
+Actual:   actions_by_recruiter.count
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 26/50 (Report #26): Какая конверсия из резюме в интервью?...
+--------------------------------------------------
+Expected: resume_to_interview_rate.avg
+Actual:   vacancy_conversion_summary.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 27/50 (Report #27): Сколько офферов было отклонено?...
+--------------------------------------------------
+Expected: offer_acceptance_rate.avg
+Actual:   rejections_by_stage.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 28/50 (Report #28): Какие навыки самые востребованные?...
+--------------------------------------------------
+Expected: skills_demand.count
+Actual:   applicants_all.count
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 29/50 (Report #29): Сколько кандидатов возвращается после отказа?...
+--------------------------------------------------
+Expected: candidate_return_rate.avg
+Actual:   rejections_by_stage.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 30/50 (Report #30): Какая нагрузка на систему по дням?...
+--------------------------------------------------
+Expected: daily_system_load.max
+Actual:   applicant_activity_trends.avg
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 31/50 (Report #31): Какой ROI от инвестиций в рекрутинг?...
+--------------------------------------------------
+Expected: recruitment_roi.avg
+Actual:   recruiter_performance.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 32/50 (Report #32): Какие тренды в рынке труда мы видим?...
+--------------------------------------------------
+Expected: market_competition.avg
+Actual:   applicant_activity_trends.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 33/50 (Report #33): Какие навыки будут нужны в будущем?...
+--------------------------------------------------
+Expected: emerging_skills_growth.avg
+Actual:   applicants_by_source.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 34/50 (Report #34): Какой talent pool у нас накопился?...
+--------------------------------------------------
+Expected: talent_pool_candidates.count
+Actual:   applicants_all.count
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 35/50 (Report #35): Какие риски в текущих процессах найма?...
+--------------------------------------------------
+Expected: recruitment_risk_score.avg
+Actual:   rejections_by_stage.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 36/50 (Report #36): Как изменилось качество кандидатов?...
+--------------------------------------------------
+Expected: candidate_quality_score.avg
+Actual:   applicant_activity_trends.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 37/50 (Report #37): Сколько стоит удержать хорошего сотрудника vs найти нового?...
+--------------------------------------------------
+Expected: retention_savings.avg
+Actual:   recruiter_performance.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 38/50 (Report #38): Насколько конкурентоспособны наши предложения?...
+--------------------------------------------------
+Expected: competitive_win_rate.avg
+Actual:   vacancy_conversion_summary.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 39/50 (Report #39): Какую ценность создает HR команда?...
+--------------------------------------------------
+Expected: hr_business_impact.avg
+Actual:   successful_closures.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 40/50 (Report #40): Какой прогноз потребности в найме?...
+--------------------------------------------------
+Expected: projected_hires.sum
+Actual:   vacancies_open.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 41/50 (Report #41): Какие паттерны успешного найма?...
+--------------------------------------------------
+Expected: pattern_recognition_score.avg
+Actual:   successful_closures.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 42/50 (Report #42): Можем ли предсказать успех кандидата?...
+--------------------------------------------------
+Expected: prediction_accuracy.avg
+Actual:   successful_closures.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 43/50 (Report #43): Какие когорты кандидатов самые успешные?...
+--------------------------------------------------
+Expected: cohort_performance.max
+Actual:   successful_closures.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 44/50 (Report #44): Какая оптимальная последовательность действий в найме?...
+--------------------------------------------------
+Expected: optimization_potential.avg
+Actual:   time_in_status.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 45/50 (Report #45): Какое влияние внешних факторов на найм?...
+--------------------------------------------------
+Expected: external_impact_index.avg
+Actual:   source_effectiveness.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 46/50 (Report #46): Какие метрики лучше всего предсказывают успех?...
+--------------------------------------------------
+Expected: predictor_correlation.max
+Actual:   vacancy_conversion_summary.avg
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 47/50 (Report #47): Какая сегментация кандидатов наиболее эффективна?...
+--------------------------------------------------
+Expected: segmentation_effectiveness.avg
+Actual:   applicants_by_source.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 48/50 (Report #48): Какая многофакторная модель эффективности?...
+--------------------------------------------------
+Expected: composite_efficiency.avg
+Actual:   recruiter_performance.avg
+Entity: ❌ | Operation: ✅
+Score: 0.40
+⚠️ Partial
+
+📊 Test 49/50 (Report #49): Какие сценарии развития возможны?...
+--------------------------------------------------
+Expected: scenario_probability.max
+Actual:   applicants_all.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📊 Test 50/50 (Report #50): Какой комплексный дашборд эффективности?...
+--------------------------------------------------
+Expected: overall_health_score.avg
+Actual:   applicants_all.count
+Entity: ❌ | Operation: ❌
+Score: 0.00
+❌ Poor
+
+📈 COMPREHENSIVE METRIC ACCURACY SUMMARY (50 Questions)
+============================================================
+Overall Accuracy Score: 0.312
+Entity Name Accuracy: 16.0%
+Operation Accuracy: 54.0%
+
+📊 Performance Categories:
+🎉 Perfect (1.0): 8/50 (16.0%)
+✅ Good (0.8-0.99): 0/50 (0.0%)
+⚠️ Partial (0.4-0.79): 19/50 (38.0%)
+❌ Poor (0.0-0.39): 23/50 (46.0%)
+
+🏷️ Entity Mapping Issues (42 cases):
+  actions_by_recruiter → recruiter_performance: 1 occurrences
+  applicants_all → applicant_activity_trends: 1 occurrences
+  recruiters_by_hirings → recruiter_performance: 1 occurrences
+  response_times_by_recruiter → time_in_status: 1 occurrences
+  source_conversion_rates → source_effectiveness: 1 occurrences
+  yearly_growth → applicant_activity_trends: 1 occurrences
+  moves_by_recruiter → actions_by_recruiter: 1 occurrences
+  time_to_fill_by_position → vacancies_open: 1 occurrences
+  funnel_efficiency → vacancy_conversion_summary: 1 occurrences
+  daily_activity → applicant_activity_trends: 1 occurrences
+
+⚙️ Operation Mapping Issues (23 cases):
+  avg → count: 12 occurrences
+  max → avg: 4 occurrences
+  sum → count: 3 occurrences
+  max → count: 3 occurrences
+  sum → avg: 1 occurrences
+
+🔍 Top 5 Areas for Improvement:
+  Score 0.00: Как работают наши рекрутеры?...
+    Expected entity: actions_by_recruiter
+    Got entity: recruiter_performance
+    Expected operation: sum
+    Got operation: avg
+  Score 0.00: Кто из рекрутеров лучше всего нанимает?...
+    Expected entity: recruiters_by_hirings
+    Got entity: recruiter_performance
+    Expected operation: sum
+    Got operation: count
+  Score 0.00: Какая конверсия у каждого источника?...
+    Expected entity: source_conversion_rates
+    Got entity: source_effectiveness
+    Expected operation: max
+    Got operation: avg
+  Score 0.00: Какая динамика найма за год?...
+    Expected entity: yearly_growth
+    Got entity: applicant_activity_trends
+    Expected operation: avg
+    Got operation: count
+  Score 0.00: Какие позиции самые сложные для закрытия?...
+    Expected entity: time_to_fill_by_position
+    Got entity: vacancies_open
+    Expected operation: avg
+    Got operation: count

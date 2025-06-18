@@ -1,0 +1,507 @@
+{
+  "test_summary": {
+    "total_tests": 5,
+    "passed_tests": 0,
+    "failed_tests": 5,
+    "average_score": 0.06594851100629266,
+    "average_execution_time": 10.603138160705566,
+    "start_time": "2025-06-18T14:22:55.115944",
+    "end_time": "2025-06-18T14:23:40.236990",
+    "issues_summary": {
+      "Missing Fields": 20,
+      "Field Mismatches": 5
+    }
+  },
+  "test_results": [
+    {
+      "question": "Сколько у нас сейчас кандидатов в воронке?",
+      "expected_report": {
+        "report_title": "Active Pipeline Overview",
+        "main_metric": {
+          "label": "Total Active Candidates",
+          "value": {
+            "operation": "count",
+            "entity": "applicants_by_status"
+          },
+          "real_value": 142
+        },
+        "secondary_metrics": [
+          {
+            "label": "New This Week",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_all",
+              "filter": {
+                "field": "created",
+                "op": "gte",
+                "value": "2025-06-11T00:00:00"
+              }
+            },
+            "real_value": 23
+          },
+          {
+            "label": "Interview Ready",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_by_status",
+              "filter": {
+                "field": "status_name",
+                "op": "eq",
+                "value": "Интервью"
+              }
+            },
+            "real_value": 34
+          }
+        ],
+        "chart": {
+          "graph_description": "Candidate distribution across pipeline stages",
+          "chart_type": "bar",
+          "x_axis_name": "Pipeline Stage",
+          "y_axis_name": "Number of Candidates",
+          "x_axis": {
+            "operation": "field",
+            "field": "status_name"
+          },
+          "y_axis": {
+            "operation": "count",
+            "entity": "applicants_by_status",
+            "group_by": {
+              "field": "status_name"
+            }
+          },
+          "real_data": {
+            "labels": [
+              "Новые",
+              "Интервью",
+              "Резюме у заказчика",
+              "Отправлено письмо",
+              "Оффер принят"
+            ],
+            "values": [
+              45,
+              34,
+              28,
+              21,
+              14
+            ],
+            "title": "Pipeline Distribution"
+          }
+        }
+      },
+      "actual_response": {
+        "response": "{\n  \"report_title\": \"Current Candidates in Pipeline\",\n  \"main_metric\": {\n    \"label\": \"Total Candidates in Pipeline\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"active_candidates\"\n    },\n    \"real_value\": 100\n  },\n  \"chart\": {\n    \"graph_description\": \"Distribution of active candidates across pipeline stages\",\n    \"chart_type\": \"bar\",\n    \"x_axis_name\": \"Pipeline Stage\",\n    \"y_axis_name\": \"Number of Candidates\",\n    \"x_axis\": {\n      \"operation\": \"field\",\n      \"field\": \"status_id\"\n    },\n    \"y_axis\": {\n      \"operation\": \"count\",\n      \"entity\": \"active_candidates\",\n      \"group_by\": {\n        \"field\": \"status_id\"\n      }\n    },\n    \"real_data\": {\n      \"labels\": [\n        \"Новые\",\n        \"Отправлено письмо\",\n        \"Звонок кандидату\",\n        \"Видеоинтервью\",\n        \"Видеоинтервью пройдено\",\n        \"Резюме у заказчика\",\n        \"Интервью\"\n      ],\n      \"values\": [\n        20,\n        9,\n        6,\n        11,\n        18,\n        22,\n        11\n      ],\n      \"title\": \"Distribution of active candidates across pipeline stages\"\n    }\n  }\n}",
+        "thread_id": "chat_1262519",
+        "execution_time": 9.910863876342773
+      },
+      "match_score": 0.08224926563155686,
+      "structural_match": false,
+      "metric_match": false,
+      "chart_match": false,
+      "issues": [
+        "Missing required field: report_title",
+        "Missing required field: main_metric",
+        "Missing main_metric in actual response",
+        "Secondary metrics count mismatch: expected 2, got 0",
+        "Missing chart in actual response"
+      ],
+      "execution_time": 9.911068201065063,
+      "timestamp": "2025-06-18T14:22:55.115944"
+    },
+    {
+      "question": "Какое общее количество активных кандидатов?",
+      "expected_report": {
+        "report_title": "Active Pipeline Overview",
+        "main_metric": {
+          "label": "Total Active Candidates",
+          "value": {
+            "operation": "count",
+            "entity": "applicants_by_status"
+          },
+          "real_value": 142
+        },
+        "secondary_metrics": [
+          {
+            "label": "New This Week",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_all",
+              "filter": {
+                "field": "created",
+                "op": "gte",
+                "value": "2025-06-11T00:00:00"
+              }
+            },
+            "real_value": 23
+          },
+          {
+            "label": "Interview Ready",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_by_status",
+              "filter": {
+                "field": "status_name",
+                "op": "eq",
+                "value": "Интервью"
+              }
+            },
+            "real_value": 34
+          }
+        ],
+        "chart": {
+          "graph_description": "Candidate distribution across pipeline stages",
+          "chart_type": "bar",
+          "x_axis_name": "Pipeline Stage",
+          "y_axis_name": "Number of Candidates",
+          "x_axis": {
+            "operation": "field",
+            "field": "status_name"
+          },
+          "y_axis": {
+            "operation": "count",
+            "entity": "applicants_by_status",
+            "group_by": {
+              "field": "status_name"
+            }
+          },
+          "real_data": {
+            "labels": [
+              "Новые",
+              "Интервью",
+              "Резюме у заказчика",
+              "Отправлено письмо",
+              "Оффер принят"
+            ],
+            "values": [
+              45,
+              34,
+              28,
+              21,
+              14
+            ],
+            "title": "Pipeline Distribution"
+          }
+        }
+      },
+      "actual_response": {
+        "response": "{\n  \"report_title\": \"Total Active Candidates\",\n  \"main_metric\": {\n    \"label\": \"Active Candidates Count\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"active_candidates\"\n    },\n    \"real_value\": 100\n  },\n  \"chart\": {\n    \"graph_description\": \"Distribution of active candidates across pipeline stages\",\n    \"chart_type\": \"bar\",\n    \"x_axis_name\": \"Pipeline Stage\",\n    \"y_axis_name\": \"Number of Candidates\",\n    \"x_axis\": {\n      \"operation\": \"field\",\n      \"field\": \"status_id\"\n    },\n    \"y_axis\": {\n      \"operation\": \"count\",\n      \"entity\": \"active_candidates\",\n      \"group_by\": {\n        \"field\": \"status_id\"\n      }\n    },\n    \"real_data\": {\n      \"labels\": [\n        \"Новые\",\n        \"Отправлено письмо\",\n        \"Звонок кандидату\",\n        \"Видеоинтервью\",\n        \"Видеоинтервью пройдено\",\n        \"Резюме у заказчика\",\n        \"Интервью\"\n      ],\n      \"values\": [\n        8,\n        17,\n        13,\n        13,\n        22,\n        16,\n        11\n      ],\n      \"title\": \"Distribution of active candidates across pipeline stages\"\n    }\n  }\n}",
+        "thread_id": "chat_1262530",
+        "execution_time": 10.80548906326294
+      },
+      "match_score": 0.08263069139966273,
+      "structural_match": false,
+      "metric_match": false,
+      "chart_match": false,
+      "issues": [
+        "Missing required field: report_title",
+        "Missing required field: main_metric",
+        "Missing main_metric in actual response",
+        "Secondary metrics count mismatch: expected 2, got 0",
+        "Missing chart in actual response"
+      ],
+      "execution_time": 10.805639505386353,
+      "timestamp": "2025-06-18T14:23:06.426004"
+    },
+    {
+      "question": "Как распределены кандидаты по этапам найма?",
+      "expected_report": {
+        "report_title": "Active Pipeline Overview",
+        "main_metric": {
+          "label": "Total Active Candidates",
+          "value": {
+            "operation": "count",
+            "entity": "applicants_by_status"
+          },
+          "real_value": 142
+        },
+        "secondary_metrics": [
+          {
+            "label": "New This Week",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_all",
+              "filter": {
+                "field": "created",
+                "op": "gte",
+                "value": "2025-06-11T00:00:00"
+              }
+            },
+            "real_value": 23
+          },
+          {
+            "label": "Interview Ready",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_by_status",
+              "filter": {
+                "field": "status_name",
+                "op": "eq",
+                "value": "Интервью"
+              }
+            },
+            "real_value": 34
+          }
+        ],
+        "chart": {
+          "graph_description": "Candidate distribution across pipeline stages",
+          "chart_type": "bar",
+          "x_axis_name": "Pipeline Stage",
+          "y_axis_name": "Number of Candidates",
+          "x_axis": {
+            "operation": "field",
+            "field": "status_name"
+          },
+          "y_axis": {
+            "operation": "count",
+            "entity": "applicants_by_status",
+            "group_by": {
+              "field": "status_name"
+            }
+          },
+          "real_data": {
+            "labels": [
+              "Новые",
+              "Интервью",
+              "Резюме у заказчика",
+              "Отправлено письмо",
+              "Оффер принят"
+            ],
+            "values": [
+              45,
+              34,
+              28,
+              21,
+              14
+            ],
+            "title": "Pipeline Distribution"
+          }
+        }
+      },
+      "actual_response": {
+        "response": "{\n  \"report_title\": \"Candidate Distribution by Hiring Stage\",\n  \"main_metric\": {\n    \"label\": \"Total Candidates in Pipeline\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"active_candidates\"\n    },\n    \"real_value\": 100\n  },\n  \"chart\": {\n    \"graph_description\": \"Distribution of active candidates across hiring stages\",\n    \"chart_type\": \"bar\",\n    \"x_axis_name\": \"Hiring Stage\",\n    \"y_axis_name\": \"Number of Candidates\",\n    \"x_axis\": {\n      \"operation\": \"field\",\n      \"field\": \"status_id\"\n    },\n    \"y_axis\": {\n      \"operation\": \"count\",\n      \"entity\": \"active_candidates\",\n      \"group_by\": {\n        \"field\": \"status_id\"\n      }\n    },\n    \"real_data\": {\n      \"labels\": [\n        \"Новые\",\n        \"Отправлено письмо\",\n        \"Звонок кандидату\",\n        \"Видеоинтервью\",\n        \"Видеоинтервью пройдено\",\n        \"Резюме у заказчика\",\n        \"Интервью\"\n      ],\n      \"values\": [\n        21,\n        5,\n        5,\n        18,\n        18,\n        9,\n        21\n      ],\n      \"title\": \"Distribution of active candidates across hiring stages\"\n    }\n  }\n}",
+        "thread_id": "chat_1262541",
+        "execution_time": 10.756579875946045
+      },
+      "match_score": 0.07463312368972747,
+      "structural_match": false,
+      "metric_match": false,
+      "chart_match": false,
+      "issues": [
+        "Missing required field: report_title",
+        "Missing required field: main_metric",
+        "Missing main_metric in actual response",
+        "Secondary metrics count mismatch: expected 2, got 0",
+        "Missing chart in actual response"
+      ],
+      "execution_time": 10.75674295425415,
+      "timestamp": "2025-06-18T14:23:17.686346"
+    },
+    {
+      "question": "Сколько открытых вакансий у нас есть?",
+      "expected_report": {
+        "report_title": "Open Vacancies Dashboard",
+        "main_metric": {
+          "label": "Open Vacancies",
+          "value": {
+            "operation": "count",
+            "entity": "vacancies_open"
+          },
+          "real_value": 42
+        },
+        "secondary_metrics": [
+          {
+            "label": "High Priority",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_all",
+              "filter": [
+                {
+                  "field": "state",
+                  "op": "eq",
+                  "value": "OPEN"
+                },
+                {
+                  "field": "priority",
+                  "op": "eq",
+                  "value": "high"
+                }
+              ]
+            },
+            "real_value": 12
+          },
+          {
+            "label": "Created This Month",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_all",
+              "filter": [
+                {
+                  "field": "state",
+                  "op": "eq",
+                  "value": "OPEN"
+                },
+                {
+                  "field": "created",
+                  "op": "gte",
+                  "value": "2025-06-01T00:00:00"
+                }
+              ]
+            },
+            "real_value": 8
+          }
+        ],
+        "chart": {
+          "graph_description": "Vacancy distribution by priority level",
+          "chart_type": "pie",
+          "x_axis_name": "Priority",
+          "y_axis_name": "Count",
+          "x_axis": {
+            "operation": "field",
+            "field": "priority"
+          },
+          "y_axis": {
+            "operation": "count",
+            "entity": "vacancies_by_priority",
+            "group_by": {
+              "field": "priority"
+            }
+          },
+          "real_data": {
+            "labels": [
+              "high",
+              "normal",
+              "low"
+            ],
+            "values": [
+              12,
+              25,
+              5
+            ],
+            "title": "Vacancy Priority Distribution"
+          }
+        }
+      },
+      "actual_response": {
+        "response": "{\n  \"report_title\": \"Total Open Vacancies\",\n  \"main_metric\": {\n    \"label\": \"Open Vacancies Count\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"open_vacancies\"\n    },\n    \"real_value\": 87\n  },\n  \"chart\": {\n    \"graph_description\": \"Distribution of vacancies by state\",\n    \"chart_type\": \"bar\",\n    \"x_axis_name\": \"Vacancy State\",\n    \"y_axis_name\": \"Count\",\n    \"x_axis\": {\n      \"operation\": \"field\",\n      \"field\": \"state\"\n    },\n    \"y_axis\": {\n      \"operation\": \"count\",\n      \"entity\": \"vacancies\",\n      \"group_by\": {\n        \"field\": \"state\"\n      }\n    },\n    \"real_data\": {\n      \"labels\": [\n        \"OPEN\",\n        \"CLOSED\",\n        \"HOLD\"\n      ],\n      \"values\": [\n        87,\n        8,\n        2\n      ],\n      \"title\": \"Distribution of vacancies by state\"\n    }\n  }\n}",
+        "thread_id": "chat_1262553",
+        "execution_time": 11.380639553070068
+      },
+      "match_score": 0.06271104679208876,
+      "structural_match": false,
+      "metric_match": false,
+      "chart_match": false,
+      "issues": [
+        "Missing required field: report_title",
+        "Missing required field: main_metric",
+        "Missing main_metric in actual response",
+        "Secondary metrics count mismatch: expected 2, got 0",
+        "Missing chart in actual response"
+      ],
+      "execution_time": 11.380807638168335,
+      "timestamp": "2025-06-18T14:23:29.571276"
+    },
+    {
+      "question": "Какие вакансии сейчас активны?",
+      "expected_report": {
+        "report_title": "Open Vacancies Dashboard",
+        "main_metric": {
+          "label": "Open Vacancies",
+          "value": {
+            "operation": "count",
+            "entity": "vacancies_open"
+          },
+          "real_value": 42
+        },
+        "secondary_metrics": [
+          {
+            "label": "High Priority",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_all",
+              "filter": [
+                {
+                  "field": "state",
+                  "op": "eq",
+                  "value": "OPEN"
+                },
+                {
+                  "field": "priority",
+                  "op": "eq",
+                  "value": "high"
+                }
+              ]
+            },
+            "real_value": 12
+          },
+          {
+            "label": "Created This Month",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_all",
+              "filter": [
+                {
+                  "field": "state",
+                  "op": "eq",
+                  "value": "OPEN"
+                },
+                {
+                  "field": "created",
+                  "op": "gte",
+                  "value": "2025-06-01T00:00:00"
+                }
+              ]
+            },
+            "real_value": 8
+          }
+        ],
+        "chart": {
+          "graph_description": "Vacancy distribution by priority level",
+          "chart_type": "pie",
+          "x_axis_name": "Priority",
+          "y_axis_name": "Count",
+          "x_axis": {
+            "operation": "field",
+            "field": "priority"
+          },
+          "y_axis": {
+            "operation": "count",
+            "entity": "vacancies_by_priority",
+            "group_by": {
+              "field": "priority"
+            }
+          },
+          "real_data": {
+            "labels": [
+              "high",
+              "normal",
+              "low"
+            ],
+            "values": [
+              12,
+              25,
+              5
+            ],
+            "title": "Vacancy Priority Distribution"
+          }
+        }
+      },
+      "actual_response": {
+        "response": "{\n  \"report_title\": \"Active Vacancies\",\n  \"main_metric\": {\n    \"label\": \"Total Active Vacancies\",\n    \"value\": {\n      \"operation\": \"count\",\n      \"entity\": \"open_vacancies\"\n    },\n    \"real_value\": 87\n  },\n  \"chart\": {\n    \"graph_description\": \"List of currently active vacancies\",\n    \"chart_type\": \"table\",\n    \"x_axis_name\": \"Vacancy Position\",\n    \"y_axis_name\": \"Details\",\n    \"x_axis\": {\n      \"operation\": \"field\",\n      \"field\": \"position\"\n    },\n    \"y_axis\": {\n      \"operation\": \"count\",\n      \"entity\": \"open_vacancies\",\n      \"group_by\": {\n        \"field\": \"position\"\n      }\n    },\n    \"real_data\": {\n      \"labels\": [\n        \"Open Vacancies\"\n      ],\n      \"values\": [\n        87\n      ],\n      \"title\": \"List of currently active vacancies\"\n    }\n  }\n}",
+        "thread_id": "chat_1262564",
+        "execution_time": 10.161092519760132
+      },
+      "match_score": 0.027518427518427518,
+      "structural_match": false,
+      "metric_match": false,
+      "chart_match": false,
+      "issues": [
+        "Missing required field: report_title",
+        "Missing required field: main_metric",
+        "Missing main_metric in actual response",
+        "Secondary metrics count mismatch: expected 2, got 0",
+        "Missing chart in actual response"
+      ],
+      "execution_time": 10.16143250465393,
+      "timestamp": "2025-06-18T14:23:40.236990"
+    }
+  ]
+}

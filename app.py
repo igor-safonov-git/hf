@@ -11,9 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from openai import AsyncOpenAI
 import aiofiles
-from hr_analytics_prompt import get_unified_prompt
+from prompt import get_comprehensive_prompt
+from context_data_injector import get_dynamic_context
 from huntflow_local_client import HuntflowLocalClient
 from chart_data_processor import process_chart_data
+from metrics_calculator import MetricsCalculator
 
 # Configure logging
 logging.basicConfig(
@@ -59,8 +61,9 @@ deepseek_client = AsyncOpenAI(
     base_url="https://api.deepseek.com"
 )
 
-# Initialize local Huntflow client
+# Initialize local Huntflow client and metrics calculator
 hf_client = HuntflowLocalClient()
+metrics_calc = MetricsCalculator(hf_client)
 
 class ChatRequest(BaseModel):
     message: str
@@ -105,23 +108,11 @@ async def chat(request: ChatRequest):
                 detail="DeepSeek API key not configured"
             )
         
-        # Build context from local cache
-        huntflow_context = {
-            "vacancy_statuses": await hf_client.get_vacancy_statuses(),
-            "sources": (await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/applicants/sources")).get("items", []),
-            "divisions": (await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/divisions")).get("items", []),
-            "coworkers": (await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/coworkers")).get("items", []),
-            "rejection_reasons": (await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/rejection_reasons")).get("items", []),
-            "organizations": [],  # We can get this from accounts table if needed
-            "tags": [],  # Not commonly used
-            "additional_fields": [],  # Not commonly used  
-            "dictionaries": [],  # Not commonly used
-            "open_vacancies": [],  # We can filter vacancies if needed
-            "recently_closed_vacancies": []  # We can filter vacancies if needed
-        }
+        # Build dynamic context from local cache
+        huntflow_context = await get_dynamic_context(hf_client)
         
         # Build messages with system prompt for local cache
-        system_prompt = get_unified_prompt(huntflow_context=huntflow_context, account_id=hf_client.account_id, use_local_cache=True)
+        system_prompt = get_comprehensive_prompt(huntflow_context=huntflow_context, account_id=hf_client.account_id, use_local_cache=True)
         
         # Save system prompt to file for debugging (async)
         if os.getenv("DEBUG_MODE"):
@@ -215,7 +206,7 @@ async def health_check():
     """Check if the service is running and local database is accessible."""
     try:
         # Test database connection
-        statuses = await hf_client.get_vacancy_statuses()
+        statuses = await metrics_calc.get_vacancy_statuses()
         return {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
@@ -239,10 +230,8 @@ async def read_index():
 async def prefetch_data():
     """Prefetch common data for the frontend."""
     try:
+        # Get data using metrics calculator
         statuses = await hf_client.get_vacancy_statuses()
-        vacancies = await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/vacancies")
-        
-        # Get some sample data for summary
         coworkers = await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/coworkers")
         coworker_items = coworkers.get("items", [])
         
@@ -253,10 +242,10 @@ async def prefetch_data():
         return {
             "status": "success",
             "summary": {
-                "total_applicants": await hf_client.get_applicants_count(),
-                "total_vacancies": len(vacancies.get("items", [])),
-                "total_statuses": len(statuses),
-                "total_recruiters": len(coworker_items),
+                "total_applicants": len(await metrics_calc.get_applicants()),
+                "total_vacancies": len(await metrics_calc.get_vacancies()),
+                "total_statuses": len(await metrics_calc.get_vacancy_statuses()),
+                "total_recruiters": len(await metrics_calc.get_recruiters()),
                 "top_status": top_status,
                 "top_recruiter": top_recruiter
             },
@@ -277,15 +266,15 @@ async def prefetch_data():
 async def database_info():
     """Get information about the cached data."""
     try:
-        # Get counts from various tables
+        # Get counts using metrics calculator
         info = {
             "data_source": "local_sqlite_cache",
             "database_path": hf_client.db_path,
             "account_id": hf_client.account_id,
             "stats": {
-                "vacancies": len((await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/vacancies")).get("items", [])),
-                "applicants": await hf_client.get_applicants_count(),
-                "vacancy_statuses": len(await hf_client.get_vacancy_statuses()),
+                "vacancies": len(await metrics_calc.get_vacancies()),
+                "applicants": len(await metrics_calc.get_applicants()),
+                "vacancy_statuses": len(await metrics_calc.get_vacancy_statuses()),
             },
             "status_distribution": await hf_client.get_status_distribution()
         }

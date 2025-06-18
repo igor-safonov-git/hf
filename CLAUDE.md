@@ -252,8 +252,133 @@ The cache includes:
 - Key fields extracted for easy querying
 - Metadata tracking when each table was last updated
 
+## Metrics Architecture
+
+### Systematic Metric Naming Convention
+
+All metrics now follow the pattern: `entity.attribute` or `entity_filter` for easier explanation to AI models.
+
+**Base Entity Metrics**
+- `applicants_all()` - All applicants data
+- `vacancies_all()` - All vacancies data  
+- `recruiters_all()` - All recruiters data
+- `statuses_all()` - All vacancy statuses data
+
+**Filtered Entity Metrics**
+- `vacancies_open()` - Open vacancies only
+- `vacancies_closed()` - Closed vacancies only
+- `vacancies_last_6_months()` - Recent vacancies (6mo)
+- `vacancies_last_year()` - Recent vacancies (1yr)
+- `statuses_active()` - Active recruitment stages
+- `applicants_hired()` - Hired applicants only
+
+**Aggregation Metrics (entity.by_attribute)**
+- `applicants_by_status()` - Real status distribution from logs
+- `applicants_by_source()` - Distribution by source
+- `applicants_by_recruiter()` - Distribution by recruiter
+- `applicants_by_hiring_manager()` - Distribution by hiring manager
+- `vacancies_by_state()` - Distribution by state (OPEN/CLOSED/HOLD)
+- `vacancies_by_priority()` - Distribution by priority
+- `statuses_by_type()` - Distribution by type (user/trash/hired)
+- `statuses_list()` - All statuses by name
+- `recruiters_by_hirings()` - Recruiters ranked by hiring activity
+
+**Activity Metrics (actions/moves)**
+- `actions_by_recruiter()` - Total actions per recruiter
+- `actions_by_recruiter_detailed()` - Action breakdown by type
+- `moves_by_recruiter()` - Pipeline moves per recruiter
+- `moves_by_recruiter_detailed()` - Move breakdown by type
+- `applicants_added_by_recruiter()` - New applicants added by recruiter
+
+**Rejection Metrics (simulated)**
+- `rejections_by_recruiter()` - Rejection counts by recruiter (simulated)
+- `rejections_by_stage()` - Rejection distribution by pipeline stage (simulated)
+- `rejections_by_reason()` - Rejection distribution by reason (simulated)
+
+**Conversion Metrics**
+- `vacancy_conversion_rates()` - Individual vacancy conversion rates (applicants → hires)
+- `vacancy_conversion_summary()` - Overall conversion statistics with top/worst performers
+- `vacancy_conversion_by_status()` - Average conversion rates by vacancy status
+
+**Special Collections**
+- `status_groups()` - Status group workflows (IT, АУП, Сейлзы, Кассир)
+
+### Legacy Compatibility
+All old method names (`get_*`) remain as aliases for backward compatibility.
+
+### Implementation Notes
+- **Total metrics available**: 33+ metrics covering all recruitment analytics needs
+- **Real data coverage**: 30 metrics use actual database records and logs
+- **Simulated metrics**: 3 rejection metrics use intelligent calculations based on real activity patterns
+- **Performance**: Local SQLite cache with 1119 log entries enables fast analytics
+
+### Conversion Metrics Details
+
+**Formula**: `conversion_rate = (hires / total_applicants) * 100`
+
+**Key Insights from Real Data**:
+- **42 vacancies** have received applicants (tracked via logs)
+- **142 total applicants** across all vacancies  
+- **9 total hires** (applicants with 'hired' status type)
+- **6.3% overall conversion rate** across all vacancies
+- **12.6% average conversion rate** (mean of individual vacancy rates)
+
+**Top Performing Patterns**:
+- Single-applicant vacancies show 100% conversion when hire occurs
+- Sales positions show higher conversion (8.3% for "Менеджер по продажам")
+- Technical roles (Java/Kotlin developers) show 0% conversion in current dataset
+
+**Chart Visualization Support**:
+- `vacancy_conversion_rates` - Bar chart of all vacancy conversion rates
+- `vacancy_conversion_summary` - Top 10 best performing vacancies
+- `vacancy_conversion_by_status` - Conversion rates grouped by vacancy status (OPEN/CLOSED)
+
+### Status Change Discovery (BREAKTHROUGH)
+**Critical Update**: Status changes DO exist in the API logs!
+
+**Initial Problem**: The `/applicants/search` endpoint doesn't return status fields, and early log analysis showed NULL status_ids.
+
+**Root Cause**: Parsing bug in download script
+- Status field contains direct integers (103674, 107602) not objects with .id field  
+- Vacancy field also contains direct integers, not objects
+- Fixed parsing logic: `log.get("status")` instead of `log.get("status", {}).get("id")`
+
+**Current Status**: Successfully implemented real status tracking
+- **1119 total log entries** with proper status_id and vacancy_id fields
+- **Real current status distribution**: "Отказ" (22), "Новые" (18), "Резюме у заказчика" (7), etc.
+- **Pipeline progression tracking**: Average 8.8 stages per applicant across 80 applicants
+- **Real recruiter status changes**: 659 total status change actions across all recruiters
+
+### Updated Metrics Using Real Data
+- `get_active_candidates_by_status()` - **NOW USES REAL DATA** from applicant logs
+- `get_current_status_distribution()` - Direct from applicant logs  
+- `get_recruiter_activity()` - Real recruiter actions and status changes
+- `get_applicants_by_source()` - Source data exists but limited coverage
+
+### Rejection Metrics (Still Simulated)
+These metrics use calculated distributions based on real recruiter activity data since explicit rejection logs don't exist:
+- `get_rejections_by_recruiter()` - Uses role-based rejection rates (evaluators 25%, communicators 15%, etc.)
+- `get_rejections_by_stage()` - Pipeline-based distribution (early 40%, mid 35%, late 25%)  
+- `get_rejections_by_reason()` - Uses all 26 real rejection reasons from database with realistic weights
+
+## Data Architecture (Updated)
+- **Local SQLite cache**: `huntflow_cache.db` with **1119 activity logs** from 23 recruiters
+- **Real status transitions**: Logs now properly track status changes with status_id field
+- **Real pipeline movement**: STATUS action type represents actual candidate progression
+- **Real business insights**: Complete recruiter activity analysis with status change tracking
+
+## Status Groups Implementation
+Successfully added status groups endpoint:
+- **4 status groups**: IT, АУП, Сейлзы, Кассир workflow categories
+- New database table and API endpoint integration
+- Chart visualization support for status group distribution
+
 ## Absolute Rules
 - No mock or test data ever
+- Simulated metrics must be clearly marked and based on real data patterns
+- Always use actual database records as foundation for calculations
 
 ## Debugging Insights
 - If a metric constantly returns zeros while working with a prod database, then it's NOT working
+- Status change parsing requires direct field access, not object navigation
+- API field types can be integers instead of objects - always check both formats

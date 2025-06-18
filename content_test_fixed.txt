@@ -1,0 +1,107 @@
+🔍 Testing Real Data Content Quality
+Testing 10 questions for meaningful real data
+============================================================
+
+📊 Test 1/10: Сколько у нас сейчас кандидатов в воронке?
+----------------------------------------
+Main Metric Content: ✅ (value: 100)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (14 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📊 Test 2/10: Сколько открытых вакансий у нас есть?
+----------------------------------------
+Main Metric Content: ✅ (value: 87)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (1 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📊 Test 3/10: Как работают наши рекрутеры?
+----------------------------------------
+Main Metric Content: ✅ (value: 48.65217391304348)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (23 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📊 Test 4/10: Откуда приходят наши кандидаты?
+----------------------------------------
+Main Metric Content: ❌ (value: None)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ❌ (0 data points)
+❌ Empty/Missing Fields: 2
+  - main_metric.real_value (empty/zero)
+  - chart.real_data (empty labels or values)
+Content Quality Score: 0.33
+❌ Poor content quality
+
+📊 Test 5/10: Какая конверсия вакансий в найм?
+----------------------------------------
+Main Metric Content: ✅ (value: 6.3)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (5 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📊 Test 6/10: Сколько времени кандидаты проводят в каждом статусе?
+----------------------------------------
+Main Metric Content: ✅ (value: 5.714285714285714)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (14 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📊 Test 7/10: Как изменилась активность за последние месяцы?
+----------------------------------------
+Main Metric Content: ✅ (value: 297)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (23 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📊 Test 8/10: Какие причины отказов самые частые?
+----------------------------------------
+Main Metric Content: ✅ (value: 37)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (25 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📊 Test 9/10: Сколько вакансий мы закрыли успешно?
+----------------------------------------
+Main Metric Content: ✅ (value: 8)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (1 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📊 Test 10/10: Какая загрузка у каждого рекрутера?
+----------------------------------------
+Main Metric Content: ✅ (value: 12.91304347826087)
+Secondary Metrics Content: ✅ (2 with content)
+Chart Real Data: ✅ (23 data points)
+Content Quality Score: 1.00
+🎉 PERFECT CONTENT QUALITY!
+
+📈 REAL DATA CONTENT SUMMARY
+========================================
+Average Content Quality Score: 0.93
+Perfect Content Quality: 90.0%
+Perfect Content Cases: 9/10
+
+📊 Content Issues Breakdown:
+Main Metric Issues: 1/10
+Secondary Metrics Issues: 0/10
+Chart Data Issues: 1/10
+
+📊 Real Data Value Analysis:
+Main Metric Values: [100, 87, 48.65217391304348, 6.3, 5.714285714285714, 297, 37, 8, 12.91304347826087]
+  Range: 5.714285714285714 - 297
+  Average: 67.0
+  Non-zero values: 9/9
+
+⚠️ Most Common Empty Field Issues:
+  main_metric.real_value (empty/zero): 1 occurrences
+  chart.real_data (empty labels or values): 1 occurrences

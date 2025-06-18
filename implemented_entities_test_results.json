@@ -1,0 +1,2199 @@
+{
+  "total_tests": 25,
+  "average_score": 0.88,
+  "entity_accuracy": 0.84,
+  "operation_accuracy": 0.92,
+  "entity_matches": 21,
+  "operation_matches": 23,
+  "results": [
+    {
+      "question": "Сколько у нас сейчас кандидатов в воронке?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "applicants_by_status",
+        "actual_entity": "applicants_by_status",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Current Candidates in Pipeline",
+          "main_metric": {
+            "label": "Candidates in Pipeline",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_by_status"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Open Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Distribution of candidates by recruitment stage",
+            "chart_type": "bar",
+            "x_axis_name": "Recruitment Stage",
+            "y_axis_name": "Number of Candidates",
+            "x_axis": {
+              "operation": "field",
+              "field": "status_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "applicants_by_status",
+              "group_by": {
+                "field": "status_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Отказ",
+                "Новые",
+                "Резюме у заказчика",
+                "Отправлено письмо",
+                "Интервью",
+                "Тестовое задание",
+                "Звонок кандидату",
+                "Оффер принят",
+                "Видеоинтервью пройдено",
+                "Обратная связь от заказчика",
+                "Выставлен оффер",
+                "Видеоинтервью",
+                "Тестирование SHL пройдено",
+                "Вышел на работу"
+              ],
+              "values": [
+                22,
+                18,
+                7,
+                6,
+                5,
+                4,
+                4,
+                3,
+                3,
+                2,
+                2,
+                2,
+                1,
+                1
+              ],
+              "title": "Distribution of candidates by recruitment stage"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Сколько открытых вакансий у нас есть?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "vacancies_open",
+        "actual_entity": "vacancies_open",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Open Vacancies Count",
+          "main_metric": {
+            "label": "Open Vacancies",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_open"
+            },
+            "real_value": 87
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            },
+            {
+              "label": "Closed Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_closed"
+              },
+              "real_value": 0
+            }
+          ],
+          "chart": {
+            "graph_description": "Vacancies by State",
+            "chart_type": "bar",
+            "x_axis_name": "Vacancy State",
+            "y_axis_name": "Count",
+            "x_axis": {
+              "operation": "field",
+              "field": "state"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "vacancies_by_state",
+              "group_by": {
+                "field": "state"
+              }
+            },
+            "real_data": {
+              "labels": [],
+              "values": [],
+              "title": "Vacancies by State"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Как работают наши рекрутеры?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "actions_by_recruiter",
+        "actual_entity": "actions_by_recruiter",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Активность рекрутеров",
+          "main_metric": {
+            "label": "Общая активность рекрутеров",
+            "value": {
+              "operation": "sum",
+              "entity": "actions_by_recruiter"
+            },
+            "real_value": 1119
+          },
+          "secondary_metrics": [
+            {
+              "label": "Кандидатов добавлено",
+              "value": {
+                "operation": "sum",
+                "entity": "recruiter_add"
+              },
+              "real_value": 50
+            },
+            {
+              "label": "Писем отправлено",
+              "value": {
+                "operation": "sum",
+                "entity": "recruiter_mail"
+              },
+              "real_value": 30
+            }
+          ],
+          "chart": {
+            "graph_description": "Активность рекрутеров по типам действий",
+            "chart_type": "bar",
+            "x_axis_name": "Тип действия",
+            "y_axis_name": "Количество действий",
+            "x_axis": {
+              "operation": "field",
+              "field": "action_type"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "actions_by_recruiter",
+              "group_by": {
+                "field": "action_type"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Анастасия Богач",
+                "Игорь Сафонов",
+                "Юрий Гринько",
+                "Юра Гринько",
+                "Саша",
+                "Михаил Танский",
+                "Виталий Глибин",
+                "Савченко Екатерина",
+                "София Данилова",
+                "Щерица Олег Владимирович",
+                "Вася Щерица",
+                "Дима Дорогов1",
+                "Анастасия",
+                "Никита Котов 1 ",
+                "Николай Наумов",
+                "Максим Гладких",
+                "Киселев Вячеслав",
+                "Стас Гельман",
+                "Алина Петрова",
+                "Саша Вихарева",
+                "Катерина Дробина",
+                "Кристина Речиц",
+                "Антон Озорин"
+              ],
+              "values": [
+                409,
+                18,
+                26,
+                1,
+                32,
+                208,
+                82,
+                25,
+                24,
+                22,
+                19,
+                1,
+                2,
+                42,
+                1,
+                9,
+                66,
+                2,
+                74,
+                21,
+                18,
+                3,
+                14
+              ],
+              "title": "Активность рекрутеров по типам действий"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Откуда приходят наши кандидаты?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "applicants_by_source",
+        "actual_entity": "applicants_by_source",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Источники кандидатов",
+          "main_metric": {
+            "label": "Кандидаты по источникам",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_by_source"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Общее количество кандидатов",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Количество открытых вакансий",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Распределение кандидатов по источникам",
+            "chart_type": "bar",
+            "x_axis_name": "Источник",
+            "y_axis_name": "Количество кандидатов",
+            "x_axis": {
+              "operation": "field",
+              "field": "source_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "applicants_by_source",
+              "group_by": {
+                "field": "source_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "HeadHunter",
+                "Отклик с HeadHunter",
+                "SuperJob",
+                "LinkedIn",
+                "Хабр карьера"
+              ],
+              "values": [
+                35,
+                25,
+                20,
+                12,
+                8
+              ],
+              "title": "Распределение кандидатов по источникам"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какая конверсия вакансий в найм?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "vacancy_conversion_rates",
+        "actual_entity": "vacancy_conversion_rates",
+        "expected_operation": "avg",
+        "actual_operation": "avg",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Conversion Rate of Vacancies to Hiring",
+          "main_metric": {
+            "label": "Average Conversion Rate",
+            "value": {
+              "operation": "avg",
+              "entity": "vacancy_conversion_rates"
+            },
+            "real_value": 0.0
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            },
+            {
+              "label": "Hired Candidates",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_hired"
+              },
+              "real_value": 0
+            }
+          ],
+          "chart": {
+            "graph_description": "Conversion Rates by Vacancy",
+            "chart_type": "bar",
+            "x_axis_name": "Vacancy",
+            "y_axis_name": "Conversion Rate",
+            "x_axis": {
+              "operation": "field",
+              "field": "vacancy_name"
+            },
+            "y_axis": {
+              "operation": "avg",
+              "entity": "vacancy_conversion_rates",
+              "group_by": {
+                "field": "vacancy_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Senior Java / Kotlin Backend Developer",
+                "Менеджер по продажам",
+                "QA-инженер",
+                "Дизайнер",
+                "Middle Kotlin / Java Developer",
+                "Руководитель",
+                "Python Developer",
+                "Комплектовщик заказов",
+                "Junior Python Developer",
+                "Дизайнер коммуникаций",
+                "Младший тестировщик",
+                "Специалист АХО",
+                "dev",
+                "C++ разработчик",
+                "Котий носильщик",
+                "HR",
+                "asd",
+                "Pogrommist",
+                "Юрист",
+                "Team Lead Python Dev",
+                "Менеджер корпоративных продаж",
+                "Инженер QA Стажер",
+                "Специалист техподдержки",
+                "Дизайнер интерфейсов",
+                "Тестировщик",
+                "UX-копирайтер",
+                "Разработчик",
+                "asdasd",
+                "Редактор",
+                "test_kotov",
+                "Старший разработчик",
+                "Руководитель отдела продаж",
+                "Тест оценки",
+                "12"
+              ],
+              "values": [
+                0.0,
+                8.3,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                33.3,
+                0.0,
+                100.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                50.0,
+                0.0,
+                0.0,
+                0.0,
+                100.0,
+                100.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                100.0,
+                0.0
+              ],
+              "title": "Conversion Rates by Vacancy"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какие причины отказов самые частые?",
+      "score": 0.5,
+      "details": {
+        "expected_entity": "rejections_by_stage",
+        "actual_entity": "rejections_by_reason",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 0.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Частые причины отказов",
+          "main_metric": {
+            "label": "Основные причины отказов",
+            "value": {
+              "operation": "sum",
+              "entity": "rejections_by_reason"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Общее количество отказов",
+              "value": {
+                "operation": "count",
+                "entity": "rejections_by_stage"
+              },
+              "real_value": 30
+            },
+            {
+              "label": "Количество вакансий",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Распределение отказов по причинам",
+            "chart_type": "bar",
+            "x_axis_name": "Причины отказов",
+            "y_axis_name": "Количество отказов",
+            "x_axis": {
+              "operation": "field",
+              "field": "reason_name"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "rejections_by_reason",
+              "group_by": {
+                "field": "reason_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Другие ожидания по задачам",
+                "Есть отрицательная рекомендация",
+                "Закрыли вакансию другим",
+                "Мало опыта",
+                "Не ищет работу",
+                "Не предупредил об отмене собеседования",
+                "Не прошел испытательный срок",
+                "Не соблюдено условие отклика на вакансию",
+                "Неподходящий опыт",
+                "Неприемлемые личные качества",
+                "Несоответствующая квалификация",
+                "Нет контактов",
+                "Неудобно территориально",
+                "Отказался — не интересен продукт",
+                "Отказался делать тестовое задание",
+                "Очень слабые софты",
+                "Перестал отвечать",
+                "Плохо выполнено тестовое задание",
+                "По резюме",
+                "Принял другой оффер",
+                "Принял контроффер",
+                "Прыгает",
+                "Только удаленка",
+                "Резерв",
+                "По другой причине"
+              ],
+              "values": [
+                4,
+                3,
+                2,
+                2,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "title": "Распределение отказов по причинам"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какая загрузка у каждого рекрутера?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "applicants_by_recruiter",
+        "actual_entity": "applicants_by_recruiter",
+        "expected_operation": "avg",
+        "actual_operation": "avg",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Recruiter Workload Analysis",
+          "main_metric": {
+            "label": "Average Workload per Recruiter",
+            "value": {
+              "operation": "avg",
+              "entity": "applicants_by_recruiter"
+            },
+            "real_value": 12.91304347826087
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Total Open Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 30
+            }
+          ],
+          "chart": {
+            "graph_description": "Workload Distribution Among Recruiters",
+            "chart_type": "bar",
+            "x_axis_name": "Recruiter",
+            "y_axis_name": "Number of Applicants",
+            "x_axis": {
+              "operation": "field",
+              "field": "recruiter_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "applicants_by_recruiter",
+              "group_by": {
+                "field": "recruiter_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Анастасия Богач",
+                "Игорь Сафонов",
+                "Юрий Гринько",
+                "Юра Гринько",
+                "Саша",
+                "Михаил Танский",
+                "Виталий Глибин",
+                "Савченко Екатерина",
+                "София Данилова",
+                "Щерица Олег Владимирович",
+                "Вася Щерица",
+                "Дима Дорогов1",
+                "Анастасия",
+                "Никита Котов 1 ",
+                "Николай Наумов",
+                "Максим Гладких",
+                "Киселев Вячеслав",
+                "Стас Гельман",
+                "Алина Петрова",
+                "Саша Вихарева",
+                "Катерина Дробина",
+                "Кристина Речиц",
+                "Антон Озорин"
+              ],
+              "values": [
+                63,
+                9,
+                3,
+                1,
+                16,
+                38,
+                29,
+                5,
+                8,
+                8,
+                18,
+                1,
+                2,
+                6,
+                1,
+                4,
+                55,
+                1,
+                13,
+                5,
+                4,
+                1,
+                6
+              ],
+              "title": "Workload Distribution Among Recruiters"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Кто из рекрутеров лучше всего нанимает?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "recruiters_by_hirings",
+        "actual_entity": "recruiters_by_hirings",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Recruiter Hiring Performance",
+          "main_metric": {
+            "label": "Top Recruiter by Hires",
+            "value": {
+              "operation": "sum",
+              "entity": "recruiters_by_hirings"
+            },
+            "real_value": 15
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Total Hires",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_hired"
+              },
+              "real_value": 30
+            }
+          ],
+          "chart": {
+            "graph_description": "Recruiters ranked by number of successful hires",
+            "chart_type": "bar",
+            "x_axis_name": "Recruiter",
+            "y_axis_name": "Number of Hires",
+            "x_axis": {
+              "operation": "field",
+              "field": "recruiter_name"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "recruiters_by_hirings",
+              "group_by": {
+                "field": "recruiter_name"
+              }
+            },
+            "real_data": {
+              "labels": [],
+              "values": [],
+              "title": "Recruiters ranked by number of successful hires"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Сколько движений по воронке делают рекрутеры?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "moves_by_recruiter",
+        "actual_entity": "moves_by_recruiter",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Recruiter Pipeline Movements",
+          "main_metric": {
+            "label": "Total Pipeline Movements",
+            "value": {
+              "operation": "sum",
+              "entity": "moves_by_recruiter"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Total Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Pipeline Movements by Recruiter",
+            "chart_type": "bar",
+            "x_axis_name": "Recruiter",
+            "y_axis_name": "Movements",
+            "x_axis": {
+              "operation": "field",
+              "field": "recruiter_name"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "moves_by_recruiter",
+              "group_by": {
+                "field": "recruiter_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Анастасия Богач",
+                "Михаил Танский",
+                "Виталий Глибин",
+                "Алина Петрова",
+                "Киселев Вячеслав",
+                "Никита Котов 1 ",
+                "Саша",
+                "Юрий Гринько",
+                "Савченко Екатерина",
+                "София Данилова",
+                "Щерица Олег Владимирович",
+                "Саша Вихарева",
+                "Вася Щерица",
+                "Катерина Дробина",
+                "Игорь Сафонов",
+                "Антон Озорин",
+                "Максим Гладких",
+                "Кристина Речиц",
+                "Стас Гельман",
+                "Анастасия",
+                "Юра Гринько",
+                "Николай Наумов",
+                "Дима Дорогов1"
+              ],
+              "values": [
+                409,
+                208,
+                82,
+                74,
+                66,
+                42,
+                32,
+                26,
+                25,
+                24,
+                22,
+                21,
+                19,
+                18,
+                18,
+                14,
+                9,
+                3,
+                2,
+                2,
+                1,
+                1,
+                1
+              ],
+              "title": "Pipeline Movements by Recruiter"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какое состояние наших вакансий?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "vacancies_by_state",
+        "actual_entity": "vacancies_by_state",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Состояние вакансий",
+          "main_metric": {
+            "label": "Состояние вакансий",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_by_state"
+            },
+            "real_value": 97
+          },
+          "secondary_metrics": [
+            {
+              "label": "Открытые вакансии",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 50
+            },
+            {
+              "label": "Закрытые вакансии",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_closed"
+              },
+              "real_value": 47
+            }
+          ],
+          "chart": {
+            "graph_description": "Распределение вакансий по состоянию",
+            "chart_type": "pie",
+            "x_axis_name": "Состояние вакансии",
+            "y_axis_name": "Количество вакансий",
+            "x_axis": {
+              "operation": "field",
+              "field": "state"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "vacancies_by_state",
+              "group_by": {
+                "field": "state"
+              }
+            },
+            "real_data": {
+              "labels": [],
+              "values": [],
+              "title": "Распределение вакансий по состоянию"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какие вакансии самые приоритетные?",
+      "score": 0.5,
+      "details": {
+        "expected_entity": "vacancies_by_state",
+        "actual_entity": "vacancies_open",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 0.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Priority Vacancies Analysis",
+          "main_metric": {
+            "label": "Priority Vacancies",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_open"
+            },
+            "real_value": 87
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            },
+            {
+              "label": "Closed Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_closed"
+              },
+              "real_value": 0
+            }
+          ],
+          "chart": {
+            "graph_description": "Priority Vacancies Status",
+            "chart_type": "bar",
+            "x_axis_name": "Vacancy Status",
+            "y_axis_name": "Count",
+            "x_axis": {
+              "operation": "field",
+              "field": "status_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "vacancies_by_state",
+              "group_by": {
+                "field": "status_name"
+              }
+            },
+            "real_data": {
+              "labels": [],
+              "values": [],
+              "title": "Priority Vacancies Status"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какая нагрузка у hiring менеджеров?",
+      "score": 0.5,
+      "details": {
+        "expected_entity": "applicants_by_hiring_manager",
+        "actual_entity": "applicants_by_hiring_manager",
+        "expected_operation": "avg",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 0.0,
+        "parsed_response": {
+          "report_title": "Нагрузка у hiring менеджеров",
+          "main_metric": {
+            "label": "Кандидаты у hiring менеджеров",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_by_hiring_manager"
+            },
+            "real_value": 205
+          },
+          "secondary_metrics": [
+            {
+              "label": "Всего кандидатов",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Открытые вакансии",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Распределение кандидатов по hiring менеджерам",
+            "chart_type": "bar",
+            "x_axis_name": "Hiring менеджеры",
+            "y_axis_name": "Количество кандидатов",
+            "x_axis": {
+              "operation": "field",
+              "field": "hiring_manager_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "applicants_by_hiring_manager",
+              "group_by": {
+                "field": "hiring_manager_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Михаил Танский",
+                "Анастасия Богач",
+                "Антон Озорин",
+                "Киселев Вячеслав",
+                "Саша",
+                "Савченко Екатерина",
+                "Анастасия",
+                "Никита Котов 1 ",
+                "Ярослав Матвеев",
+                "Екатерина Савченко"
+              ],
+              "values": [
+                38,
+                63,
+                6,
+                55,
+                16,
+                5,
+                2,
+                6,
+                8,
+                6
+              ],
+              "title": "Распределение кандидатов по hiring менеджерам"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Сколько кандидатов мы наняли?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "applicants_hired",
+        "actual_entity": "applicants_hired",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Hired Candidates Report",
+          "main_metric": {
+            "label": "Hired Candidates",
+            "value": {
+              "operation": "count",
+              "entity": "applicants_hired"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Open Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Hired Candidates Overview",
+            "chart_type": "bar",
+            "x_axis_name": "Status",
+            "y_axis_name": "Count",
+            "x_axis": {
+              "operation": "field",
+              "field": "status_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "applicants_by_status",
+              "group_by": {
+                "field": "status_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Отказ",
+                "Новые",
+                "Резюме у заказчика",
+                "Отправлено письмо",
+                "Интервью",
+                "Тестовое задание",
+                "Звонок кандидату",
+                "Оффер принят",
+                "Видеоинтервью пройдено",
+                "Обратная связь от заказчика",
+                "Выставлен оффер",
+                "Видеоинтервью",
+                "Тестирование SHL пройдено",
+                "Вышел на работу"
+              ],
+              "values": [
+                22,
+                18,
+                7,
+                6,
+                5,
+                4,
+                4,
+                3,
+                3,
+                2,
+                2,
+                2,
+                1,
+                1
+              ],
+              "title": "Hired Candidates Overview"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Сколько кандидатов добавили рекрутеры за месяц?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "applicants_added_by_recruiter",
+        "actual_entity": "applicants_added_by_recruiter",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Кандидаты, добавленные рекрутерами за месяц",
+          "main_metric": {
+            "label": "Кандидаты добавленные за месяц",
+            "value": {
+              "operation": "sum",
+              "entity": "applicants_added_by_recruiter"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Всего кандидатов",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Открытые вакансии",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Кандидаты, добавленные каждым рекрутером за месяц",
+            "chart_type": "bar",
+            "x_axis_name": "Рекрутеры",
+            "y_axis_name": "Количество добавленных кандидатов",
+            "x_axis": {
+              "operation": "field",
+              "field": "recruiter_name"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "applicants_added_by_recruiter",
+              "group_by": {
+                "field": "recruiter_name"
+              }
+            },
+            "real_data": {
+              "labels": [],
+              "values": [],
+              "title": "Кандидаты, добавленные каждым рекрутером за месяц"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какие основные причины отказов?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "rejections_by_reason",
+        "actual_entity": "rejections_by_reason",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Основные причины отказов",
+          "main_metric": {
+            "label": "Причины отказов",
+            "value": {
+              "operation": "sum",
+              "entity": "rejections_by_reason"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Всего кандидатов",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Отказов по этапам",
+              "value": {
+                "operation": "sum",
+                "entity": "rejections_by_stage"
+              },
+              "real_value": 30
+            }
+          ],
+          "chart": {
+            "graph_description": "Распределение отказов по причинам",
+            "chart_type": "bar",
+            "x_axis_name": "Причина отказа",
+            "y_axis_name": "Количество отказов",
+            "x_axis": {
+              "operation": "field",
+              "field": "reason_name"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "rejections_by_reason",
+              "group_by": {
+                "field": "reason_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Другие ожидания по задачам",
+                "Есть отрицательная рекомендация",
+                "Закрыли вакансию другим",
+                "Мало опыта",
+                "Не ищет работу",
+                "Не предупредил об отмене собеседования",
+                "Не прошел испытательный срок",
+                "Не соблюдено условие отклика на вакансию",
+                "Неподходящий опыт",
+                "Неприемлемые личные качества",
+                "Несоответствующая квалификация",
+                "Нет контактов",
+                "Неудобно территориально",
+                "Отказался — не интересен продукт",
+                "Отказался делать тестовое задание",
+                "Очень слабые софты",
+                "Перестал отвечать",
+                "Плохо выполнено тестовое задание",
+                "По резюме",
+                "Принял другой оффер",
+                "Принял контроффер",
+                "Прыгает",
+                "Только удаленка",
+                "Резерв",
+                "По другой причине"
+              ],
+              "values": [
+                4,
+                3,
+                2,
+                2,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "title": "Распределение отказов по причинам"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какие у нас категории статусов?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "status_groups",
+        "actual_entity": "status_groups",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Категории статусов вакансий",
+          "main_metric": {
+            "label": "Категории статусов",
+            "value": {
+              "operation": "count",
+              "entity": "status_groups"
+            },
+            "real_value": 5
+          },
+          "secondary_metrics": [
+            {
+              "label": "Всего вакансий",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            },
+            {
+              "label": "Открытые вакансии",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 30
+            }
+          ],
+          "chart": {
+            "graph_description": "Распределение статусов вакансий по категориям",
+            "chart_type": "pie",
+            "x_axis_name": "Категории статусов",
+            "y_axis_name": "Количество вакансий",
+            "x_axis": {
+              "operation": "field",
+              "field": "status_group"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "status_groups",
+              "group_by": {
+                "field": "status_group"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "IT",
+                "АУП",
+                "Сейлзы",
+                "Кассир"
+              ],
+              "values": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "title": "Распределение статусов вакансий по категориям"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какие вакансии открывали недавно?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "vacancies_last_6_months",
+        "actual_entity": "vacancies_last_6_months",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Recent Vacancies Overview",
+          "main_metric": {
+            "label": "Recent Vacancies",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_last_6_months"
+            },
+            "real_value": 3
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Open Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Recent Vacancies by Status",
+            "chart_type": "bar",
+            "x_axis_name": "Vacancy Status",
+            "y_axis_name": "Count",
+            "x_axis": {
+              "operation": "field",
+              "field": "status_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "vacancies_last_6_months",
+              "group_by": {
+                "field": "status_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Vacancies Last 6 Months"
+              ],
+              "values": [
+                3
+              ],
+              "title": "Recent Vacancies by Status"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какая конверсия по разным вакансиям?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "vacancy_conversion_rates",
+        "actual_entity": "vacancy_conversion_rates",
+        "expected_operation": "avg",
+        "actual_operation": "avg",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Conversion Rates by Vacancy",
+          "main_metric": {
+            "label": "Average Conversion Rate by Vacancy",
+            "value": {
+              "operation": "avg",
+              "entity": "vacancy_conversion_rates"
+            },
+            "real_value": 0.0
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            },
+            {
+              "label": "Open Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 0
+            }
+          ],
+          "chart": {
+            "graph_description": "Conversion Rates by Vacancy",
+            "chart_type": "bar",
+            "x_axis_name": "Vacancy",
+            "y_axis_name": "Conversion Rate",
+            "x_axis": {
+              "operation": "field",
+              "field": "vacancy_name"
+            },
+            "y_axis": {
+              "operation": "avg",
+              "entity": "vacancy_conversion_rates",
+              "group_by": {
+                "field": "vacancy_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Senior Java / Kotlin Backend Developer",
+                "Менеджер по продажам",
+                "QA-инженер",
+                "Дизайнер",
+                "Middle Kotlin / Java Developer",
+                "Руководитель",
+                "Python Developer",
+                "Комплектовщик заказов",
+                "Junior Python Developer",
+                "Дизайнер коммуникаций",
+                "Младший тестировщик",
+                "Специалист АХО",
+                "dev",
+                "C++ разработчик",
+                "Котий носильщик",
+                "HR",
+                "asd",
+                "Pogrommist",
+                "Юрист",
+                "Team Lead Python Dev",
+                "Менеджер корпоративных продаж",
+                "Инженер QA Стажер",
+                "Специалист техподдержки",
+                "Дизайнер интерфейсов",
+                "Тестировщик",
+                "UX-копирайтер",
+                "Разработчик",
+                "asdasd",
+                "Редактор",
+                "test_kotov",
+                "Старший разработчик",
+                "Руководитель отдела продаж",
+                "Тест оценки",
+                "12"
+              ],
+              "values": [
+                0.0,
+                8.3,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                33.3,
+                0.0,
+                100.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                50.0,
+                0.0,
+                0.0,
+                0.0,
+                100.0,
+                100.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                100.0,
+                0.0
+              ],
+              "title": "Conversion Rates by Vacancy"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какая конверсия по этапам найма?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "vacancy_conversion_by_status",
+        "actual_entity": "vacancy_conversion_by_status",
+        "expected_operation": "avg",
+        "actual_operation": "avg",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Conversion Rates by Hiring Stages",
+          "main_metric": {
+            "label": "Average Conversion Rate by Stage",
+            "value": {
+              "operation": "avg",
+              "entity": "vacancy_conversion_by_status"
+            },
+            "real_value": 75
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Total Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Conversion rates across different hiring stages",
+            "chart_type": "bar",
+            "x_axis_name": "Hiring Stage",
+            "y_axis_name": "Conversion Rate (%)",
+            "x_axis": {
+              "operation": "field",
+              "field": "status_name"
+            },
+            "y_axis": {
+              "operation": "avg",
+              "entity": "vacancy_conversion_by_status",
+              "group_by": {
+                "field": "status_name"
+              }
+            },
+            "real_data": {
+              "labels": [],
+              "values": [],
+              "title": "Conversion rates across different hiring stages"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какие вакансии были за последний год?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "vacancies_last_year",
+        "actual_entity": "vacancies_last_year",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Annual Vacancies Overview",
+          "main_metric": {
+            "label": "Total Vacancies Last Year",
+            "value": {
+              "operation": "count",
+              "entity": "vacancies_last_year"
+            },
+            "real_value": 13
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Open Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 19
+            }
+          ],
+          "chart": {
+            "graph_description": "Vacancies from the past year",
+            "chart_type": "bar",
+            "x_axis_name": "Vacancy",
+            "y_axis_name": "Count",
+            "x_axis": {
+              "operation": "field",
+              "field": "vacancy_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "vacancies_last_year",
+              "group_by": {
+                "field": "vacancy_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Vacancies Last Year"
+              ],
+              "values": [
+                13
+              ],
+              "title": "Vacancies from the past year"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Что конкретно делают рекрутеры?",
+      "score": 0.5,
+      "details": {
+        "expected_entity": "actions_by_recruiter_detailed",
+        "actual_entity": "actions_by_recruiter",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 0.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Recruiter Activities Overview",
+          "main_metric": {
+            "label": "Total Recruiter Actions",
+            "value": {
+              "operation": "sum",
+              "entity": "actions_by_recruiter"
+            },
+            "real_value": 1119
+          },
+          "secondary_metrics": [
+            {
+              "label": "Candidates Added by Recruiters",
+              "value": {
+                "operation": "sum",
+                "entity": "recruiter_add"
+              },
+              "real_value": 30
+            },
+            {
+              "label": "Comments Made by Recruiters",
+              "value": {
+                "operation": "sum",
+                "entity": "recruiter_comment"
+              },
+              "real_value": 19
+            }
+          ],
+          "chart": {
+            "graph_description": "Breakdown of Recruiter Activities",
+            "chart_type": "bar",
+            "x_axis_name": "Activity Type",
+            "y_axis_name": "Count",
+            "x_axis": {
+              "operation": "field",
+              "field": "activity_type"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "actions_by_recruiter",
+              "group_by": {
+                "field": "activity_type"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Анастасия Богач",
+                "Игорь Сафонов",
+                "Юрий Гринько",
+                "Юра Гринько",
+                "Саша",
+                "Михаил Танский",
+                "Виталий Глибин",
+                "Савченко Екатерина",
+                "София Данилова",
+                "Щерица Олег Владимирович",
+                "Вася Щерица",
+                "Дима Дорогов1",
+                "Анастасия",
+                "Никита Котов 1 ",
+                "Николай Наумов",
+                "Максим Гладких",
+                "Киселев Вячеслав",
+                "Стас Гельман",
+                "Алина Петрова",
+                "Саша Вихарева",
+                "Катерина Дробина",
+                "Кристина Речиц",
+                "Антон Озорин"
+              ],
+              "values": [
+                409,
+                18,
+                26,
+                1,
+                32,
+                208,
+                82,
+                25,
+                24,
+                22,
+                19,
+                1,
+                2,
+                42,
+                1,
+                9,
+                66,
+                2,
+                74,
+                21,
+                18,
+                3,
+                14
+              ],
+              "title": "Breakdown of Recruiter Activities"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Как детально движутся кандидаты по воронке?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "moves_by_recruiter_detailed",
+        "actual_entity": "moves_by_recruiter_detailed",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Detailed Candidate Pipeline Movements",
+          "main_metric": {
+            "label": "Pipeline Movements",
+            "value": {
+              "operation": "sum",
+              "entity": "moves_by_recruiter_detailed"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Open Vacancies",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_open"
+              },
+              "real_value": 97
+            }
+          ],
+          "chart": {
+            "graph_description": "Detailed movements of candidates through the recruitment pipeline",
+            "chart_type": "bar",
+            "x_axis_name": "Recruitment Stage",
+            "y_axis_name": "Number of Movements",
+            "x_axis": {
+              "operation": "field",
+              "field": "stage_name"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "moves_by_recruiter_detailed",
+              "group_by": {
+                "field": "stage_name"
+              }
+            },
+            "real_data": {
+              "labels": [],
+              "values": [],
+              "title": "Detailed movements of candidates through the recruitment pipeline"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Кто из рекрутеров обрабатывает больше отказов?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "rejections_by_recruiter",
+        "actual_entity": "rejections_by_recruiter",
+        "expected_operation": "sum",
+        "actual_operation": "sum",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Recruiters Handling Most Rejections",
+          "main_metric": {
+            "label": "Recruiters by Rejections Handled",
+            "value": {
+              "operation": "sum",
+              "entity": "rejections_by_recruiter"
+            },
+            "real_value": 100
+          },
+          "secondary_metrics": [
+            {
+              "label": "Total Applicants",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            },
+            {
+              "label": "Total Rejections",
+              "value": {
+                "operation": "sum",
+                "entity": "rejections_by_reason"
+              },
+              "real_value": 30
+            }
+          ],
+          "chart": {
+            "graph_description": "Recruiters ranked by number of rejections handled",
+            "chart_type": "bar",
+            "x_axis_name": "Recruiter",
+            "y_axis_name": "Number of Rejections",
+            "x_axis": {
+              "operation": "field",
+              "field": "recruiter_name"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "rejections_by_recruiter",
+              "group_by": {
+                "field": "recruiter_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Анастасия Богач",
+                "Саша",
+                "Михаил Танский",
+                "Виталий Глибин",
+                "София Данилова",
+                "Вася Щерица",
+                "Никита Котов 1 ",
+                "Киселев Вячеслав"
+              ],
+              "values": [
+                4,
+                1,
+                6,
+                1,
+                1,
+                4,
+                1,
+                8
+              ],
+              "title": "Recruiters ranked by number of rejections handled"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Какие типы статусов используются?",
+      "score": 1.0,
+      "details": {
+        "expected_entity": "statuses_by_type",
+        "actual_entity": "statuses_by_type",
+        "expected_operation": "count",
+        "actual_operation": "count",
+        "entity_match": 1.0,
+        "operation_match": 1.0,
+        "parsed_response": {
+          "report_title": "Типы статусов вакансий",
+          "main_metric": {
+            "label": "Типы статусов",
+            "value": {
+              "operation": "count",
+              "entity": "statuses_by_type"
+            },
+            "real_value": 5
+          },
+          "secondary_metrics": [
+            {
+              "label": "Всего вакансий",
+              "value": {
+                "operation": "count",
+                "entity": "vacancies_all"
+              },
+              "real_value": 97
+            },
+            {
+              "label": "Кандидатов всего",
+              "value": {
+                "operation": "count",
+                "entity": "applicants_all"
+              },
+              "real_value": 100
+            }
+          ],
+          "chart": {
+            "graph_description": "Распределение статусов вакансий по типам",
+            "chart_type": "pie",
+            "x_axis_name": "Тип статуса",
+            "y_axis_name": "Количество",
+            "x_axis": {
+              "operation": "field",
+              "field": "type_name"
+            },
+            "y_axis": {
+              "operation": "count",
+              "entity": "statuses_by_type",
+              "group_by": {
+                "field": "type_name"
+              }
+            },
+            "real_data": {
+              "labels": [],
+              "values": [],
+              "title": "Распределение статусов вакансий по типам"
+            }
+          }
+        }
+      }
+    },
+    {
+      "question": "Как соотносится активность рекрутеров с результатами?",
+      "score": 0.0,
+      "details": {
+        "expected_entity": "recruiters_by_hirings",
+        "actual_entity": "actions_by_recruiter",
+        "expected_operation": "avg",
+        "actual_operation": "sum",
+        "entity_match": 0.0,
+        "operation_match": 0.0,
+        "parsed_response": {
+          "report_title": "Recruiter Activity vs Results",
+          "main_metric": {
+            "label": "Recruiter Activity",
+            "value": {
+              "operation": "sum",
+              "entity": "actions_by_recruiter"
+            },
+            "real_value": 1119
+          },
+          "secondary_metrics": [
+            {
+              "label": "Successful Hires by Recruiter",
+              "value": {
+                "operation": "sum",
+                "entity": "recruiters_by_hirings"
+              },
+              "real_value": 30
+            },
+            {
+              "label": "Pipeline Movements by Recruiter",
+              "value": {
+                "operation": "sum",
+                "entity": "moves_by_recruiter"
+              },
+              "real_value": 19
+            }
+          ],
+          "chart": {
+            "graph_description": "Comparison of recruiter activity and successful hires",
+            "chart_type": "bar",
+            "x_axis_name": "Recruiter",
+            "y_axis_name": "Count",
+            "x_axis": {
+              "operation": "field",
+              "field": "recruiter_name"
+            },
+            "y_axis": {
+              "operation": "sum",
+              "entity": "actions_by_recruiter",
+              "group_by": {
+                "field": "recruiter_name"
+              }
+            },
+            "real_data": {
+              "labels": [
+                "Анастасия Богач",
+                "Игорь Сафонов",
+                "Юрий Гринько",
+                "Юра Гринько",
+                "Саша",
+                "Михаил Танский",
+                "Виталий Глибин",
+                "Савченко Екатерина",
+                "София Данилова",
+                "Щерица Олег Владимирович",
+                "Вася Щерица",
+                "Дима Дорогов1",
+                "Анастасия",
+                "Никита Котов 1 ",
+                "Николай Наумов",
+                "Максим Гладких",
+                "Киселев Вячеслав",
+                "Стас Гельман",
+                "Алина Петрова",
+                "Саша Вихарева",
+                "Катерина Дробина",
+                "Кристина Речиц",
+                "Антон Озорин"
+              ],
+              "values": [
+                409,
+                18,
+                26,
+                1,
+                32,
+                208,
+                82,
+                25,
+                24,
+                22,
+                19,
+                1,
+                2,
+                42,
+                1,
+                9,
+                66,
+                2,
+                74,
+                21,
+                18,
+                3,
+                14
+              ],
+              "title": "Comparison of recruiter activity and successful hires"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

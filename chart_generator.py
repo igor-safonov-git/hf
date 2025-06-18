@@ -38,8 +38,7 @@ def make_chart(
     if len(sorted_items) > 7:
         top_items = sorted_items[:6]
         other_value = sum(value for _, value in sorted_items[6:])
-        if other_value > 0:
-            top_items.append(("Other", other_value))
+        top_items.append(("Other", other_value))
         sorted_items = top_items
     
     # Extract labels and values

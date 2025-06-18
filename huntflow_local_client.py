@@ -198,8 +198,9 @@ class HuntflowLocalClient:
         return response.get("items", [])
     
     async def get_applicants_count(self, vacancy_id: Optional[int] = None) -> int:
-        """Get count of applicants, optionally filtered by vacancy."""
+        """Get count of applicants, optionally filtered by vacancy. Use MetricsCalculator for general counts."""
         if vacancy_id:
+            # Vacancy-specific count (not available in MetricsCalculator yet)
             result = self._query(
                 """
                 SELECT COUNT(DISTINCT a.id) as count
@@ -209,10 +210,12 @@ class HuntflowLocalClient:
                 """,
                 (vacancy_id,)
             )
+            return result[0]["count"] if result else 0
         else:
-            result = self._query("SELECT COUNT(*) as count FROM applicants")
-        
-        return result[0]["count"] if result else 0
+            # Use MetricsCalculator for general applicant count
+            from metrics_calculator import MetricsCalculator
+            calc = MetricsCalculator(self)
+            return await calc.get_active_applicants()
     
     async def get_status_distribution(self, vacancy_id: Optional[int] = None) -> Dict[str, int]:
         """Get distribution of applicants by their current status."""

@@ -144,6 +144,14 @@ class HuntflowDataDownloader:
             )
         """)
         
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS status_groups (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                raw_data TEXT
+            )
+        """)
+        
         conn.commit()
         conn.close()
     
@@ -261,6 +269,12 @@ class HuntflowDataDownloader:
                         VALUES (?, ?, ?, ?, ?)
                     """, (item["id"], item.get("name"), item.get("type"), item.get("order"), raw_data))
                 
+                elif table == "status_groups":
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO status_groups (id, name, raw_data)
+                        VALUES (?, ?, ?)
+                    """, (item["id"], item.get("name"), raw_data))
+                
                 else:
                     # For simple entities with just id and name
                     cursor.execute(f"""
@@ -286,7 +300,7 @@ class HuntflowDataDownloader:
             cursor = conn.cursor()
             tables = ["applicant_logs", "applicants", "vacancies", "vacancy_statuses", 
                      "divisions", "coworkers", "rejection_reasons", 
-                     "applicant_sources", "accounts", "download_meta"]
+                     "applicant_sources", "status_groups", "accounts", "download_meta"]
             for table in tables:
                 cursor.execute(f"DELETE FROM {table}")
             conn.commit()
@@ -326,6 +340,11 @@ class HuntflowDataDownloader:
         logger.info("Downloading applicant sources...")
         sources = await self._get_all_items(f"/v2/accounts/{self.account_id}/applicants/sources")
         self._save_to_db("applicant_sources", sources)
+        
+        # 7.5. Download status groups
+        logger.info("Downloading status groups...")
+        status_groups = await self._get_all_items(f"/v2/accounts/{self.account_id}/vacancies/status_groups")
+        self._save_to_db("status_groups", status_groups)
         
         # 8. Download vacancies
         logger.info("Downloading vacancies...")
@@ -375,8 +394,8 @@ class HuntflowDataDownloader:
                             """, (
                                 log.get("id"),
                                 applicant["id"],
-                                log.get("vacancy", {}).get("id") if log.get("vacancy") else None,
-                                log.get("status", {}).get("id") if log.get("status") else None,
+                                log.get("vacancy") if isinstance(log.get("vacancy"), (int, str)) else (log.get("vacancy", {}).get("id") if isinstance(log.get("vacancy"), dict) else None),
+                                log.get("status") if isinstance(log.get("status"), (int, str)) else (log.get("status", {}).get("id") if isinstance(log.get("status"), dict) else None),
                                 log.get("created"),
                                 json.dumps(log, ensure_ascii=False)
                             ))
@@ -406,7 +425,7 @@ class HuntflowDataDownloader:
         tables = [
             "accounts", "vacancies", "applicants", "applicant_logs",
             "vacancy_statuses", "divisions", "coworkers",
-            "rejection_reasons", "applicant_sources"
+            "rejection_reasons", "applicant_sources", "status_groups"
         ]
         
         for table in tables:

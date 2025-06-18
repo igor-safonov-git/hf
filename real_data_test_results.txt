@@ -1,0 +1,108 @@
+🔍 Testing Real Data Pipeline
+Testing 10 questions for real data presence
+============================================================
+
+📊 Test 1/10: Сколько у нас сейчас кандидатов в воронке?
+----------------------------------------
+Main Metric Real Value: ✅ (100)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [18, 7]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 2/10: Сколько открытых вакансий у нас есть?
+----------------------------------------
+Main Metric Real Value: ✅ (97)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [9, 14]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 3/10: Как работают наши рекрутеры?
+----------------------------------------
+Main Metric Real Value: ✅ (118)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [45, 63]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 4/10: Откуда приходят наши кандидаты?
+----------------------------------------
+Main Metric Real Value: ✅ (100)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [23, 34]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 5/10: Какая конверсия вакансий в найм?
+----------------------------------------
+Main Metric Real Value: ✅ (6.3)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [100, 97]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 6/10: Сколько времени кандидаты проводят в каждом статусе?
+----------------------------------------
+Main Metric Real Value: ✅ (5)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [10, 1]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 7/10: Как изменилась активность за последние месяцы?
+----------------------------------------
+Main Metric Real Value: ✅ (150)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [60, 50]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 8/10: Какие причины отказов самые частые?
+----------------------------------------
+Main Metric Real Value: ✅ (22)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [10, 15]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 9/10: Сколько вакансий мы закрыли успешно?
+----------------------------------------
+Main Metric Real Value: ✅ (10)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [2, 5]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📊 Test 10/10: Какая загрузка у каждого рекрутера?
+----------------------------------------
+Main Metric Real Value: ✅ (297)
+Secondary Metrics Real Values: ✅ (2 found)
+  Values: [63, 23]
+Chart Real Data: ✅
+Real Data Score: 1.00
+🎉 COMPLETE REAL DATA!
+
+📈 REAL DATA PIPELINE SUMMARY
+========================================
+Average Real Data Score: 1.00
+Complete Real Data: 100.0%
+Perfect Real Data: 10/10
+
+📊 Real Data Value Analysis:
+Main Metric Values: [100, 97, 118, 100, 6.3, 5, 150, 22, 10, 297]
+  Range: 5 - 297
+  Average: 90.5
+Secondary Metric Values: 20 total
+  Sample: [18, 7, 9, 14, 45]...
+  Range: 1 - 100
+  Average: 32.5
