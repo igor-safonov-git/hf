@@ -318,10 +318,10 @@ class HuntflowDataDownloader:
         divisions = await self._get_all_items(f"/v2/accounts/{self.account_id}/divisions")
         self._save_to_db("divisions", divisions)
         
-        # 4. Download regions
-        logger.info("Downloading regions...")
-        regions = await self._get_all_items(f"/v2/accounts/{self.account_id}/regions")
-        self._save_to_db("regions", regions)
+        # 4. Download regions (limited sample - full dataset has 1M+ geographical locations)
+        logger.info("Downloading regions (sample of 1000)...")
+        regions = await self._make_request("GET", f"/v2/accounts/{self.account_id}/regions", params={"count": 1000, "page": 1})
+        self._save_to_db("regions", regions.get("items", []))
         
         # 5. Download coworkers (known to have pagination)
         logger.info("Downloading coworkers...")
