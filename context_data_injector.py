@@ -4,7 +4,7 @@ Fetches real data from database and injects into prompt context
 """
 
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any
 from metrics_calculator import MetricsCalculator
 from huntflow_local_client import HuntflowLocalClient
 
@@ -51,6 +51,27 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
         top_statuses = all_statuses_with_counts[:5]
         top_recruiters = all_recruiters_with_counts[:3]
         
+        # Get recent vacancies and hiring managers
+        recent_vacancies = []
+        hiring_managers = []
+        this_month_hires = []
+        
+        try:
+            # Get recent open vacancies (last 15)
+            all_vacancies_data = await client._req("GET", f"/v2/accounts/{client.account_id}/vacancies", params={"state": "OPEN", "count": 15})
+            if isinstance(all_vacancies_data, dict) and "items" in all_vacancies_data:
+                recent_vacancies = all_vacancies_data["items"]
+            
+            # Get hiring managers from coworkers
+            hiring_managers = [worker for worker in all_coworkers.get("items", []) if worker.get("permission", {}).get("can_edit_vacancy", False)]
+            
+            # Get this month's hires (approximate from hired applicants)
+            hired_applicants = await metrics_calc.applicants_hired()
+            this_month_hires = hired_applicants[:10] if hired_applicants else []
+            
+        except Exception as e:
+            print(f"Warning: Could not fetch additional context data: {e}")
+        
         # Calculate dynamic context
         context = {
             # Core counts
@@ -70,15 +91,21 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
             "overall_conversion_rate": round(sum(conversion_rates.values()) / len(conversion_rates) if conversion_rates else 0, 1),
             "total_hires": 9,  # Use actual number from database
             
-            # Complete entity lists for prompt injection
-            "vacancy_statuses": all_statuses if isinstance(all_statuses, list) else [],
+            # PROMPT-SPECIFIC KEYS (exact match for prompt.py)
+            "stages": all_statuses if isinstance(all_statuses, list) else [],
+            "recruiters": all_recruiters_with_counts,
+            "hiring_managers": hiring_managers,
+            "recent_vacancies": recent_vacancies,
             "sources": all_sources.get("items", []) if isinstance(all_sources, dict) else [],
+            "rejection_types": all_rejection_reasons.get("items", []) if isinstance(all_rejection_reasons, dict) else [],
             "divisions": all_divisions.get("items", []) if isinstance(all_divisions, dict) else [],
+            "this_month_hires": this_month_hires,
+            
+            # Legacy keys (for backward compatibility)
+            "vacancy_statuses": all_statuses if isinstance(all_statuses, list) else [],
             "rejection_reasons": all_rejection_reasons.get("items", []) if isinstance(all_rejection_reasons, dict) else [],
             "coworkers": all_coworkers.get("items", []) if isinstance(all_coworkers, dict) else [],
             "regions": all_regions.get("items", []) if isinstance(all_regions, dict) else [],
-            
-            # Complete lists with counts
             "all_statuses_with_counts": all_statuses_with_counts,
             "all_recruiters_with_counts": all_recruiters_with_counts,
         }
@@ -98,8 +125,19 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
             "top_recruiters": [{"name": "Анастасия Богач", "count": 63}],
             "overall_conversion_rate": 6.3,
             "total_hires": 9,
-            "vacancy_statuses": [],
+            
+            # PROMPT-SPECIFIC KEYS (exact match for prompt.py)
+            "stages": [],
+            "recruiters": [],
+            "hiring_managers": [],
+            "recent_vacancies": [],
             "sources": [],
+            "rejection_types": [],
+            "divisions": [], 
+            "this_month_hires": [],
+            
+            # Legacy keys
+            "vacancy_statuses": [],
         }
 
 async def test_dynamic_context():

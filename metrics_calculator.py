@@ -570,39 +570,10 @@ class MetricsCalculator:
     async def get_rejections_by_reason(self) -> Dict[str, int]:
         return await self.rejections_by_reason()
     
-    async def status_groups(self) -> List[Dict[str, Any]]:
-        """Get all status groups from database."""
-        status_groups = self.client._query("SELECT * FROM status_groups")
-        
-        result = []
-        for group in status_groups:
-            group_data = {
-                "id": group.get("id"),
-                "name": group.get("name", f"Group {group.get('id')}")
-            }
-            
-            # Parse raw_data to get statuses count
-            if group.get("raw_data"):
-                try:
-                    import json
-                    raw = json.loads(group["raw_data"])
-                    statuses = raw.get("statuses", [])
-                    group_data["status_count"] = len(statuses)
-                    group_data["statuses"] = statuses
-                except:
-                    group_data["status_count"] = 0
-                    group_data["statuses"] = []
-            else:
-                group_data["status_count"] = 0
-                group_data["statuses"] = []
-            
-            result.append(group_data)
-        
-        return result
-    
     # Legacy alias
     async def get_status_groups(self) -> List[Dict[str, Any]]:
-        return await self.status_groups()
+        # Removed - not supported by prompt entities
+        return []
     
     def _parse_date(self, date_str: str) -> Optional[datetime]:
         """Parse date string to datetime object (timezone-naive for comparison)."""
@@ -619,208 +590,15 @@ class MetricsCalculator:
         except (ValueError, TypeError):
             return None
     
-    async def vacancies_last_6_months(self) -> List[Dict[str, Any]]:
-        """Get vacancies created in the last 6 months."""
-        vacancies = await self.vacancies_all()
-        
-        # Calculate 6 months ago
-        six_months_ago = datetime.now() - timedelta(days=180)
-        
-        result = []
-        for item in vacancies:
-            created_date = self._parse_date(item.get("created"))
-            if created_date and created_date >= six_months_ago:
-                result.append(item)
-        
-        return result
-    
     # Legacy alias
     async def get_vacancies_last_6_months(self) -> List[Dict[str, Any]]:
-        return await self.vacancies_last_6_months()
+        # Removed - not supported by prompt entities
+        return []
     
-    async def vacancy_conversion_rates(self) -> Dict[str, float]:
-        """
-        Calculate conversion rates for each vacancy (applicants to hires ratio).
-        Returns: {vacancy_id: conversion_percentage}
-        """
-        # Get vacancy-applicant-hire data from logs
-        vacancy_stats = self.client._query("""
-            SELECT 
-                al.vacancy_id,
-                v.position as vacancy_title,
-                COUNT(DISTINCT al.applicant_id) as total_applicants,
-                COUNT(DISTINCT CASE WHEN vs.type = 'hired' THEN al.applicant_id END) as hired_count
-            FROM applicant_logs al
-            LEFT JOIN vacancy_statuses vs ON al.status_id = vs.id
-            LEFT JOIN vacancies v ON al.vacancy_id = v.id
-            WHERE al.vacancy_id IS NOT NULL
-            GROUP BY al.vacancy_id, v.position
-            HAVING total_applicants > 0
-            ORDER BY total_applicants DESC
-        """)
-        
-        conversion_rates = {}
-        for row in vacancy_stats:
-            vacancy_id = row['vacancy_id']
-            total_applicants = row['total_applicants']
-            hired_count = row['hired_count']
-            vacancy_title = row['vacancy_title'] or f"Vacancy {vacancy_id}"
-            
-            # Calculate conversion rate: (hires / applicants) * 100
-            conversion_rate = (hired_count / total_applicants * 100) if total_applicants > 0 else 0
-            
-            # Use vacancy title as key for better readability
-            conversion_rates[vacancy_title] = round(conversion_rate, 1)
-        
-        return conversion_rates
-    
-    
-    async def vacancy_conversion_by_status(self) -> Dict[str, float]:
-        """
-        Calculate average conversion rates grouped by vacancy status (OPEN/CLOSED/HOLD).
-        Returns: {status: average_conversion_rate}
-        """
-        # Get conversion data grouped by vacancy status
-        status_stats = self.client._query("""
-            SELECT 
-                v.status as vacancy_status,
-                al.vacancy_id,
-                COUNT(DISTINCT al.applicant_id) as total_applicants,
-                COUNT(DISTINCT CASE WHEN vs.type = 'hired' THEN al.applicant_id END) as hired_count
-            FROM applicant_logs al
-            LEFT JOIN vacancy_statuses vs ON al.status_id = vs.id
-            LEFT JOIN vacancies v ON al.vacancy_id = v.id
-            WHERE al.vacancy_id IS NOT NULL AND v.status IS NOT NULL
-            GROUP BY v.status, al.vacancy_id
-            HAVING total_applicants > 0
-        """)
-        
-        # Group by status and calculate average conversion rates
-        status_conversions = {}
-        for row in status_stats:
-            status = row['vacancy_status']
-            total_applicants = row['total_applicants']
-            hired_count = row['hired_count']
-            
-            conversion_rate = (hired_count / total_applicants * 100) if total_applicants > 0 else 0
-            
-            if status not in status_conversions:
-                status_conversions[status] = []
-            status_conversions[status].append(conversion_rate)
-        
-        # Calculate averages
-        status_averages = {}
-        for status, rates in status_conversions.items():
-            average_rate = sum(rates) / len(rates) if rates else 0
-            status_averages[status] = round(average_rate, 1)
-        
-        return status_averages
 
-    async def vacancies_last_year(self) -> List[Dict[str, Any]]:
-        """Get vacancies created in the last year."""
-        vacancies = await self.vacancies_all()
-        
-        # Calculate 1 year ago
-        one_year_ago = datetime.now() - timedelta(days=365)
-        
-        result = []
-        for item in vacancies:
-            created_date = self._parse_date(item.get("created"))
-            if created_date and created_date >= one_year_ago:
-                result.append(item)
-        
-        return result
-    
     # Legacy alias
     async def get_vacancies_last_year(self) -> List[Dict[str, Any]]:
-        return await self.vacancies_last_year()
+        # Removed - not supported by prompt entities
+        return []
 
 
-# Test and example usage
-async def test_metrics():
-    """Test the metrics calculator with sample calculations."""
-    calc = MetricsCalculator()
-    
-    print("Testing Metrics Calculator")
-    print("=" * 40)
-    
-    # Test applicants data
-    applicants = await calc.get_applicants()
-    print(f"Applicants: {len(applicants)}")
-    
-    # Test active stages
-    active_stages = await calc.get_active_stages()
-    print(f"Active Stages: {len(active_stages)}")
-    
-    for stage in active_stages[:5]:  # Show first 5
-        print(f"  - {stage['name']} (ID: {stage['id']}, Type: {stage.get('type', 'N/A')})")
-    
-    if len(active_stages) > 5:
-        print(f"  ... and {len(active_stages) - 5} more")
-    
-    # Test vacancy data
-    vacancies = await calc.get_vacancies()
-    open_vacancies = await calc.get_open_vacancies()
-    closed_vacancies = await calc.get_closed_vacancies()
-    statuses = await calc.get_vacancy_statuses()
-    recruiters = await calc.get_recruiters()
-    
-    print(f"\\nTotal Vacancies: {len(vacancies)}")
-    print(f"Open Vacancies: {len(open_vacancies)}")
-    print(f"Closed Vacancies: {len(closed_vacancies)}")
-    print(f"Vacancy Statuses: {len(statuses)}")
-    print(f"Recruiters: {len(recruiters)}")
-    
-    # Test time-based metrics
-    vacancies_6m = await calc.get_vacancies_last_6_months()
-    vacancies_1y = await calc.get_vacancies_last_year()
-    print(f"\\nVacancies Last 6 Months: {len(vacancies_6m)}")
-    print(f"Vacancies Last Year: {len(vacancies_1y)}")
-    
-    # Test grouping metrics
-    print(f"\\nVacancies by State: {await calc.get_vacancies_by_state()}")
-    print(f"Status Types: {await calc.get_vacancy_statuses_by_type()}")
-    
-    # Test new recruiter/manager metrics
-    print(f"\\nApplicants by Recruiter: {await calc.get_applicants_by_recruiter()}")
-    print(f"Applicants by Hiring Manager: {await calc.get_applicants_by_hiring_manager()}")
-    
-    # Test hired applicants metric
-    hired_applicants = await calc.get_hired_applicants()
-    print(f"\\nHired Applicants: {len(hired_applicants)}")
-    if hired_applicants:
-        for applicant in hired_applicants[:3]:  # Show first 3
-            name = f"{applicant['first_name']} {applicant['last_name']}"
-            print(f"  - {name} (ID: {applicant['id']}) - {applicant['hired_status']} on {applicant['hired_date']}")
-    else:
-        print("  No hired applicants yet")
-    
-    # Test actions by recruiter metrics
-    actions_total = await calc.get_actions_by_recruiter()
-    print(f"\\nActions by Recruiter (Total): {actions_total}")
-    
-    actions_detailed = await calc.get_actions_by_recruiter_detailed()
-    print(f"\\nActions by Recruiter (Detailed breakdown):")
-    for recruiter, actions in list(actions_detailed.items())[:3]:  # Show first 3
-        print(f"  {recruiter}:")
-        for action_type, count in actions.items():
-            print(f"    {action_type}: {count}")
-    
-    # Test moves by recruiter metrics
-    moves_total = await calc.get_moves_by_recruiter()
-    print(f"\\nMoves by Recruiter (Status Changes): {moves_total}")
-    
-    moves_detailed = await calc.get_moves_by_recruiter_detailed()
-    print(f"\\nMoves by Recruiter (Detailed breakdown):")
-    for recruiter, moves in list(moves_detailed.items())[:3]:  # Show first 3
-        print(f"  {recruiter}:")
-        for move_type, count in moves.items():
-            print(f"    {move_type}: {count}")
-    
-    # Test added applicants by recruiter
-    added_applicants = await calc.get_added_applicants_by_recruiter()
-    print(f"\\nAdded Applicants by Recruiter: {added_applicants}")
-
-
-if __name__ == "__main__":
-    asyncio.run(test_metrics())
