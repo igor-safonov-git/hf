@@ -175,11 +175,12 @@ class HuntflowDataDownloader:
             return await response.json()
     
     async def _paginate_endpoint(self, endpoint: str, params: Optional[Dict] = None) -> List[Dict]:
-        """Handle paginated endpoints."""
+        """Handle paginated endpoints with robust pagination."""
         all_items = []
         page = 1
+        max_pages = 1000  # Safety limit to prevent infinite loops
         
-        while True:
+        while page <= max_pages:
             current_params = {"count": 100, "page": page}
             if params:
                 current_params.update(params)
@@ -189,18 +190,46 @@ class HuntflowDataDownloader:
             
             items = data.get("items", [])
             if not items:
+                logger.info(f"No more items found on page {page}, stopping pagination")
                 break
             
             all_items.extend(items)
+            logger.info(f"Page {page}: fetched {len(items)} items (total so far: {len(all_items)})")
             
-            # Check if more pages exist
-            if len(items) < 100:
+            # Check if we got fewer items than requested (indicates last page)
+            if len(items) < current_params["count"]:
+                logger.info(f"Received {len(items)} < {current_params['count']} items, last page reached")
+                break
+            
+            # Check if API provides total count for better logging
+            total = data.get("total", data.get("count"))
+            if total is not None and len(all_items) >= total:
+                logger.info(f"Reached total count: {len(all_items)}/{total}")
                 break
             
             page += 1
-            await asyncio.sleep(0.5)  # Be nice to the API
+            await asyncio.sleep(0.5)  # Rate limiting
         
+        if page > max_pages:
+            logger.warning(f"Hit pagination safety limit ({max_pages} pages) for {endpoint}")
+        
+        logger.info(f"Completed {endpoint}: {len(all_items)} total items across {page-1} pages")
         return all_items
+    
+    async def _get_all_items(self, endpoint: str, params: Optional[Dict] = None) -> List[Dict]:
+        """Get all items from endpoint, trying pagination first, falling back to single request."""
+        try:
+            # Try pagination first
+            return await self._paginate_endpoint(endpoint, params)
+        except Exception as e:
+            logger.warning(f"Pagination failed for {endpoint}, trying single request: {e}")
+            try:
+                # Fallback to single request
+                data = await self._make_request("GET", endpoint, params=params)
+                return data.get("items", [])
+            except Exception as e2:
+                logger.error(f"Both pagination and single request failed for {endpoint}: {e2}")
+                return []
     
     def _save_to_db(self, table: str, items: List[Dict], special_handler=None):
         """Save items to database."""
@@ -276,38 +305,38 @@ class HuntflowDataDownloader:
         
         # 1. Download account info
         logger.info("Downloading account info...")
-        accounts = await self._make_request("GET", "/v2/accounts")
-        self._save_to_db("accounts", accounts.get("items", []))
+        accounts = await self._get_all_items("/v2/accounts")
+        self._save_to_db("accounts", accounts)
         
         # 2. Download vacancy statuses (recruitment stages)
         logger.info("Downloading vacancy statuses...")
-        statuses = await self._make_request("GET", f"/v2/accounts/{self.account_id}/vacancies/statuses")
-        self._save_to_db("vacancy_statuses", statuses.get("items", []))
+        statuses = await self._get_all_items(f"/v2/accounts/{self.account_id}/vacancies/statuses")
+        self._save_to_db("vacancy_statuses", statuses)
         
         # 3. Download divisions
         logger.info("Downloading divisions...")
-        divisions = await self._make_request("GET", f"/v2/accounts/{self.account_id}/divisions")
-        self._save_to_db("divisions", divisions.get("items", []))
+        divisions = await self._get_all_items(f"/v2/accounts/{self.account_id}/divisions")
+        self._save_to_db("divisions", divisions)
         
         # 4. Download regions
         logger.info("Downloading regions...")
-        regions = await self._make_request("GET", f"/v2/accounts/{self.account_id}/regions")
-        self._save_to_db("regions", regions.get("items", []))
+        regions = await self._get_all_items(f"/v2/accounts/{self.account_id}/regions")
+        self._save_to_db("regions", regions)
         
-        # 5. Download coworkers
+        # 5. Download coworkers (known to have pagination)
         logger.info("Downloading coworkers...")
         coworkers = await self._paginate_endpoint(f"/v2/accounts/{self.account_id}/coworkers")
         self._save_to_db("coworkers", coworkers)
         
         # 6. Download rejection reasons
         logger.info("Downloading rejection reasons...")
-        rejection_reasons = await self._make_request("GET", f"/v2/accounts/{self.account_id}/rejection_reasons")
-        self._save_to_db("rejection_reasons", rejection_reasons.get("items", []))
+        rejection_reasons = await self._get_all_items(f"/v2/accounts/{self.account_id}/rejection_reasons")
+        self._save_to_db("rejection_reasons", rejection_reasons)
         
         # 7. Download applicant sources
         logger.info("Downloading applicant sources...")
-        sources = await self._make_request("GET", f"/v2/accounts/{self.account_id}/applicants/sources")
-        self._save_to_db("applicant_sources", sources.get("items", []))
+        sources = await self._get_all_items(f"/v2/accounts/{self.account_id}/applicants/sources")
+        self._save_to_db("applicant_sources", sources)
         
         # 8. Download vacancies
         logger.info("Downloading vacancies...")
