@@ -126,6 +126,11 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 state_counts = await metrics_calc.vacancies_by_state()
                 real_data["labels"] = list(state_counts.keys())
                 real_data["values"] = list(state_counts.values())
+            elif group_by in ["recruiter", "recruiters", "hiring_manager", "hiring_managers", "division", "divisions", "stage", "stages"]:
+                # TODO: Need to implement vacancies grouped by these fields
+                data = await metrics_calc.vacancies_all()
+                real_data["labels"] = ["Total Vacancies"]
+                real_data["values"] = [len(data)]
             else:
                 # Default: just count
                 data = await metrics_calc.vacancies_all()
@@ -141,6 +146,19 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 status_counts = await metrics_calc.applicants_by_status()
                 real_data["labels"] = list(status_counts.keys())
                 real_data["values"] = list(status_counts.values())
+            elif group_by in ["recruiter", "recruiters"]:
+                recruiter_counts = await metrics_calc.applicants_by_recruiter()
+                real_data["labels"] = list(recruiter_counts.keys())
+                real_data["values"] = list(recruiter_counts.values())
+            elif group_by in ["hiring_manager", "hiring_managers"]:
+                manager_counts = await metrics_calc.applicants_by_hiring_manager()
+                real_data["labels"] = list(manager_counts.keys())
+                real_data["values"] = list(manager_counts.values())
+            elif group_by in ["division", "divisions"]:
+                # TODO: Need to implement applicants_by_division
+                data = await metrics_calc.applicants_all()
+                real_data["labels"] = ["Total Applicants"]
+                real_data["values"] = [len(data)]
             else:
                 # Default: just count
                 data = await metrics_calc.applicants_all()
@@ -157,6 +175,11 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 hiring_counts = await metrics_calc.recruiters_by_hirings()
                 real_data["labels"] = list(hiring_counts.keys())
                 real_data["values"] = list(hiring_counts.values())
+            elif group_by in ["vacancy", "vacancies", "applicant", "applicants", "division", "divisions"]:
+                # TODO: Need to implement recruiters grouped by vacancies/applicants/divisions
+                data = await metrics_calc.recruiters_all()
+                real_data["labels"] = ["Total Recruiters"]
+                real_data["values"] = [len(data)]
             else:
                 data = await metrics_calc.recruiters_all()
                 real_data["labels"] = ["Total Recruiters"]
@@ -319,15 +342,44 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 recruiter_hires = await metrics_calc.recruiters_by_hirings()
                 real_data["labels"] = list(recruiter_hires.keys())
                 real_data["values"] = list(recruiter_hires.values())
+            elif group_by in ["source", "sources"]:
+                # Get hired applicants and group by source
+                hires_data = await metrics_calc.hires()
+                source_counts = {}
+                for hire in hires_data:
+                    # TODO: Need source info in hire data
+                    source = hire.get("source", {}).get("name", "Unknown") if isinstance(hire.get("source"), dict) else "Unknown"
+                    source_counts[source] = source_counts.get(source, 0) + 1
+                real_data["labels"] = list(source_counts.keys())
+                real_data["values"] = list(source_counts.values())
+            elif group_by in ["stage", "stages", "division", "divisions"]:
+                # TODO: Need to implement hires grouped by stages/divisions
+                hires_data = await metrics_calc.hires()
+                real_data["labels"] = ["Hired Candidates"]
+                real_data["values"] = [len(hires_data)]
             else:
                 hires_data = await metrics_calc.hires()
                 real_data["labels"] = ["Hired Candidates"]
                 real_data["values"] = [len(hires_data)]
         
         elif entity == "actions":
-            actions_data = await metrics_calc.actions()
-            real_data["labels"] = ["Total Actions"]
-            real_data["values"] = [len(actions_data)]
+            if group_by in ["recruiter", "recruiters"]:
+                actions_by_recruiter = await metrics_calc.actions_by_recruiter()
+                real_data["labels"] = list(actions_by_recruiter.keys())
+                real_data["values"] = list(actions_by_recruiter.values())
+            elif group_by in ["type", "action_type"]:
+                # Get action type distribution from logs
+                actions_data = await metrics_calc.actions()
+                type_counts = {}
+                for action in actions_data:
+                    action_type = action.get("type", "Unknown")
+                    type_counts[action_type] = type_counts.get(action_type, 0) + 1
+                real_data["labels"] = list(type_counts.keys())
+                real_data["values"] = list(type_counts.values())
+            else:
+                actions_data = await metrics_calc.actions()
+                real_data["labels"] = ["Total Actions"]
+                real_data["values"] = [len(actions_data)]
         
         # Simplified entity aliases (applicants already handled above)
         
