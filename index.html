@@ -246,7 +246,7 @@
                 // Use real data only
                 const chartDataSource = chartConfig.real_data;
                 if (chartDataSource && (chartDataSource.values || chartDataSource.points)) {
-                    if (chartConfig.chart_type === 'scatter') {
+                    if (chartConfig.type === 'scatter') {
                         // For scatter plots, handle multiple data formats
                         let scatterData = chartDataSource.points || chartDataSource.values;
                         
@@ -270,7 +270,7 @@
                         
                         data = {
                             datasets: [{
-                                label: chartConfig.y_axis_name || 'Data Points',
+                                label: chartConfig.y_label || chartConfig.y_axis_name || 'Data Points',
                                 data: scatterData,
                                 backgroundColor: 'rgba(59, 130, 246, 0.8)'
                             }]
@@ -281,12 +281,12 @@
                             data = {
                                 labels: chartDataSource.labels,
                                 datasets: [{
-                                    label: chartConfig.y_axis_name || 'Count',
+                                    label: chartConfig.y_label || chartConfig.y_axis_name || 'Count',
                                     data: chartDataSource.values,
-                                    backgroundColor: chartConfig.chart_type === 'line' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.8)',
+                                    backgroundColor: chartConfig.type === 'line' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.8)',
                                     borderColor: 'rgba(59, 130, 246, 1)',
                                     borderWidth: 1,
-                                    tension: chartConfig.chart_type === 'line' ? 0.1 : undefined
+                                    tension: chartConfig.type === 'line' ? 0.1 : undefined
                                 }]
                             };
                         } else {
@@ -301,7 +301,7 @@
                     data = {
                         labels: ['No Data'],
                         datasets: [{
-                            label: chartConfig.y_axis_name || 'Count',
+                            label: chartConfig.y_label || chartConfig.y_axis_name || 'Count',
                             data: [0],
                             backgroundColor: 'rgba(156, 163, 175, 0.8)',
                             borderColor: 'rgba(156, 163, 175, 1)',
@@ -322,7 +322,7 @@
 
                 const ctx = chartRef.current.getContext('2d');
                 const chartData = generateChartData(reportData);
-                const chartType = reportData.chart.chart_type === 'histogram' ? 'bar' : reportData.chart.chart_type;
+                const chartType = (reportData.chart.type === 'histogram' ? 'bar' : reportData.chart.type) || 'bar';
 
                 chartInstance.current = new Chart(ctx, {
                     type: chartType,
@@ -333,7 +333,7 @@
                         plugins: {
                             title: {
                                 display: true,
-                                text: reportData.chart.graph_description || 'Chart'
+                                text: reportData.chart.label || reportData.chart.graph_description || 'Chart'
                             },
                             legend: {
                                 display: chartType !== 'scatter'
@@ -343,13 +343,13 @@
                             x: {
                                 title: {
                                     display: true,
-                                    text: reportData.chart.x_axis_name || 'X Axis'
+                                    text: reportData.chart.x_label || reportData.chart.x_axis_name || 'X Axis'
                                 }
                             },
                             y: {
                                 title: {
                                     display: true,
-                                    text: reportData.chart.y_axis_name || 'Y Axis'
+                                    text: reportData.chart.y_label || reportData.chart.y_axis_name || 'Y Axis'
                                 },
                                 beginAtZero: true
                             }
@@ -359,13 +359,13 @@
                                 position: 'bottom',
                                 title: {
                                     display: true,
-                                    text: reportData.chart.x_axis_name || 'X Axis'
+                                    text: reportData.chart.x_label || reportData.chart.x_axis_name || 'X Axis'
                                 }
                             },
                             y: {
                                 title: {
                                     display: true,
-                                    text: reportData.chart.y_axis_name || 'Y Axis'
+                                    text: reportData.chart.y_label || reportData.chart.y_axis_name || 'Y Axis'
                                 }
                             }
                         }
