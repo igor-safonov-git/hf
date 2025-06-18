@@ -29,7 +29,8 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
     
     chart = report_json["chart"]
     entity = chart.get("y_axis", {}).get("entity")
-    group_by = chart.get("y_axis", {}).get("group_by", {}).get("field")
+    group_by_obj = chart.get("y_axis", {}).get("group_by")
+    group_by = group_by_obj.get("field") if group_by_obj else None
     
     # Initialize real_data
     real_data = {
@@ -124,7 +125,7 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 real_data["values"] = [len(data)]
         
         elif entity == "applicants":
-            if group_by == "source_id":
+            if group_by == "source_id" or group_by == "source":
                 source_counts = await metrics_calc.applicants_by_source()
                 real_data["labels"] = list(source_counts.keys())
                 real_data["values"] = list(source_counts.values())
@@ -280,6 +281,67 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
             top_vacancies = summary_data["best_performing_vacancies"][:10]  # Top 10
             real_data["labels"] = [v["vacancy_title"] for v in top_vacancies]
             real_data["values"] = [v["conversion_rate"] for v in top_vacancies]
+        
+        elif entity == "divisions_all":
+            divisions_data = await metrics_calc.divisions_all()
+            real_data["labels"] = [div.get("name", f"Division {div.get('id', 'Unknown')}") for div in divisions_data]
+            real_data["values"] = [1 for _ in divisions_data]  # Count of divisions
+        
+        elif entity == "sources_all":
+            sources_data = await metrics_calc.sources_all()
+            real_data["labels"] = [src.get("name", f"Source {src.get('id', 'Unknown')}") for src in sources_data]
+            real_data["values"] = [1 for _ in sources_data]  # Count of sources
+        
+        elif entity == "hiring_managers":
+            managers_data = await metrics_calc.hiring_managers()
+            real_data["labels"] = [mgr.get("name", f"Manager {mgr.get('id', 'Unknown')}") for mgr in managers_data]
+            real_data["values"] = [1 for _ in managers_data]  # Count of managers
+        
+        elif entity == "stages":
+            stages_data = await metrics_calc.stages()
+            real_data["labels"] = [stage.get("name", f"Stage {stage.get('id', 'Unknown')}") for stage in stages_data]
+            real_data["values"] = [1 for _ in stages_data]  # Count of stages
+        
+        elif entity == "hires":
+            hires_data = await metrics_calc.hires()
+            real_data["labels"] = ["Hired Candidates"]
+            real_data["values"] = [len(hires_data)]
+        
+        elif entity == "actions":
+            actions_data = await metrics_calc.actions()
+            real_data["labels"] = ["Total Actions"]
+            real_data["values"] = [len(actions_data)]
+        
+        # Simplified entity aliases
+        elif entity == "applicants":
+            applicants_data = await metrics_calc.applicants()
+            real_data["labels"] = ["Total Applicants"]
+            real_data["values"] = [len(applicants_data)]
+        
+        elif entity == "vacancies":
+            vacancies_data = await metrics_calc.vacancies()
+            real_data["labels"] = ["Total Vacancies"]
+            real_data["values"] = [len(vacancies_data)]
+        
+        elif entity == "recruiters":
+            recruiters_data = await metrics_calc.recruiters()
+            real_data["labels"] = ["Total Recruiters"]
+            real_data["values"] = [len(recruiters_data)]
+        
+        elif entity == "sources":
+            sources_data = await metrics_calc.sources()
+            real_data["labels"] = [src.get("name", f"Source {src.get('id', 'Unknown')}") for src in sources_data]
+            real_data["values"] = [1 for _ in sources_data]
+        
+        elif entity == "divisions":
+            divisions_data = await metrics_calc.divisions()
+            real_data["labels"] = [div.get("name", f"Division {div.get('id', 'Unknown')}") for div in divisions_data]
+            real_data["values"] = [1 for _ in divisions_data]
+        
+        elif entity == "rejections":
+            rejections_data = await metrics_calc.rejections()
+            real_data["labels"] = list(rejections_data.keys())
+            real_data["values"] = list(rejections_data.values())
         
     except Exception as e:
         print(f"Error processing chart data: {e}")
@@ -451,6 +513,43 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 report_json["main_metric"]["real_value"] = sum(data.values()) if data else 0
             elif entity == "added_applicants_by_recruiter":
                 data = await metrics_calc.applicants_added_by_recruiter()
+                report_json["main_metric"]["real_value"] = sum(data.values()) if data else 0
+            elif entity == "divisions_all":
+                data = await metrics_calc.divisions_all()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "sources_all":
+                data = await metrics_calc.sources_all()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "hiring_managers":
+                data = await metrics_calc.hiring_managers()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "stages":
+                data = await metrics_calc.stages()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "hires":
+                data = await metrics_calc.hires()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "actions":
+                data = await metrics_calc.actions()
+                report_json["main_metric"]["real_value"] = len(data)
+            # Simplified entity aliases
+            elif entity == "applicants":
+                data = await metrics_calc.applicants()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "vacancies":
+                data = await metrics_calc.vacancies()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "recruiters":
+                data = await metrics_calc.recruiters()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "sources":
+                data = await metrics_calc.sources()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "divisions":
+                data = await metrics_calc.divisions()
+                report_json["main_metric"]["real_value"] = len(data)
+            elif entity == "rejections":
+                data = await metrics_calc.rejections()
                 report_json["main_metric"]["real_value"] = sum(data.values()) if data else 0
     
     return report_json
