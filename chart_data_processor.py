@@ -30,7 +30,15 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
     chart = report_json["chart"]
     entity = chart.get("y_axis", {}).get("entity")
     group_by_obj = chart.get("y_axis", {}).get("group_by")
-    group_by = group_by_obj.get("field") if group_by_obj else None
+    
+    # Handle both object {"field": "source"} and string "sources" formats
+    if isinstance(group_by_obj, dict):
+        group_by = group_by_obj.get("field")
+    elif isinstance(group_by_obj, str):
+        group_by = group_by_obj
+    else:
+        group_by = None
+    
     
     # Initialize real_data
     real_data = {
@@ -125,7 +133,7 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 real_data["values"] = [len(data)]
         
         elif entity == "applicants":
-            if group_by == "source_id" or group_by == "source":
+            if group_by in ["source_id", "source", "sources"]:
                 source_counts = await metrics_calc.applicants_by_source()
                 real_data["labels"] = list(source_counts.keys())
                 real_data["values"] = list(source_counts.values())
@@ -312,11 +320,7 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
             real_data["labels"] = ["Total Actions"]
             real_data["values"] = [len(actions_data)]
         
-        # Simplified entity aliases
-        elif entity == "applicants":
-            applicants_data = await metrics_calc.applicants()
-            real_data["labels"] = ["Total Applicants"]
-            real_data["values"] = [len(applicants_data)]
+        # Simplified entity aliases (applicants already handled above)
         
         elif entity == "vacancies":
             vacancies_data = await metrics_calc.vacancies()
