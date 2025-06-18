@@ -6,12 +6,14 @@ to generate HR analytics reports from Huntflow API data.
 
 from typing import Optional
 
-def get_unified_prompt(huntflow_context: Optional[dict] = None) -> str:
+def get_unified_prompt(huntflow_context: Optional[dict] = None, account_id: Optional[str] = None, use_local_cache: bool = False) -> str:
     """
     Get unified HR analytics prompt for both OpenAI and DeepSeek.
     
     Args:
         huntflow_context: Dictionary containing real Huntflow data to inject into prompt
+        account_id: Account ID for the organization
+        use_local_cache: Whether using local SQLite cache instead of API
         
     Returns:
         str: Complete prompt with injected real data
@@ -51,7 +53,15 @@ def get_unified_prompt(huntflow_context: Optional[dict] = None) -> str:
         source_examples = ", ".join(['LinkedIn', 'Referral', 'Direct', 'Agency'])
     status_examples = ", ".join([s['name'] for s in huntflow_context.get('vacancy_statuses', [])])
     
+    data_source_note = """
+**DATA SOURCE: LOCAL SQLITE CACHE**
+You are querying a local SQLite database that mirrors Huntflow API data.
+All data is cached locally, so responses will be fast and there are no API rate limits.
+The data was last synchronized recently and contains a snapshot of the organization's recruitment data.
+""" if use_local_cache else ""
+
     prompt_base = """You are an HR-analytics expert with comprehensive knowledge of Huntflow's data structure.
+{data_source_note}
 
 # 1 · Overview
 
@@ -417,7 +427,8 @@ IMPORTANT:
 - Always ensure axis names and descriptions are not empty."""
     
     # Replace placeholders with actual values
-    full_prompt = prompt_base.replace("{orgs_list}", orgs_list)
+    full_prompt = prompt_base.replace("{data_source_note}", data_source_note)
+    full_prompt = full_prompt.replace("{orgs_list}", orgs_list)
     full_prompt = full_prompt.replace("{recruiters_list}", recruiters_list)
     full_prompt = full_prompt.replace("{hiring_managers_list}", hiring_managers_list)
     full_prompt = full_prompt.replace("{statuses_list}", statuses_list)

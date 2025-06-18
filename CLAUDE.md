@@ -203,6 +203,55 @@ scaled_counts = {k: int(v * scale_factor) for k, v in status_counts.items()}
 
 - `@short-spec.md` is a source of thruth for Huntflow api
 
+## Local Data Cache
+
+We now have a local SQLite cache of Huntflow data to avoid API rate limits:
+
+### Download/Update Cache
+```bash
+python download_huntflow_data.py
+```
+This downloads all core Huntflow entities into `huntflow_cache.db`:
+- Accounts, Vacancies, Applicants (with search data)
+- Vacancy statuses, Divisions, Regions, Coworkers
+- Rejection reasons, Applicant sources
+- Sample of applicant logs (first 100 applicants)
+
+### Query Cache
+```python
+from query_huntflow_cache import HuntflowCache
+
+cache = HuntflowCache()
+
+# Get all vacancies
+vacancies = cache.get_vacancies()
+
+# Get applicants (with limit)
+applicants = cache.get_applicants(limit=100)
+
+# Get applicant with their logs
+applicant = cache.get_applicant_with_logs(applicant_id=12345)
+
+# Get status distribution
+distribution = cache.get_applicant_distribution_by_status()
+
+# Search applicants
+results = cache.search_applicants("john.doe@example.com")
+
+# Export to CSV
+cache.export_to_csv("applicants", "applicants.csv")
+```
+
+### Direct SQL Access
+```bash
+sqlite3 huntflow_cache.db
+```
+
+The cache includes:
+- Full JSON data in `raw_data` columns
+- Key fields extracted for easy querying
+- Metadata tracking when each table was last updated
+
 ## Absolute Rules
 - No mock or test data ever
 
