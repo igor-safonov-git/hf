@@ -109,6 +109,28 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 real_data["labels"] = ["Total Recruiters"]
                 real_data["values"] = [len(items)]
         
+        elif entity == "vacancy_statuses":
+            data = await client._req("GET", f"/v2/accounts/{client.account_id}/vacancies/statuses")
+            items = data.get("items", []) if isinstance(data, dict) else data
+            
+            if group_by == "type":
+                # Group by status type if available
+                type_counts = {}
+                for item in items:
+                    status_type = item.get("type", "Unknown")
+                    type_counts[status_type] = type_counts.get(status_type, 0) + 1
+                
+                real_data["labels"] = list(type_counts.keys())
+                real_data["values"] = list(type_counts.values())
+            elif group_by == "id" or group_by == "name":
+                # List all statuses by name
+                real_data["labels"] = [item.get("name", "Unknown") for item in items]
+                real_data["values"] = [1] * len(items)  # Each status appears once
+            else:
+                # Default: just count total
+                real_data["labels"] = ["Total Vacancy Statuses"]
+                real_data["values"] = [len(items)]
+        
         elif entity == "active_candidates":
             # For now, return all applicants as active
             data = await client._req("GET", f"/v2/accounts/{client.account_id}/applicants/search")
@@ -159,6 +181,10 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 data = await client._req("GET", f"/v2/accounts/{client.account_id}/vacancies")
                 open_count = len([v for v in data.get("items", []) if v.get("state") == "OPEN"])
                 report_json["main_metric"]["real_value"] = open_count
+            elif entity == "vacancy_statuses":
+                data = await client._req("GET", f"/v2/accounts/{client.account_id}/vacancies/statuses")
+                items = data.get("items", []) if isinstance(data, dict) else data
+                report_json["main_metric"]["real_value"] = len(items)
     
     return report_json
 

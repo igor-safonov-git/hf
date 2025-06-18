@@ -160,10 +160,6 @@ class HuntflowLocalClient:
             results = self._query("SELECT * FROM divisions")
             return {"items": results}
         
-        elif endpoint == f"/accounts/{self.account_id}/regions":
-            results = self._query("SELECT * FROM regions")
-            return {"items": results}
-        
         elif endpoint == f"/accounts/{self.account_id}/coworkers":
             results = self._query("SELECT * FROM coworkers")
             return {"items": results}

@@ -117,14 +117,6 @@ class HuntflowDataDownloader:
             )
         """)
         
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS regions (
-                id INTEGER PRIMARY KEY,
-                name TEXT,
-                parent_id INTEGER,
-                raw_data TEXT
-            )
-        """)
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS coworkers (
@@ -293,7 +285,7 @@ class HuntflowDataDownloader:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             tables = ["applicant_logs", "applicants", "vacancies", "vacancy_statuses", 
-                     "divisions", "regions", "coworkers", "rejection_reasons", 
+                     "divisions", "coworkers", "rejection_reasons", 
                      "applicant_sources", "accounts", "download_meta"]
             for table in tables:
                 cursor.execute(f"DELETE FROM {table}")
@@ -318,10 +310,7 @@ class HuntflowDataDownloader:
         divisions = await self._get_all_items(f"/v2/accounts/{self.account_id}/divisions")
         self._save_to_db("divisions", divisions)
         
-        # 4. Download regions (limited sample - full dataset has 1M+ geographical locations)
-        logger.info("Downloading regions (sample of 1000)...")
-        regions = await self._make_request("GET", f"/v2/accounts/{self.account_id}/regions", params={"count": 1000, "page": 1})
-        self._save_to_db("regions", regions.get("items", []))
+        # Skip regions - geographical database with 1M+ locations not needed for analytics
         
         # 5. Download coworkers (known to have pagination)
         logger.info("Downloading coworkers...")
@@ -416,7 +405,7 @@ class HuntflowDataDownloader:
         
         tables = [
             "accounts", "vacancies", "applicants", "applicant_logs",
-            "vacancy_statuses", "divisions", "regions", "coworkers",
+            "vacancy_statuses", "divisions", "coworkers",
             "rejection_reasons", "applicant_sources"
         ]
         

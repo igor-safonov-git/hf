@@ -105,8 +105,23 @@ async def chat(request: ChatRequest):
                 detail="DeepSeek API key not configured"
             )
         
+        # Build context from local cache
+        huntflow_context = {
+            "vacancy_statuses": await hf_client.get_vacancy_statuses(),
+            "sources": (await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/applicants/sources")).get("items", []),
+            "divisions": (await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/divisions")).get("items", []),
+            "coworkers": (await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/coworkers")).get("items", []),
+            "rejection_reasons": (await hf_client._req("GET", f"/v2/accounts/{hf_client.account_id}/rejection_reasons")).get("items", []),
+            "organizations": [],  # We can get this from accounts table if needed
+            "tags": [],  # Not commonly used
+            "additional_fields": [],  # Not commonly used  
+            "dictionaries": [],  # Not commonly used
+            "open_vacancies": [],  # We can filter vacancies if needed
+            "recently_closed_vacancies": []  # We can filter vacancies if needed
+        }
+        
         # Build messages with system prompt for local cache
-        system_prompt = get_unified_prompt(account_id=hf_client.account_id, use_local_cache=True)
+        system_prompt = get_unified_prompt(huntflow_context=huntflow_context, account_id=hf_client.account_id, use_local_cache=True)
         
         # Save system prompt to file for debugging (async)
         if os.getenv("DEBUG_MODE"):
