@@ -137,6 +137,10 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 source_counts = await metrics_calc.applicants_by_source()
                 real_data["labels"] = list(source_counts.keys())
                 real_data["values"] = list(source_counts.values())
+            elif group_by in ["stage", "stages", "status", "status_id"]:
+                status_counts = await metrics_calc.applicants_by_status()
+                real_data["labels"] = list(status_counts.keys())
+                real_data["values"] = list(status_counts.values())
             else:
                 # Default: just count
                 data = await metrics_calc.applicants_all()

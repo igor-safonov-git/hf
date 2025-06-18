@@ -33,10 +33,16 @@ def get_comprehensive_prompt(huntflow_context: Optional[dict] = None, account_id
     ## 4. Choose value_field (when using avg/sum operations)
     Specify the numeric column to calculate averages or sums on (e.g., "days_open", "salary", "count")
     
-    ## 5. Choose one or several filters from the list below 
+    ## 5. ALWAYS USE group_by for breakdowns and distributions 
+    - For candidate flows: use {{ "field": "stages" }} to group applicants by recruitment stages
+    - For source analysis: use {{ "field": "sources" }} to group applicants by source
+    - For performance: use {{ "field": "recruiters" }} to group by recruiter
+    - NEVER use group_by: null for distribution charts - always group by relevant dimension
+    
+    ## 6. Choose one or several filters from the list below 
     Apply time periods (recent data preferred) and entity-specific filters to narrow results
     
-    ## 6. Choose chart type or table
+    ## 7. Choose chart type or table
     - bar: for comparisons, distributions
     - line: for trends over time
     - scatter: for correlations  
@@ -177,28 +183,27 @@ def get_comprehensive_prompt(huntflow_context: Optional[dict] = None, account_id
         }}
       ],
       "chart": {{
-        "label": "Диаграмма вакансий по месяцам",
+        "label": "Поток кандидатов по этапам",
         "type": "bar",
-        "x_label": "Месяц",
-        "y_label": "Открытые вакансии",
+        "x_label": "Этапы найма",
+        "y_label": "Количество кандидатов",
         "x_axis": {{
-          "operation": "date_trunc",
-          "entity": "vacancies",
-          "field": "created",
-          "date_trunc": "month",
+          "operation": "count",
+          "entity": "stages",
+          "field": "name",
+          "date_trunc": null,
           "filters": {{
-            "period": "year",
-            "vacancies": "open"
+            "period": "3 month"
           }}
         }},
         "y_axis": {{
           "operation": "count",
-          "entity": "vacancies",
+          "entity": "applicants",
           "value_field": null,
-          "group_by": null,
+          "group_by": {{ "field": "stages" }},
           "filters": {{
-            "period": "year",
-            "vacancies": "open"
+            "period": "3 month",
+            "applicants": "active"
           }}
         }}
       }}
@@ -207,6 +212,8 @@ def get_comprehensive_prompt(huntflow_context: Optional[dict] = None, account_id
     # REMEMBER 
     - Match question patterns to entity types precisely
     - Choose operations based on measurement intent (count/sum/avg)
+    - ALWAYS use group_by for breakdowns: "flow", "distribution", "by stages", "by source" require grouping
+    - NEVER use group_by: null for distribution charts - follow the examples above
     - Always include exactly 2 secondary metrics
     - Entity names must match exactly from the reference list
     """
