@@ -185,6 +185,10 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
                 data = await client._req("GET", f"/v2/accounts/{client.account_id}/vacancies/statuses")
                 items = data.get("items", []) if isinstance(data, dict) else data
                 report_json["main_metric"]["real_value"] = len(items)
+            elif entity == "active_candidates":
+                data = await client._req("GET", f"/v2/accounts/{client.account_id}/applicants/search")
+                items = data.get("items", [])
+                report_json["main_metric"]["real_value"] = len(items)
     
     return report_json
 
