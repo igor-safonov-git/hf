@@ -315,9 +315,14 @@ async def process_chart_data(report_json: Dict[str, Any], client: HuntflowLocalC
             real_data["values"] = [1 for _ in stages_data]  # Count of stages
         
         elif entity == "hires":
-            hires_data = await metrics_calc.hires()
-            real_data["labels"] = ["Hired Candidates"]
-            real_data["values"] = [len(hires_data)]
+            if group_by in ["recruiter", "recruiters"]:
+                recruiter_hires = await metrics_calc.recruiters_by_hirings()
+                real_data["labels"] = list(recruiter_hires.keys())
+                real_data["values"] = list(recruiter_hires.values())
+            else:
+                hires_data = await metrics_calc.hires()
+                real_data["labels"] = ["Hired Candidates"]
+                real_data["values"] = [len(hires_data)]
         
         elif entity == "actions":
             actions_data = await metrics_calc.actions()
