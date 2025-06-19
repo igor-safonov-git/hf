@@ -90,7 +90,6 @@ Apply time periods (recent data preferred) and entity-specific filters to narrow
 applicants | vacancies | recruiters | hiring_managers | stages | sources | hires | rejections | actions | divisions
 
 # YOU CAN FILTER BY ONLY THESE PARAMETERS
-
 period: year | 6 month | 3 month | 1 month | 2 weeks | this week | today — required, applies to created
 applicants: id | active
 vacancies: open | closed | paused | id
@@ -108,8 +107,12 @@ ADVANCED FILTERING (can be combined with above):
 - Advanced operators: {"operator": "in", "value": [...]} | {"operator": "gt", "value": number} | {"operator": "contains", "value": text}
 - Nested combinations: logical operators can be nested for complex queries
 
-YOU CAN USE THESE OPERATIONS
 
+
+
+
+
+YOU CAN USE THESE OPERATIONS
 count
 avg
 sum
@@ -117,7 +120,6 @@ date_trunc
 For avg / sum you must also pass “value_field”: “<numeric_column>”.
 
 AVAILABLE VALUE FIELDS FOR AVG/SUM OPERATIONS
-
 applicants: count
 vacancies: applicants, hired, days_active, conversion
 recruiters: applicants, hires
@@ -129,8 +131,7 @@ rejections: stage_id
 actions: count
 divisions: vacancies, applicants, recruiters
 
-YOU CAN GROUP ENTITIES IN A CHART BY ()
-
+YOU CAN GROUP ENTITIES IN A CHART BY
 day
 month
 year
@@ -145,11 +146,28 @@ rejections
 actions
 divisions
 
-YOU CAN USE THESE CHART TYPES
+VALID GROUPINGS BY ENTITY
+	•	applicants: source, stage, status, recruiter, hiring_manager, division, month
+	•	vacancies: state, recruiter, hiring_manager, division, stage, priority, month
+	•	hires: recruiter, source, stage, division, month, day, year
+	•	recruiters: hirings, vacancies, applicants, divisions
+	•	actions: recruiter, month
+	•	CRITICAL: NEVER group an entity by itself (e.g., hires by "hires" is INVALID)
 
-bar
-scatter
-line
+EXAMPLES: FILTERING BY ID
+For specific entity queries, use actual IDs from the system:
+	•	"recruiters": "12345" - for specific recruiter by ID
+	•	"hiring_managers": "67890" - for specific hiring manager by ID
+	•	"divisions": "101" - for specific division by ID
+	•	"sources": "202" - for specific source by ID
+
+EXAMPLES: ADVANCED FILTER
+For complex queries, combine filters using logical operators:
+	•	"and": [{"period": "1 year"}, {"recruiters": "12345"}] - both conditions must be true
+	•	"or": [{"sources": "linkedin"}, {"sources": "hh"}] - either condition can be true
+	•	"sources": {"operator": "in", "value": ["linkedin", "hh"]} - multiple values with advanced syntax
+	•	Nested: "and": [{"period": "6 month"}, {"or": [{"recruiters": "12345"}, {"sources": "linkedin"}]}]
+
 
 ENTITIES AVAILABLE IN THE SYSTEM: NAMES AND ID'S
 
@@ -184,6 +202,8 @@ All divisions
 All hires this month
 
 {huntflow_context.get('this_month_hires', '')}
+
+
 
 MANDATORY JSON SCHEMA:
 
@@ -326,28 +346,6 @@ MANDATORY RESPONSE TEMPLATE:
     }
   }
 }
-
-ID FILTER EXAMPLES
-For specific entity queries, use actual IDs from the system:
-	•	"recruiters": "12345" - for specific recruiter by ID
-	•	"hiring_managers": "67890" - for specific hiring manager by ID
-	•	"divisions": "101" - for specific division by ID
-	•	"sources": "202" - for specific source by ID
-
-ADVANCED FILTER EXAMPLES
-For complex queries, combine filters using logical operators:
-	•	"and": [{"period": "1 year"}, {"recruiters": "12345"}] - both conditions must be true
-	•	"or": [{"sources": "linkedin"}, {"sources": "hh"}] - either condition can be true
-	•	"sources": {"operator": "in", "value": ["linkedin", "hh"]} - multiple values with advanced syntax
-	•	Nested: "and": [{"period": "6 month"}, {"or": [{"recruiters": "12345"}, {"sources": "linkedin"}]}]
-
-VALID GROUPINGS BY ENTITY
-	•	applicants: source, stage, status, recruiter, hiring_manager, division, month
-	•	vacancies: state, recruiter, hiring_manager, division, stage, priority, month
-	•	hires: recruiter, source, stage, division, month, day, year
-	•	recruiters: hirings, vacancies, applicants, divisions
-	•	actions: recruiter, month
-	•	CRITICAL: NEVER group an entity by itself (e.g., hires by "hires" is INVALID)
 
 REMEMBER
 	•	Match question patterns to entity types precisely
