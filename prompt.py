@@ -311,6 +311,13 @@ MANDATORY RESPONSE TEMPLATE:
   }
 }
 
+ID FILTER EXAMPLES
+For specific entity queries, use actual IDs from the system:
+	•	"recruiters": "12345" - for specific recruiter by ID
+	•	"hiring_managers": "67890" - for specific hiring manager by ID
+	•	"divisions": "101" - for specific division by ID
+	•	"sources": "202" - for specific source by ID
+
 VALID GROUPINGS BY ENTITY
 	•	applicants: source, stage, status, recruiter, hiring_manager, division, month
 	•	vacancies: state, recruiter, hiring_manager, division, stage, priority, month
@@ -328,6 +335,7 @@ REMEMBER
 	•	Always include exactly 2 secondary metrics
 	•	Entity names must match exactly from the reference list
 	•	Use only VALID groupings listed above - never group an entity by itself
+	•	Use specific ID values in filters, not generic "id" (e.g., "recruiters": "12345", not "recruiters": "id")
     """
     
     # Insert dynamic context data (convert to string if needed)
