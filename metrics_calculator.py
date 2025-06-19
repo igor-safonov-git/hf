@@ -14,11 +14,33 @@ class MetricsCalculator:
     
     async def applicants_all(self) -> List[Dict[str, Any]]:
         """
-        Get all applicants data.
+        Get all applicants data with pagination to fetch all records.
         Returns list of applicant objects.
         """
-        data = await self.client._req("GET", f"/v2/accounts/{self.client.account_id}/applicants/search")
-        return data.get("items", [])
+        all_applicants = []
+        page = 1
+        count = 100  # Records per page
+        
+        while True:
+            data = await self.client._req(
+                "GET", 
+                f"/v2/accounts/{self.client.account_id}/applicants/search",
+                params={"page": page, "count": count}
+            )
+            items = data.get("items", [])
+            
+            if not items:  # No more records
+                break
+                
+            all_applicants.extend(items)
+            
+            # If we got fewer than the page size, we're on the last page
+            if len(items) < count:
+                break
+                
+            page += 1
+        
+        return all_applicants
     
     # Legacy alias
     async def get_applicants(self) -> List[Dict[str, Any]]:
