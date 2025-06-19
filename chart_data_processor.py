@@ -39,9 +39,14 @@ NO_DATA_LABEL = "No Data"
 ERROR_LABEL = "Error"
 
 # Type definitions
-class ChartData(TypedDict):
+class ChartPoint(TypedDict):
+    x: Union[int, float]
+    y: Union[int, float]
+
+class ChartData(TypedDict, total=False):
     labels: List[str]
     values: List[Union[int, float]]
+    points: List[ChartPoint]
     title: str
 
 class GroupByConfig(TypedDict, total=False):
@@ -443,6 +448,60 @@ def normalize_group_by(group_by_obj: Optional[Union[GroupByConfig, str]]) -> Opt
     return None
 
 
+async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc: MetricsCalculator) -> ChartData:
+    """Get data for scatter charts by correlating x_axis and y_axis data."""
+    try:
+        # Extract entity and group_by for both axes
+        x_entity = x_axis_config.get(ENTITY_KEY, "")
+        x_group_by = normalize_group_by(x_axis_config.get("group_by"))
+        
+        y_entity = y_axis_config.get(ENTITY_KEY, "")
+        y_group_by = normalize_group_by(y_axis_config.get("group_by"))
+        
+        # Get data for both axes
+        x_data = await get_entity_data(x_entity, x_group_by, calc)
+        y_data = await get_entity_data(y_entity, y_group_by, calc)
+        
+        # Check if either axis returned an error
+        if x_data.get("labels") == [ERROR_LABEL] or y_data.get("labels") == [ERROR_LABEL]:
+            return create_error_response("Failed to get scatter chart data")
+        
+        # Convert to coordinate pairs
+        points = []
+        
+        # Handle case where both datasets have labels (common grouping keys)
+        if "labels" in x_data and "labels" in y_data and "values" in x_data and "values" in y_data:
+            # Create lookup dictionaries
+            x_lookup = dict(zip(x_data["labels"], x_data["values"]))
+            y_lookup = dict(zip(y_data["labels"], y_data["values"]))
+            
+            # Find common keys and create points
+            common_keys = set(x_lookup.keys()) & set(y_lookup.keys())
+            
+            for key in common_keys:
+                points.append({
+                    "x": x_lookup[key],
+                    "y": y_lookup[key]
+                })
+        
+        # Handle case where we need to zip values directly (same ordering)
+        elif len(x_data.get("values", [])) == len(y_data.get("values", [])):
+            for x_val, y_val in zip(x_data["values"], y_data["values"]):
+                points.append({
+                    "x": x_val,
+                    "y": y_val
+                })
+        
+        return {
+            "points": points,
+            "title": ""
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating scatter chart data: {e}")
+        return create_error_response("Failed to create scatter chart")
+
+
 async def get_entity_data(entity: str, group_by: Optional[str], calc: MetricsCalculator) -> ChartData:
     """Get data for an entity, handling groupings if specified."""
     try:
@@ -505,22 +564,31 @@ async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClien
         # Process chart data if present
         if "chart" in report_json:
             chart = report_json["chart"]
-            entity = chart.get("y_axis", {}).get(ENTITY_KEY, "")
-            group_by = normalize_group_by(chart.get("y_axis", {}).get("group_by"))
+            chart_type = chart.get("type", "bar")
             
             try:
-                # Get entity data using configuration
-                real_data = await get_entity_data(entity, group_by, metrics_calc)
+                # Handle scatter charts differently
+                if chart_type == "scatter":
+                    x_axis_config = chart.get("x_axis", {})
+                    y_axis_config = chart.get("y_axis", {})
+                    
+                    real_data = await get_scatter_chart_data(x_axis_config, y_axis_config, metrics_calc)
+                else:
+                    # Handle regular bar/line charts
+                    entity = chart.get("y_axis", {}).get(ENTITY_KEY, "")
+                    group_by = normalize_group_by(chart.get("y_axis", {}).get("group_by"))
+                    
+                    real_data = await get_entity_data(entity, group_by, metrics_calc)
                 
-                # Add title from chart description if not set
+                # Add title from chart label or description if not set
                 if not real_data.get("title"):
-                    real_data["title"] = chart.get("graph_description", "Chart")
+                    real_data["title"] = chart.get("label", chart.get("graph_description", "Chart"))
                 
                 # Update the report with real data
                 report_json["chart"]["real_data"] = real_data
                 
             except ChartProcessingError as e:
-                logger.error(f"Chart processing error for entity '{entity}': {e}")
+                logger.error(f"Chart processing error for {chart_type} chart: {e}")
                 report_json["chart"]["real_data"] = create_error_response(str(e))
         
         # Process main metric if present
@@ -615,6 +683,37 @@ async def calculate_main_metric_value(entity: str, operation: str, calc: Metrics
         if isinstance(data, list):
             if operation == COUNT_OPERATION:
                 return len(data)
+            elif operation == AVG_OPERATION:
+                # For avg operations on list data, calculate average of numeric values
+                numeric_values = []
+                for item in data:
+                    if isinstance(item, (int, float)):
+                        numeric_values.append(item)
+                    elif isinstance(item, dict):
+                        # Extract numeric fields that might represent time_to_hire, etc.
+                        for key, value in item.items():
+                            if isinstance(value, (int, float)) and any(field in key.lower() for field in ['time', 'days', 'duration', 'hours']):
+                                numeric_values.append(value)
+                                break
+                
+                if numeric_values:
+                    return sum(numeric_values) / len(numeric_values)
+                else:
+                    logger.warning(f"No numeric values found for avg operation on {entity}")
+                    return 0
+            elif operation == SUM_OPERATION:
+                # For sum operations on list data, sum all numeric values
+                numeric_values = []
+                for item in data:
+                    if isinstance(item, (int, float)):
+                        numeric_values.append(item)
+                    elif isinstance(item, dict):
+                        for value in item.values():
+                            if isinstance(value, (int, float)):
+                                numeric_values.append(value)
+                                break
+                
+                return sum(numeric_values) if numeric_values else 0
             else:
                 logger.warning(f"Unsupported operation {operation} for list data from {entity}")
                 return 0
