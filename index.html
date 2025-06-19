@@ -253,7 +253,13 @@
                         const recognition = new SpeechRecognition();
                         recognition.continuous = false;
                         recognition.interimResults = false;
+                        recognition.maxAlternatives = 1;
                         recognition.lang = 'ru-RU'; // Russian language for better recognition
+                        
+                        // Add some additional language fallbacks
+                        if (navigator.language.startsWith('en')) {
+                            recognition.lang = 'en-US';
+                        }
                         
                         recognition.onstart = () => {
                             console.log('Speech recognition started');
@@ -272,9 +278,15 @@
                             if (event.error === 'not-allowed') {
                                 alert('Microphone access denied. Please allow microphone access to use voice input.');
                             } else if (event.error === 'network') {
-                                alert('Network error. Please check your internet connection.');
+                                alert('Network error with speech recognition. This often happens with the browser\'s built-in speech service. Try:\n\n1. Check internet connection\n2. Try again in a few seconds\n3. Use Chrome/Edge browser\n4. Access via HTTPS for better compatibility');
+                            } else if (event.error === 'no-speech') {
+                                alert('No speech was detected. Please try speaking closer to the microphone.');
+                            } else if (event.error === 'audio-capture') {
+                                alert('Microphone not available. Please check your microphone settings.');
+                            } else if (event.error === 'service-not-allowed') {
+                                alert('Speech recognition service blocked. Try accessing via HTTPS.');
                             } else {
-                                alert(`Speech recognition error: ${event.error}`);
+                                alert(`Speech recognition error: ${event.error}\n\nTry refreshing the page or using a different browser.`);
                             }
                             setIsRecording(false);
                         };
