@@ -278,7 +278,19 @@
                             if (event.error === 'not-allowed') {
                                 alert('Microphone access denied. Please allow microphone access to use voice input.');
                             } else if (event.error === 'network') {
-                                alert('Network error with speech recognition. This often happens with the browser\'s built-in speech service. Try:\n\n1. Check internet connection\n2. Try again in a few seconds\n3. Use Chrome/Edge browser\n4. Access via HTTPS for better compatibility');
+                                // Don't show alert for network errors - they're too common
+                                console.warn('Speech recognition network error - this is common with Web Speech API. You can still type your questions manually.');
+                                // Optionally auto-retry once after a delay
+                                setTimeout(() => {
+                                    if (!isRecording && recognitionRef.current) {
+                                        console.log('Auto-retrying speech recognition...');
+                                        try {
+                                            recognitionRef.current.start();
+                                        } catch (e) {
+                                            console.log('Auto-retry failed, manual input available');
+                                        }
+                                    }
+                                }, 2000);
                             } else if (event.error === 'no-speech') {
                                 alert('No speech was detected. Please try speaking closer to the microphone.');
                             } else if (event.error === 'audio-capture') {
@@ -719,7 +731,7 @@
                             value: input,
                             onChange: (e) => setInput(e.target.value),
                             onKeyPress: (e) => e.key === 'Enter' && handleSend(),
-                            placeholder: 'Ask about Huntflow data...',
+                            placeholder: speechSupported ? 'Ask about Huntflow data... (🎤 voice or type)' : 'Ask about Huntflow data...',
                             disabled: isLoading
                         }),
                         speechSupported && React.createElement('button', {
