@@ -260,7 +260,7 @@ MANDATORY RESPONSE TEMPLATE:
       "value_field": null,
       "group_by": null,
       "filters": {
-        "period": "3 month"
+        "period": "1 year"
       }
     }
   },
@@ -273,7 +273,7 @@ MANDATORY RESPONSE TEMPLATE:
         "value_field": "time_to_hire",
         "group_by": null,
         "filters": {
-          "period": "3 month"
+          "period": "1 year"
         }
       }
     },
@@ -285,7 +285,7 @@ MANDATORY RESPONSE TEMPLATE:
         "value_field": null,
         "group_by": null,
         "filters": {
-          "period": "3 month",
+          "period": "1 year",
           "vacancies": "open"
         }
       }
@@ -302,7 +302,7 @@ MANDATORY RESPONSE TEMPLATE:
       "value_field": null,
       "group_by": { "field": "stages" },
       "filters": {
-        "period": "3 month"
+        "period": "1 year"
       }
     },
     "y_axis": {
@@ -311,7 +311,7 @@ MANDATORY RESPONSE TEMPLATE:
       "value_field": null,
       "group_by": { "field": "stages" },
       "filters": {
-        "period": "3 month"
+        "period": "1 year"
       }
     }
   }
@@ -326,7 +326,7 @@ For specific entity queries, use actual IDs from the system:
 
 ADVANCED FILTER EXAMPLES
 For complex queries, combine filters using logical operators:
-	•	"and": [{"period": "3 month"}, {"recruiters": "12345"}] - both conditions must be true
+	•	"and": [{"period": "1 year"}, {"recruiters": "12345"}] - both conditions must be true
 	•	"or": [{"sources": "linkedin"}, {"sources": "hh"}] - either condition can be true
 	•	"sources": {"operator": "in", "value": ["linkedin", "hh"]} - multiple values with advanced syntax
 	•	Nested: "and": [{"period": "6 month"}, {"or": [{"recruiters": "12345"}, {"sources": "linkedin"}]}]

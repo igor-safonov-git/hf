@@ -140,34 +140,48 @@ class LogAnalyzer:
         return recruiter_stats
     
     def get_applicant_sources(self) -> Dict[str, int]:
-        """Get real applicant source distribution from logs."""
-        # Look for source information in logs
+        """Get real applicant source distribution from logs with proper source mapping."""
+        # Get source mapping first
+        source_map_sql = """
+        SELECT id, name FROM applicant_sources
+        """
+        source_mapping = self._query(source_map_sql)
+        source_map = {str(row["id"]): row["name"] for row in source_mapping}
+        
+        # Look for source information in logs using numeric source IDs
         sql = """
         SELECT 
-            json_extract(al.raw_data, '$.source.name') as source_name,
+            json_extract(al.raw_data, '$.source') as source_id,
             COUNT(DISTINCT al.applicant_id) as count
         FROM applicant_logs al
-        WHERE json_extract(al.raw_data, '$.source.name') IS NOT NULL
-        GROUP BY source_name
+        WHERE json_extract(al.raw_data, '$.source') IS NOT NULL
+            AND json_extract(al.raw_data, '$.source') != 'null'
+        GROUP BY source_id
         ORDER BY count DESC
         """
         
         results = self._query(sql)
-        distribution = {row["source_name"]: row["count"] for row in results if row["source_name"]}
+        distribution = {}
         
-        # If no source data in logs, check applicants table
+        for row in results:
+            source_id = str(row["source_id"]) if row["source_id"] else None
+            if source_id and source_id in source_map:
+                source_name = source_map[source_id]
+                distribution[source_name] = row["count"]
+        
+        # If still no data, try different approach - look in merged logs
         if not distribution:
-            applicant_sources_sql = """
-            SELECT 
-                json_extract(a.raw_data, '$.source.name') as source_name,
-                COUNT(*) as count
-            FROM applicants a
-            WHERE json_extract(a.raw_data, '$.source.name') IS NOT NULL
-            GROUP BY source_name
-            ORDER BY count DESC
-            """
-            results = self._query(applicant_sources_sql)
-            distribution = {row["source_name"]: row["count"] for row in results if row["source_name"]}
+            merged_logs = self.get_merged_logs()
+            source_counts = {}
+            
+            for log in merged_logs:
+                if log.get('source'):
+                    source_id = str(log['source'])
+                    source_name = source_map.get(source_id, f'Source {source_id}')
+                    source_counts[source_name] = source_counts.get(source_name, 0) + 1
+            
+            if source_counts:
+                return source_counts
         
         return distribution
     

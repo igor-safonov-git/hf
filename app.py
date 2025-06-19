@@ -206,7 +206,7 @@ async def health_check():
     """Check if the service is running and local database is accessible."""
     try:
         # Test database connection
-        statuses = await metrics_calc.get_vacancy_statuses()
+        statuses = await metrics_calc.statuses_all()
         return {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
@@ -249,7 +249,7 @@ async def prefetch_data():
             "summary": {
                 "total_applicants": len(await metrics_calc.get_applicants()),
                 "total_vacancies": len(await metrics_calc.get_vacancies()),
-                "total_statuses": len(await metrics_calc.get_vacancy_statuses()),
+                "total_statuses": len(await metrics_calc.statuses_all()),
                 "total_recruiters": len(await metrics_calc.get_recruiters()),
                 "top_status": top_status,
                 "top_recruiter": top_recruiter
@@ -279,7 +279,7 @@ async def database_info():
             "stats": {
                 "vacancies": len(await metrics_calc.get_vacancies()),
                 "applicants": len(await metrics_calc.get_applicants()),
-                "vacancy_statuses": len(await metrics_calc.get_vacancy_statuses()),
+                "vacancy_statuses": len(await metrics_calc.statuses_all()),
             },
             "status_distribution": await hf_client.get_status_distribution()
         }

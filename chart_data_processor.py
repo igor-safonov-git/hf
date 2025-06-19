@@ -9,22 +9,15 @@ from collections import Counter
 from functools import wraps
 from huntflow_local_client import HuntflowLocalClient
 from enhanced_metrics_calculator import EnhancedMetricsCalculator
+from universal_chart_processor import process_chart_via_universal_engine
 import asyncio
 
-# Import modular configurations
-from entity_configs import get_entity_handlers, get_legacy_mappings
-from entity_configs.legacy_mappings import METRIC_METHOD_CONFIG
-import entity_configs.simple_entities as simple_entities
-import entity_configs.grouped_entities as grouped_entities  
-import entity_configs.special_handlers as special_handlers
+# Removed old entity configuration system - now using Universal Chart Processor
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Constants for magic strings
-HANDLER_KEY = "handler"
-GROUPINGS_KEY = "groupings"
-DEFAULT_KEY = "default"
+# Constants
 FIELD_KEY = "field"
 ENTITY_KEY = "entity"
 OPERATION_KEY = "operation"
@@ -241,236 +234,10 @@ def _validate_main_metric_section(main_metric: Any) -> None:
         raise ChartProcessingError("Main metric label must be a string or null")
 
 
-# Allowed methods for security
-ALLOWED_CALCULATOR_METHODS = {
-    # Basic entity methods
-    "applicants_all", "vacancies_all", "vacancies_open", "vacancies_closed",
-    "vacancies_last_6_months", "vacancies_last_year", "applicants_hired",
-    "divisions_all", "sources_all", "hiring_managers", "stages",
-    "recruiters_all", "statuses_all", "hires", "actions",
-    "applicants", "vacancies", "recruiters", "sources", "divisions",
-    
-    # Grouping methods
-    "applicants_by_status", "applicants_by_source", "applicants_by_recruiter",
-    "applicants_by_hiring_manager", "applicants_by_division", "applicants_by_month",
-    "vacancies_by_state", "vacancies_by_recruiter", "vacancies_by_hiring_manager",
-    "vacancies_by_division", "vacancies_by_stage", "vacancies_by_priority",
-    "vacancies_by_month", "recruiters_by_hirings", "recruiters_by_vacancies",
-    "recruiters_by_applicants", "recruiters_by_divisions", "hires_by_source", "time_to_hire_by_source",
-    "hires_by_stage", "hires_by_division", "hires_by_month", "hires_by_day", "hires_by_year", 
-    "actions_by_recruiter", "actions_by_month",
-    "moves_by_recruiter", "moves_by_recruiter_detailed", "applicants_added_by_recruiter",
-    "rejections_by_recruiter", "rejections_by_stage", "rejections_by_reason",
-    "rejections", "statuses_by_type", "statuses_list",
-    
-    # Special methods
-    "vacancy_conversion_rates", "vacancy_conversion_by_status", "vacancy_conversion_summary",
-    "status_groups", "recruiter_add", "recruiter_comment", "recruiter_mail",
-    "recruiter_agreement"
-}
+# Removed old method whitelist system - Universal Chart Processor handles all requests
 
 
-# Helper function to safely get method
-async def safe_method_call(calc: EnhancedMetricsCalculator, method_name: str, filters: Optional[Dict[str, Any]] = None) -> Any:
-    """Safely call a method on the calculator with security checks."""
-    # Security check - only allow whitelisted methods
-    if method_name not in ALLOWED_CALCULATOR_METHODS:
-        logger.error(f"Attempted to call unauthorized method: {method_name}")
-        raise ChartProcessingError(f"Method {method_name} is not authorized")
-    
-    if not hasattr(calc, method_name):
-        raise ChartProcessingError(f"Method {method_name} not found in EnhancedMetricsCalculator")
-    
-    method = getattr(calc, method_name)
-    if not callable(method):
-        raise ChartProcessingError(f"{method_name} is not a callable method")
-    
-    # Call method with filters if provided
-    if filters:
-        return await method(filters=filters)
-    else:
-        return await method()
-
-
-# Named handler functions (replacing lambdas)
-@handle_chart_errors
-async def handle_count_entities(calc: EnhancedMetricsCalculator, method_name: str, label: str, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Handler for counting entities."""
-    data = await safe_method_call(calc, method_name, filters)
-    return {
-        "labels": [label],
-        "values": [len(data)],
-        "title": label
-    }
-
-
-@handle_chart_errors
-async def handle_dict_to_chart(calc: EnhancedMetricsCalculator, method_name: str, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Handler for converting dict results to chart data."""
-    data = await safe_method_call(calc, method_name, filters)
-    if not isinstance(data, dict):
-        raise ChartProcessingError(f"Expected dict from {method_name}, got {type(data)}")
-    
-    chart_data = {
-        "labels": list(data.keys()),
-        "values": list(data.values()),
-        "title": ""
-    }
-    return round_chart_values(chart_data)
-
-
-@handle_chart_errors
-async def handle_list_entities(calc: EnhancedMetricsCalculator, method_name: str, 
-                              name_field: str = "name", 
-                              id_field: str = "id",
-                              entity_type: str = "Item",
-                              filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Handler for processing list of entities."""
-    data = await safe_method_call(calc, method_name, filters)
-    if not isinstance(data, list):
-        raise ChartProcessingError(f"Expected list from {method_name}, got {type(data)}")
-    
-    labels = [
-        item.get(name_field, f"{entity_type} {item.get(id_field, UNKNOWN_LABEL)}")
-        for item in data
-    ]
-    values = [1 for _ in data]
-    
-    return {
-        "labels": labels,
-        "values": values,
-        "title": ""
-    }
-
-
-@handle_chart_errors
-async def handle_conversion_summary(calc: EnhancedMetricsCalculator, top_n: int = 10, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Handler for vacancy conversion summary."""
-    summary_data = await safe_method_call(calc, "vacancy_conversion_summary", filters)
-    if not isinstance(summary_data, dict) or "best_performing_vacancies" not in summary_data:
-        raise ChartProcessingError("Invalid conversion summary data")
-    
-    top_vacancies = summary_data["best_performing_vacancies"][:top_n]
-    chart_data = {
-        "labels": [v["vacancy_title"] for v in top_vacancies],
-        "values": [v["conversion_rate"] for v in top_vacancies],
-        "title": ""
-    }
-    return round_chart_values(chart_data)
-
-
-@handle_chart_errors
-async def handle_status_groups(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Handler for status groups."""
-    groups_data = await safe_method_call(calc, "status_groups", filters)
-    if not isinstance(groups_data, list):
-        raise ChartProcessingError("Invalid status groups data")
-    
-    return {
-        "labels": [group["name"] for group in groups_data],
-        "values": [group["status_count"] for group in groups_data],
-        "title": ""
-    }
-
-
-@handle_chart_errors
-async def handle_actions_by_type(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Handler for actions grouped by type."""
-    actions_data = await safe_method_call(calc, "actions", filters)
-    if not isinstance(actions_data, list):
-        raise ChartProcessingError("Invalid actions data")
-    
-    # Use Counter for cleaner counting
-    type_counts = Counter(action.get("type", UNKNOWN_LABEL) for action in actions_data)
-    
-    return {
-        "labels": list(type_counts.keys()),
-        "values": list(type_counts.values()),
-        "title": ""
-    }
-
-
-@handle_chart_errors
-async def handle_moves_by_type(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Handler for moves grouped by type."""
-    detailed_moves = await safe_method_call(calc, "moves_by_recruiter_detailed", filters)
-    if not isinstance(detailed_moves, dict):
-        raise ChartProcessingError("Invalid moves data")
-    
-    # Use Counter for aggregation
-    type_counts = Counter()
-    for recruiter_actions in detailed_moves.values():
-        if isinstance(recruiter_actions, dict):
-            type_counts.update(recruiter_actions)
-    
-    return {
-        "labels": list(type_counts.keys()),
-        "values": list(type_counts.values()),
-        "title": ""
-    }
-
-
-@handle_chart_errors
-async def handle_total_moves(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Handler for total moves count."""
-    moves_data = await safe_method_call(calc, "moves_by_recruiter", filters)
-    if not isinstance(moves_data, dict):
-        raise ChartProcessingError("Invalid moves data")
-    
-    total_moves = sum(moves_data.values())
-    return {
-        "labels": ["Total Moves"],
-        "values": [total_moves],
-        "title": ""
-    }
-
-
-# Handler factories to create specific handlers
-def create_count_handler(method_name: str, label: str) -> Callable:
-    """Factory to create count handlers."""
-    async def handler(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-        return await handle_count_entities(calc, method_name, label, filters)
-    return handler
-
-
-def create_dict_handler(method_name: str) -> Callable:
-    """Factory to create dict handlers."""
-    async def handler(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-        return await handle_dict_to_chart(calc, method_name, filters)
-    return handler
-
-
-def create_list_handler(method_name: str, entity_type: str) -> Callable:
-    """Factory to create list handlers."""
-    async def handler(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-        return await handle_list_entities(calc, method_name, entity_type=entity_type, filters=filters)
-    return handler
-
-
-# Initialize modular entity configurations
-def _initialize_entity_configs():
-    """Initialize the modular entity configuration system."""
-    # Initialize handler factories in each module
-    simple_entities._init_handlers(create_count_handler, create_dict_handler, create_list_handler)
-    grouped_entities._init_handlers(create_count_handler, create_dict_handler, handle_actions_by_type)
-    special_handlers._init_handlers(
-        handle_conversion_summary, handle_status_groups, handle_actions_by_type,
-        handle_moves_by_type, handle_total_moves, create_dict_handler, create_list_handler
-    )
-    
-    # Build configurations
-    simple_entities.SIMPLE_ENTITY_CONFIGS.update(simple_entities.get_simple_entity_configs())
-    grouped_entities.GROUPED_ENTITY_CONFIGS.update(grouped_entities.get_grouped_entity_configs())
-    special_handlers.SPECIAL_HANDLER_CONFIGS.update(special_handlers.get_special_handler_configs())
-
-
-# Entity configuration - will be populated after initialization
-ENTITY_HANDLERS: Dict[str, Dict[str, Any]] = {}
-
-# Initialize the configuration system
-_initialize_entity_configs()
-ENTITY_HANDLERS = get_entity_handlers()
-LEGACY_MAPPINGS = get_legacy_mappings()
+# Removed old handler system - Universal Chart Processor handles all chart requests
 
 
 def normalize_group_by(group_by_obj: Optional[Union[GroupByConfig, str]]) -> Optional[str]:
@@ -483,21 +250,40 @@ def normalize_group_by(group_by_obj: Optional[Union[GroupByConfig, str]]) -> Opt
 
 
 async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Get data for scatter charts by correlating x_axis and y_axis data."""
+    """Get data for scatter charts using Universal Chart Processor."""
     try:
-        # Extract entity and group_by for both axes
+        # Extract configuration for both axes
         x_entity = x_axis_config.get(ENTITY_KEY, "")
         x_group_by = normalize_group_by(x_axis_config.get("group_by"))
+        x_operation = x_axis_config.get("operation", "count")
         
         y_entity = y_axis_config.get(ENTITY_KEY, "")
         y_group_by = normalize_group_by(y_axis_config.get("group_by"))
+        y_operation = y_axis_config.get("operation", "count")
+        y_value_field = y_axis_config.get("value_field")
         
-        # Get data for both axes
-        x_data = await get_entity_data(x_entity, x_group_by, calc, filters)
-        y_data = await get_entity_data(y_entity, y_group_by, calc, filters)
+        logger.info(f"Scatter chart: X={x_entity}:{x_group_by}:{x_operation}, Y={y_entity}:{y_group_by}:{y_operation}")
         
-        # Check if either axis returned an error
-        if x_data.get("labels") == [ERROR_LABEL] or y_data.get("labels") == [ERROR_LABEL]:
+        # Use Universal Chart Processor for both axes
+        x_data = await process_chart_via_universal_engine(
+            entity=x_entity,
+            operation=x_operation,
+            group_by=x_group_by,
+            filters=filters,
+            calc=calc
+        )
+        
+        y_data = await process_chart_via_universal_engine(
+            entity=y_entity,
+            operation=y_operation,
+            group_by=y_group_by,
+            filters=filters,
+            calc=calc,
+            value_field=y_value_field
+        )
+        
+        # Check for errors
+        if x_data.get("labels") == ["Error"] or y_data.get("labels") == ["Error"]:
             return create_error_response("Failed to get scatter chart data")
         
         # Convert to coordinate pairs
@@ -538,44 +324,25 @@ async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc:
 
 
 async def get_entity_data(entity: str, group_by: Optional[str], calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
-    """Get data for an entity, handling groupings if specified."""
+    """Get data for an entity using Universal Chart Processor - handles any entity/grouping combination"""
     try:
-        # Handle legacy mappings
-        if entity in LEGACY_MAPPINGS:
-            entity = LEGACY_MAPPINGS[entity]
+        # Use Universal Chart Processor for all requests
+        logger.info(f"Processing chart request via Universal Engine: entity={entity}, group_by={group_by}")
         
-        # Check if entity exists in handlers
-        if entity not in ENTITY_HANDLERS:
-            logger.warning(f"Unknown entity: {entity}")
-            return create_error_response(f"Unknown entity: {entity}")
+        result = await process_chart_via_universal_engine(
+            entity=entity,
+            operation="count",  # Default operation for charts
+            group_by=group_by,
+            filters=filters,
+            calc=calc
+        )
         
-        handler_config = ENTITY_HANDLERS[entity]
+        # Add round_chart_values for consistency
+        return round_chart_values(result)
         
-        # If it's a simple handler (no groupings)
-        if HANDLER_KEY in handler_config:
-            return await handler_config[HANDLER_KEY](calc, filters)
-        
-        # If it has groupings and group_by is specified
-        if group_by:
-            if GROUPINGS_KEY in handler_config and group_by in handler_config[GROUPINGS_KEY]:
-                return await handler_config[GROUPINGS_KEY][group_by](calc, filters)
-            else:
-                # Invalid grouping field
-                logger.warning(f"Invalid grouping '{group_by}' for entity '{entity}'")
-                return create_error_response(f"Invalid grouping '{group_by}' for {entity}")
-        
-        # Use default handler if available
-        if DEFAULT_KEY in handler_config:
-            return await handler_config[DEFAULT_KEY](calc, filters)
-        
-        # No handler found
-        return create_error_response(f"No handler available for {entity}")
-        
-    except ChartProcessingError:
-        raise
-    except (AttributeError, KeyError, TypeError) as e:
-        logger.error(f"Configuration error in get_entity_data for {entity}: {e}")
-        raise ChartProcessingError(f"Failed to get data for {entity}")
+    except Exception as e:
+        logger.error(f"Universal chart processing error for {entity}: {e}")
+        return create_error_response(f"Failed to process {entity} chart data")
 
 
 async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClient) -> ReportJson:
@@ -661,9 +428,7 @@ async def process_main_metric(report_json: ReportJson, calc: EnhancedMetricsCalc
         operation = metric.get(OPERATION_KEY, COUNT_OPERATION)
         filters = metric.get("filters", {})
         
-        # Handle legacy mappings
-        if entity in LEGACY_MAPPINGS:
-            entity = LEGACY_MAPPINGS[entity]
+        # No legacy mapping needed - Universal Chart Processor handles all entities
         
         real_value = await calculate_main_metric_value(entity, operation, calc, filters)
         # Round to 1 decimal place if float, keep as int if already int
@@ -691,9 +456,7 @@ async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetri
             operation = value_config.get(OPERATION_KEY, COUNT_OPERATION)
             filters = value_config.get("filters", {})
             
-            # Handle legacy mappings
-            if entity in LEGACY_MAPPINGS:
-                entity = LEGACY_MAPPINGS[entity]
+            # No legacy mapping needed - Universal Chart Processor handles all entities
             
             real_value = await calculate_main_metric_value(entity, operation, calc, filters)
             # Round to 1 decimal place if float, keep as int if already int
@@ -710,111 +473,33 @@ async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetri
 
 
 async def calculate_main_metric_value(entity: str, operation: str, calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> Union[int, float]:
-    """Calculate the real value for a main metric using consolidated logic."""
+    """Calculate the real value for a main metric using Universal Chart Processor."""
     try:
-        # Check special cases first
-        if entity in METRIC_METHOD_CONFIG["special_cases"]:
-            special_config = METRIC_METHOD_CONFIG["special_cases"][entity]
-            if operation in special_config:
-                handler = special_config[operation]
-                if callable(handler):
-                    data = await safe_method_call(calc, entity, filters)
-                    return handler(data)
+        # Use Universal Chart Processor for main metrics too
+        result = await process_chart_via_universal_engine(
+            entity=entity,
+            operation=operation,
+            group_by=None,  # Main metrics don't group
+            filters=filters,
+            calc=calc
+        )
         
-        # Determine method name from entity
-        method_name = get_method_name_for_entity(entity)
-        
-        # Get data
-        data = await safe_method_call(calc, method_name, filters)
-        
-        # Process based on operation and data type
-        if isinstance(data, list):
+        # For main metrics, we want the total value, not grouped data
+        if isinstance(result.get("values"), list) and result["values"]:
             if operation == COUNT_OPERATION:
-                return len(data)
+                return sum(result["values"])
             elif operation == AVG_OPERATION:
-                # For avg operations on list data, calculate average of numeric values
-                numeric_values = []
-                for item in data:
-                    if isinstance(item, (int, float)):
-                        numeric_values.append(item)
-                    elif isinstance(item, dict):
-                        # Extract numeric fields that might represent time_to_hire, etc.
-                        for key, value in item.items():
-                            if isinstance(value, (int, float)) and any(field in key.lower() for field in ['time', 'days', 'duration', 'hours']):
-                                numeric_values.append(value)
-                                break
-                
-                if numeric_values:
-                    return sum(numeric_values) / len(numeric_values)
-                else:
-                    logger.warning(f"No numeric values found for avg operation on {entity}")
-                    return 0
+                # For average, return the average of all values
+                values = result["values"]
+                return sum(values) / len(values) if values else 0
             elif operation == SUM_OPERATION:
-                # For sum operations on list data, sum all numeric values
-                numeric_values = []
-                for item in data:
-                    if isinstance(item, (int, float)):
-                        numeric_values.append(item)
-                    elif isinstance(item, dict):
-                        for value in item.values():
-                            if isinstance(value, (int, float)):
-                                numeric_values.append(value)
-                                break
-                
-                return sum(numeric_values) if numeric_values else 0
-            else:
-                logger.warning(f"Unsupported operation {operation} for list data from {entity}")
-                return 0
-                
-        elif isinstance(data, dict):
-            if operation == SUM_OPERATION or operation == COUNT_OPERATION:
-                return sum(data.values()) if data else 0
-            elif operation == AVG_OPERATION:
-                return sum(data.values()) / len(data) if data else 0
-            else:
-                logger.warning(f"Unsupported operation {operation} for dict data from {entity}")
-                return 0
+                return sum(result["values"])
         
-        else:
-            logger.warning(f"Unexpected data type from {entity}: {type(data)}")
-            return 0
+        return 0
             
-    except ChartProcessingError:
-        raise
-    except (TypeError, ValueError, AttributeError) as e:
-        logger.error(f"Calculation error for {entity} with {operation}: {e}")
+    except Exception as e:
+        logger.error(f"Universal metric calculation error for {entity} with {operation}: {e}")
         raise ChartProcessingError(f"Failed to calculate metric for {entity}")
-
-
-def get_method_name_for_entity(entity: str) -> str:
-    """Get the appropriate method name for an entity."""
-    # Direct mappings
-    direct_mappings = {
-        "applicants": "applicants_all",
-        "vacancies": "vacancies_all", 
-        "recruiters": "recruiters_all",
-        "hired_applicants": "applicants_hired",
-        "successful_closures": "vacancies_closed",
-        "added_applicants_by_recruiter": "applicants_added_by_recruiter",
-        "recruiter_performance": "actions_by_recruiter",
-        "time_in_status": "applicants_by_status",
-        "applicant_activity_trends": "applicants_by_recruiter",
-    }
-    
-    if entity in direct_mappings:
-        return direct_mappings[entity]
-    
-    # For entities that match their method names
-    if entity in ENTITY_HANDLERS:
-        # Check if it's a simple entity with a handler
-        handler_config = ENTITY_HANDLERS[entity]
-        if HANDLER_KEY in handler_config:
-            # Try to extract method name from handler
-            # This is a simplified approach - in production, store method names explicitly
-            return entity
-    
-    # Default case - use entity name as method name
-    return entity
 
 
 # Test function

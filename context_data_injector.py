@@ -5,7 +5,7 @@ Fetches real data from database and injects into prompt context
 
 import asyncio
 from typing import Dict, Any
-from metrics_calculator import MetricsCalculator
+from enhanced_metrics_calculator import EnhancedMetricsCalculator
 from huntflow_local_client import HuntflowLocalClient
 
 async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, Any]:
@@ -18,7 +18,7 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
     if client is None:
         client = HuntflowLocalClient()
     
-    metrics_calc = MetricsCalculator(client)
+    metrics_calc = EnhancedMetricsCalculator(client, None)
     
     try:
         # Fetch ALL core metrics and entities
