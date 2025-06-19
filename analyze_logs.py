@@ -172,7 +172,7 @@ class LogAnalyzer:
         return distribution
     
     def get_hired_applicants(self) -> List[Dict[str, Any]]:
-        """Get all applicants who reached 'hired' status."""
+        """Get all applicants who reached 'hired' status with time_to_hire calculation."""
         sql = """
         SELECT DISTINCT
             al.applicant_id,
@@ -191,7 +191,59 @@ class LogAnalyzer:
         ORDER BY al.created DESC
         """
         
-        return self._query(sql)
+        hired_applicants = self._query(sql)
+        
+        # Calculate time_to_hire for each hired applicant
+        for applicant in hired_applicants:
+            try:
+                applicant_id = applicant['applicant_id']
+                hired_date = applicant['hired_date']
+                
+                # Get the earliest log entry for this applicant (when they were first added)
+                first_log_sql = """
+                SELECT MIN(created) as first_activity
+                FROM applicant_logs
+                WHERE applicant_id = ?
+                """
+                first_activity = self._query(first_log_sql, (applicant_id,))
+                
+                if first_activity and first_activity[0]['first_activity'] and hired_date:
+                    # Parse dates and calculate difference in days
+                    from datetime import datetime
+                    
+                    # Handle different date formats
+                    def parse_date(date_str):
+                        if 'T' in date_str:
+                            return datetime.fromisoformat(date_str.replace('Z', '+00:00')).replace(tzinfo=None)
+                        else:
+                            return datetime.strptime(date_str, '%Y-%m-%d')
+                    
+                    try:
+                        hired_dt = parse_date(hired_date)
+                        first_dt = parse_date(first_activity[0]['first_activity'])
+                        
+                        # Calculate difference in days
+                        time_diff = hired_dt - first_dt
+                        time_to_hire_days = max(0, time_diff.days)  # Ensure non-negative
+                        
+                        applicant['time_to_hire'] = time_to_hire_days
+                        applicant['time_to_hire_hours'] = max(0, time_diff.total_seconds() / 3600)
+                        
+                    except (ValueError, TypeError) as e:
+                        # If date parsing fails, set default values
+                        applicant['time_to_hire'] = 0
+                        applicant['time_to_hire_hours'] = 0
+                else:
+                    # No first activity found or dates are None
+                    applicant['time_to_hire'] = 0
+                    applicant['time_to_hire_hours'] = 0
+                    
+            except Exception as e:
+                # If any error occurs, set default values
+                applicant['time_to_hire'] = 0
+                applicant['time_to_hire_hours'] = 0
+        
+        return hired_applicants
     
     def get_pipeline_progression(self) -> Dict[str, Any]:
         """Analyze how applicants move through the pipeline."""
