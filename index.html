@@ -552,30 +552,14 @@
                                     }, '⏳')
                                 ]) :
                                 prefetchedData ? [
-                                    React.createElement('p', { key: 'welcome-text' }, 'Welcome! I can help you analyze Huntflow hiring funnels.'),
-                                    React.createElement('div', { 
-                                        key: 'data-summary',
-                                        style: { 
-                                            background: '#f3f4f6',
-                                            padding: '10px',
-                                            borderRadius: '8px',
-                                            margin: '10px 0',
-                                            fontSize: '14px'
-                                        }
-                                    }, [
-                                        React.createElement('strong', { key: 'summary-title' }, 'Data Summary:'),
-                                        React.createElement('br', { key: 'br1' }),
-                                        `📊 ${prefetchedData.summary.total_applicants} applicants, ${prefetchedData.summary.total_statuses} stages, ${prefetchedData.summary.total_recruiters} recruiters`,
-                                        React.createElement('br', { key: 'br2' }),
-                                        `🏆 Top status: ${prefetchedData.summary.top_status}`,
-                                        React.createElement('br', { key: 'br3' }),
-                                        `👑 Top recruiter: ${prefetchedData.summary.top_recruiter}`
-                                    ]),
+                                    React.createElement('p', { key: 'welcome-text' }, 'Добро пожаловать! Я помогу вам анализировать процессы найма в Huntflow.'),
                                     React.createElement('div', { className: 'suggestions', key: 'suggestions' }, [
-                                        'Кто наш лучший рекрутер?',
-                                        'Show me the hiring pipeline status',
-                                        'Generate a candidate flow chart',
-                                        'What are our top hiring stages?'
+                                        'Кто наш лучший рекрутер по количеству найма?',
+                                        'Покажи воронку найма по отделам',
+                                        'Какое среднее время до найма?',
+                                        'Анализ эффективности источников кандидатов',
+                                        'Статистика по статусам кандидатов',
+                                        'Конверсия кандидатов в найм по рекрутерам'
                                     ].map((text, i) => 
                                         React.createElement('button', {
                                             key: i,
@@ -584,11 +568,12 @@
                                         }, text)
                                     ))
                                 ] : [
-                                    React.createElement('p', { key: 'welcome-text' }, 'Welcome! I can help you analyze Huntflow hiring funnels. Ask me about candidate pipelines!'),
+                                    React.createElement('p', { key: 'welcome-text' }, 'Добро пожаловать! Я помогу вам анализировать процессы найма в Huntflow.'),
                                     React.createElement('div', { className: 'suggestions', key: 'suggestions' }, [
-                                        'Show me the funnel for dev roles',
-                                        'What\'s the hiring pipeline status?',
-                                        'Generate a candidate flow chart'
+                                        'Показать воронку найма IT-специалистов',
+                                        'Анализ продуктивности рекрутеров',
+                                        'Распределение кандидатов по источникам',
+                                        'Динамика найма за последние 6 месяцев'
                                     ].map((text, i) => 
                                         React.createElement('button', {
                                             key: i,
