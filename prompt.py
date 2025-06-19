@@ -39,12 +39,30 @@ Determine what the user wants to assess
 	•	rejection numbers: 'сколько отваливается', 'скольким отказываем'
 	•	hiring managers speed: 'как быстро отвечает', 'как быстро проводит интервью', 'как быстро смотрит кандидатов'
 	•	compare divisions: 'в каком отделе', 'в каком филиале', 'в какой команде'
-	•	get insights about division: usually contains the non-formal name of the division 'вакансии маркетинга', 'кандидаты разработки', 'продавцы'
+	•	get insights about division: usually contains the non-formal name of the division 'вакансии маркетинга', 'кандидаты разработки', 'продавцы'  
 
-2. Choose Most Specific Entity From The List Below
+2. Choose most specific entity (list below), matching the assesment intent 
 	•	Specific breakdown > General count (prefer “stages” over “applicants” for pipeline analysis)
 	•	Results-focused > Activity-focused (prefer “hires/rejections” over “actions”)
 	•	Status-grouped > Total numbers (prefer filtered entities over raw counts)
+    
+3. Choose chart type: bar, line or scatter
+	•	bar: for comparisons, distributions
+	•	line: for trends over time. If the user wants to know about one specific recruiter, hiring manager or any one specific metric, show metric dynamics in time with line chart.
+	•	scatter: for correlations and comparisons on two parameters, if user wants to compare
+
+4. Choose main metric: it should answer user's question directly
+    'сколько нанял' -> hires by recruiter
+    'какая конверсия' -> conversion
+    'какой источник самый популярный' -> number of applicants with the source that has most applicants
+    'какой источник самый эффективный' -> ratio of applicants with the source to hires with the source
+    'ситуация в воронке' — number of applicants in open vacancies
+    'кто лучше ищет кандидатов' -> ratio of applicants added by recruiter to hires by recruiter
+
+5. Choose 2 secondary metrics: secondary metrics allow to understand context of the main metric
+    main metric: hires by recruiter -> secondary: number of applicants added by recutier (to assess hired to added); number of vacancies by recruier (to assess hired to vacancy ratio)
+    main metric: conversion -> secondary: number of applicants, number of vacancies
+    main metric: ratio of applicants with the source to hires with the source -> secondary: hires with the source, time-to-fill with the source
 
 3. Choose operation: count, avg, sum
 	•	count: for quantities, distributions, totals (value_field = null)
@@ -52,7 +70,6 @@ Determine what the user wants to assess
 	•	sum: for cumulative values, totals with numeric fields (value_field = numeric column name)
 
 4. Choose value_field (when using avg/sum operations)
-
 Specify the numeric column to calculate averages or sums on (e.g., “days_open”, “salary”, “count”)
 
 5. ALWAYS USE group_by for breakdowns and distributions
@@ -64,22 +81,15 @@ Specify the numeric column to calculate averages or sums on (e.g., “days_open�
 	•	NEVER use group_by: null for distribution charts - always group by relevant dimension
 
 6. Choose one or several filters from the list below
-
 Apply time periods (recent data preferred) and entity-specific filters to narrow results
 
-7. Choose chart type
-	•	bar: for comparisons, distributions
-	•	line: for trends over time
-	•	scatter: for correlations and comparisons on two parameters
-If the user wants to know about one specific recruiter, hiring manager or any metrics, show metric dynamics in time with line chart.
-If user wants to compare entities by two parameters — use scatter
-Always use one of the three chart types (bar, line, scatter)
 
-YOU CAN USE ONLY THESE ENTITIES
+
+# YOU CAN USE ONLY THESE ENTITIES
 
 applicants | vacancies | recruiters | hiring_managers | stages | sources | hires | rejections | actions | divisions
 
-YOU CAN FILTER BY ONLY THESE PARAMETERS
+# YOU CAN FILTER BY ONLY THESE PARAMETERS
 
 period: year | 6 month | 3 month | 1 month | 2 weeks | this week | today — required, applies to created
 applicants: id | active
