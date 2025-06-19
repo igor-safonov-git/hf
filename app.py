@@ -294,4 +294,23 @@ if __name__ == "__main__":
     logger.info("Starting Huntflow Analytics Bot with LOCAL CACHE...")
     logger.info(f"Using database: {hf_client.db_path}")
     logger.info(f"Account ID: {hf_client.account_id}")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+    # Check if SSL certificates exist for HTTPS
+    ssl_keyfile = "key.pem"
+    ssl_certfile = "cert.pem"
+    
+    if os.path.exists(ssl_keyfile) and os.path.exists(ssl_certfile):
+        logger.info("SSL certificates found - starting HTTPS server on port 8443")
+        logger.info("🔒 HTTPS URL: https://localhost:8443")
+        logger.info("🔊 Speech-to-text will be available!")
+        uvicorn.run(
+            app, 
+            host="0.0.0.0", 
+            port=8443,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        logger.info("No SSL certificates found - starting HTTP server on port 8000")
+        logger.info("⚠️  Speech-to-text requires HTTPS")
+        uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -231,27 +231,91 @@ class EnhancedMetricsCalculator:
         return hiring_rankings
     
     async def vacancies_all(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Get vacancies from log data (local client doesn't have vacancy endpoint)"""
+        """Get vacancies from log data with closure time calculation"""
         analyzer = self.cached_log_analyzer
         all_logs = analyzer.get_merged_logs()
         
-        # Extract unique vacancies from logs
+        # Extract unique vacancies from logs with timeline analysis
         vacancies = {}
+        
         for log in all_logs:
             vacancy_id = log.get('vacancy_id') or log.get('vacancy')
-            if vacancy_id and vacancy_id not in vacancies:
+            if not vacancy_id:
+                continue
+                
+            if vacancy_id not in vacancies:
                 vacancies[vacancy_id] = {
                     'id': vacancy_id,
                     'position': log.get('vacancy_position', 'Unknown Position'),
-                    'state': 'OPEN',  # Assume open if in recent logs
+                    'state': 'OPEN',
                     'created': log.get('created', ''),
-                    'recruiter': log.get('account_info', {}).get('name', 'Unknown')
+                    'closed': None,
+                    'days_active': 0,
+                    'recruiter': log.get('account_info', {}).get('name', 'Unknown'),
+                    'hire_count': 0,
+                    'logs': []
                 }
+            
+            # Collect all logs for this vacancy
+            vacancies[vacancy_id]['logs'].append(log)
         
-        vacancy_list = list(vacancies.values())
+        # Calculate closure status and days_active for each vacancy
+        for vacancy_id, vacancy in vacancies.items():
+            logs = sorted(vacancy['logs'], key=lambda x: x.get('created', ''))
+            
+            if not logs:
+                continue
+                
+            # First log date (vacancy creation)
+            first_log = logs[0]
+            created_date = self._parse_date(first_log.get('created', ''))
+            vacancy['created'] = first_log.get('created', '')
+            
+            # Look for hire events to determine closure
+            hire_logs = [log for log in logs if log.get('type') == 'STATUS' and 
+                        log.get('status_id') == 103682]  # Hired status ID
+            
+            if hire_logs:
+                # Vacancy is closed (has hires)
+                latest_hire = max(hire_logs, key=lambda x: x.get('created', ''))
+                closed_date = self._parse_date(latest_hire.get('created', ''))
+                
+                vacancy['state'] = 'CLOSED'
+                vacancy['closed'] = latest_hire.get('created', '')
+                vacancy['hire_count'] = len(hire_logs)
+                
+                # Calculate days active
+                if created_date != datetime.min and closed_date != datetime.min:
+                    days_diff = (closed_date - created_date).days
+                    vacancy['days_active'] = max(1, days_diff)  # At least 1 day
+                else:
+                    vacancy['days_active'] = 30  # Default for invalid dates
+            else:
+                # Vacancy is still open
+                vacancy['state'] = 'OPEN'
+                current_date = datetime.now()
+                if created_date != datetime.min:
+                    days_diff = (current_date - created_date).days
+                    vacancy['days_active'] = max(1, days_diff)
+                else:
+                    vacancy['days_active'] = 30  # Default
         
-        # Apply manual filtering (similar to other methods)
+        # Convert to list and remove logs (not needed in output)
+        vacancy_list = []
+        for vacancy in vacancies.values():
+            del vacancy['logs']  # Remove logs from output
+            vacancy_list.append(vacancy)
+        
+        # Apply filtering
         if filters:
+            # Apply state filtering (closed/open)
+            if 'vacancies' in filters:
+                state_filter = filters['vacancies']
+                if state_filter == 'closed':
+                    vacancy_list = [v for v in vacancy_list if v.get('state') == 'CLOSED']
+                elif state_filter == 'open':
+                    vacancy_list = [v for v in vacancy_list if v.get('state') == 'OPEN']
+            
             # Apply period filtering if specified
             if 'period' in filters:
                 period_str = filters['period']

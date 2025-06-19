@@ -222,7 +222,10 @@
             const chartInstance = useRef(null);
             const recognitionRef = useRef(null);
 
-            const apiUrl = window.location.protocol + "//" + window.location.hostname + ":8000";
+            // Auto-detect API URL based on current protocol
+            const isHttps = window.location.protocol === 'https:';
+            const apiPort = isHttps ? '8443' : '8000';
+            const apiUrl = window.location.protocol + "//" + window.location.hostname + ":" + apiPort;
 
             const scrollToBottom = () => {
                 messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

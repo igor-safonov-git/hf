@@ -47,7 +47,7 @@ class UniversalChartProcessor:
                 grouped_data = {entity: base_data}
             
             # Step 3: Apply operation (count, avg, sum)
-            result_data = self._apply_operation(grouped_data, operation)
+            result_data = self._apply_operation(grouped_data, operation, value_field)
             
             # Step 4: Format for charts
             return self._format_for_chart(result_data)
@@ -415,7 +415,7 @@ class UniversalChartProcessor:
         logger.warning(f"No meaningful grouping found for field '{original_field}', returning single group")
         return {"All Items": data}
     
-    def _apply_operation(self, grouped_data: Dict[str, List], operation: str) -> Dict[str, Union[int, float]]:
+    def _apply_operation(self, grouped_data: Dict[str, List], operation: str, value_field: Optional[str] = None) -> Dict[str, Union[int, float]]:
         """Apply count/avg/sum operations to grouped data"""
         result = {}
         
@@ -423,11 +423,15 @@ class UniversalChartProcessor:
             if operation == "count":
                 result[group_name] = len(group_items)
             elif operation == "avg":
-                # Calculate average of time_to_hire (in days)
+                # Calculate average of specified field or default fields
                 numeric_values = []
                 for item in group_items:
-                    # Prioritize time_to_hire field (in days) over time_to_hire_hours
-                    if 'time_to_hire' in item and isinstance(item['time_to_hire'], (int, float)):
+                    if value_field and value_field in item:
+                        # Use specified value_field (e.g., "days_active")
+                        if isinstance(item[value_field], (int, float)):
+                            numeric_values.append(item[value_field])
+                    elif 'time_to_hire' in item and isinstance(item['time_to_hire'], (int, float)):
+                        # Default: prioritize time_to_hire field (in days) over time_to_hire_hours
                         numeric_values.append(item['time_to_hire'])
                     else:
                         # Fallback to any numeric field with 'time' in name

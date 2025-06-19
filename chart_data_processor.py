@@ -420,21 +420,80 @@ async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClien
         return report_json
 
 
+async def resolve_entity_name_by_id(entity_type: str, entity_id: str, calc: EnhancedMetricsCalculator) -> Optional[str]:
+    """Resolve entity name by ID from database."""
+    try:
+        if entity_type == "recruiters":
+            recruiters = await calc.recruiters_all()
+            for recruiter in recruiters:
+                if str(recruiter.get('id')) == str(entity_id):
+                    return recruiter.get('name')
+        elif entity_type == "sources":
+            sources = await calc.sources_all()
+            for source in sources:
+                if str(source.get('id')) == str(entity_id):
+                    return source.get('name')
+        elif entity_type == "vacancies":
+            vacancies = await calc.vacancies_all()
+            for vacancy in vacancies:
+                if str(vacancy.get('id')) == str(entity_id):
+                    return vacancy.get('position', vacancy.get('name'))
+        elif entity_type == "stages" or entity_type == "statuses":
+            statuses = await calc.statuses_all()
+            for status in statuses:
+                if str(status.get('id')) == str(entity_id):
+                    return status.get('name')
+    except Exception as e:
+        logger.warning(f"Error resolving {entity_type} name for ID {entity_id}: {e}")
+    
+    return None
+
+
+def enhance_metric_label_with_filter_names(original_label: str, filters: Dict[str, Any], resolved_names: Dict[str, str]) -> str:
+    """Enhance metric label by appending resolved entity names from filters."""
+    if not filters or not resolved_names:
+        return original_label
+    
+    # Append resolved names to the label
+    name_parts = []
+    for filter_key, entity_name in resolved_names.items():
+        if entity_name:
+            name_parts.append(entity_name)
+    
+    if name_parts:
+        return f"{original_label} ({', '.join(name_parts)})"
+    
+    return original_label
+
+
 async def process_main_metric(report_json: ReportJson, calc: EnhancedMetricsCalculator) -> None:
-    """Process main metric value updates."""
+    """Process main metric value updates with enhanced labels for ID filters."""
     try:
         metric = report_json["main_metric"]["value"]
         entity = metric.get(ENTITY_KEY, "")
         operation = metric.get(OPERATION_KEY, COUNT_OPERATION)
         filters = metric.get("filters", {})
         
-        # No legacy mapping needed - Universal Chart Processor handles all entities
-        
         real_value = await calculate_main_metric_value(entity, operation, calc, filters)
         # Round to 1 decimal place if float, keep as int if already int
         if isinstance(real_value, float):
             real_value = round(real_value, 1)
         report_json["main_metric"]["real_value"] = real_value
+        
+        # Enhance label with resolved entity names from filters
+        if filters:
+            resolved_names = {}
+            for filter_key, filter_value in filters.items():
+                if filter_key != "period" and isinstance(filter_value, str) and filter_value.isdigit():
+                    # This looks like an ID filter
+                    entity_name = await resolve_entity_name_by_id(filter_key, filter_value, calc)
+                    if entity_name:
+                        resolved_names[filter_key] = entity_name
+            
+            if resolved_names:
+                original_label = report_json["main_metric"].get("label", "")
+                enhanced_label = enhance_metric_label_with_filter_names(original_label, filters, resolved_names)
+                report_json["main_metric"]["enhanced_label"] = enhanced_label
         
     except ChartProcessingError as e:
         logger.error(f"Metric processing error for entity '{entity}': {e}")
@@ -445,7 +504,7 @@ async def process_main_metric(report_json: ReportJson, calc: EnhancedMetricsCalc
 
 
 async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetricsCalculator) -> None:
-    """Process secondary metrics value updates."""
+    """Process secondary metrics value updates with enhanced labels for ID filters."""
     if not isinstance(report_json.get("secondary_metrics"), list):
         return
     
@@ -456,13 +515,26 @@ async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetri
             operation = value_config.get(OPERATION_KEY, COUNT_OPERATION)
             filters = value_config.get("filters", {})
             
-            # No legacy mapping needed - Universal Chart Processor handles all entities
-            
             real_value = await calculate_main_metric_value(entity, operation, calc, filters)
             # Round to 1 decimal place if float, keep as int if already int
             if isinstance(real_value, float):
                 real_value = round(real_value, 1)
             report_json["secondary_metrics"][i]["real_value"] = real_value
+            
+            # Enhance label with resolved entity names from filters
+            if filters:
+                resolved_names = {}
+                for filter_key, filter_value in filters.items():
+                    if filter_key != "period" and isinstance(filter_value, str) and filter_value.isdigit():
+                        # This looks like an ID filter
+                        entity_name = await resolve_entity_name_by_id(filter_key, filter_value, calc)
+                        if entity_name:
+                            resolved_names[filter_key] = entity_name
+                
+                if resolved_names:
+                    original_label = metric.get("label", "")
+                    enhanced_label = enhance_metric_label_with_filter_names(original_label, filters, resolved_names)
+                    report_json["secondary_metrics"][i]["enhanced_label"] = enhanced_label
             
         except ChartProcessingError as e:
             logger.error(f"Secondary metric processing error for index {i}, entity '{entity}': {e}")
