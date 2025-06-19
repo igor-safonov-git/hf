@@ -141,6 +141,30 @@
             background-color: #9ca3af;
             cursor: not-allowed;
         }
+        .mic-button {
+            padding: 0.5rem;
+            background-color: #6b7280;
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+        }
+        .mic-button:hover {
+            background-color: #4b5563;
+        }
+        .mic-button.recording {
+            background-color: #dc2626;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
         .welcome {
             text-align: center;
             color: #6b7280;
@@ -191,9 +215,12 @@
             const [temperature, setTemperature] = useState(0.1);
             const [prefetchedData, setPrefetchedData] = useState(null);
             const [isPrefetching, setIsPrefetching] = useState(true);
+            const [isRecording, setIsRecording] = useState(false);
+            const [speechSupported, setSpeechSupported] = useState(false);
             const messagesEndRef = useRef(null);
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
+            const recognitionRef = useRef(null);
 
             const apiUrl = window.location.protocol + "//" + window.location.hostname + ":8000";
 
@@ -205,8 +232,40 @@
                 scrollToBottom();
             }, [messages]);
 
-            // Prefetch data on page load
+            // Initialize speech recognition and prefetch data on page load
             useEffect(() => {
+                // Check for speech recognition support
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    setSpeechSupported(true);
+                    
+                    const recognition = new SpeechRecognition();
+                    recognition.continuous = false;
+                    recognition.interimResults = false;
+                    recognition.lang = 'ru-RU'; // Russian language for better recognition
+                    
+                    recognition.onstart = () => {
+                        setIsRecording(true);
+                    };
+                    
+                    recognition.onresult = (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        setInput(transcript);
+                        setIsRecording(false);
+                    };
+                    
+                    recognition.onerror = (event) => {
+                        console.error('Speech recognition error:', event.error);
+                        setIsRecording(false);
+                    };
+                    
+                    recognition.onend = () => {
+                        setIsRecording(false);
+                    };
+                    
+                    recognitionRef.current = recognition;
+                }
+                
                 const prefetchData = async () => {
                     try {
                         console.log('🔄 Prefetching Huntflow data...');
@@ -458,6 +517,24 @@
                 setInput(text);
             };
 
+            const toggleSpeechRecognition = () => {
+                if (!speechSupported || !recognitionRef.current) {
+                    alert('Speech recognition is not supported in your browser');
+                    return;
+                }
+
+                if (isRecording) {
+                    recognitionRef.current.stop();
+                } else {
+                    try {
+                        recognitionRef.current.start();
+                    } catch (error) {
+                        console.error('Error starting speech recognition:', error);
+                        setIsRecording(false);
+                    }
+                }
+            };
+
             const renderMessage = (msg) => {
                 // Handle markdown images like ![alt text](data:image/png;base64,...)
                 if (msg.content.includes('![') && msg.content.includes('data:image/png;base64,')) {
@@ -590,6 +667,13 @@
                             placeholder: 'Ask about Huntflow data...',
                             disabled: isLoading
                         }),
+                        speechSupported && React.createElement('button', {
+                            key: 'mic',
+                            className: `mic-button ${isRecording ? 'recording' : ''}`,
+                            onClick: toggleSpeechRecognition,
+                            disabled: isLoading,
+                            title: isRecording ? 'Stop recording' : 'Start voice input'
+                        }, isRecording ? '⏹️' : '🎤'),
                         React.createElement('button', {
                             key: 'send',
                             className: 'button',
