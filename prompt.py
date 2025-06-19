@@ -14,14 +14,13 @@ CRITICAL REQUIREMENTS (MUST)
 	1.	Single visual
 The JSON must contain exactly one of the following top‑level properties:
 	•	"chart" – for bar, line or scatter charts
-	•	"table" – for tabular breakdowns
 	2.	Schema compliance
 Follow the JSON schema in the last section verbatim. No extra or missing keys.
 	3.	Use only whitelisted values
 	•	Entities – see §Entities
 	•	Filters – see §Filters
 	•	Operations – count, avg, sum, date_trunc
-	•	Chart types – bar, line, scatter, table
+	•	Chart types – bar, line, scatter
 	4.	Russian labels
 All labels (report_title, axis titles, etc.) must be human‑friendly Russian phrases.
 
