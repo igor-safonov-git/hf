@@ -123,6 +123,32 @@ def create_no_data_response(entity: str = "") -> ChartData:
     }
 
 
+def round_chart_values(chart_data: ChartData) -> ChartData:
+    """Round numeric values in chart data to 1 decimal place."""
+    if "values" in chart_data:
+        rounded_values = []
+        for value in chart_data["values"]:
+            if isinstance(value, float):
+                rounded_values.append(round(value, 1))
+            else:
+                rounded_values.append(value)
+        chart_data["values"] = rounded_values
+    
+    if "points" in chart_data:
+        rounded_points = []
+        for point in chart_data["points"]:
+            rounded_point = {}
+            for key, value in point.items():
+                if isinstance(value, float):
+                    rounded_point[key] = round(value, 1)
+                else:
+                    rounded_point[key] = value
+            rounded_points.append(rounded_point)
+        chart_data["points"] = rounded_points
+    
+    return chart_data
+
+
 # Input validation
 def validate_report_json(report_json: Any) -> ReportJson:
     """Validate the complete structure of the report JSON."""
@@ -281,11 +307,12 @@ async def handle_dict_to_chart(calc: MetricsCalculator, method_name: str) -> Cha
     if not isinstance(data, dict):
         raise ChartProcessingError(f"Expected dict from {method_name}, got {type(data)}")
     
-    return {
+    chart_data = {
         "labels": list(data.keys()),
         "values": list(data.values()),
         "title": ""
     }
+    return round_chart_values(chart_data)
 
 
 @handle_chart_errors
@@ -319,11 +346,12 @@ async def handle_conversion_summary(calc: MetricsCalculator, top_n: int = 10) ->
         raise ChartProcessingError("Invalid conversion summary data")
     
     top_vacancies = summary_data["best_performing_vacancies"][:top_n]
-    return {
+    chart_data = {
         "labels": [v["vacancy_title"] for v in top_vacancies],
         "values": [v["conversion_rate"] for v in top_vacancies],
         "title": ""
     }
+    return round_chart_values(chart_data)
 
 
 @handle_chart_errors
@@ -493,10 +521,11 @@ async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc:
                     "y": y_val
                 })
         
-        return {
+        chart_data = {
             "points": points,
             "title": ""
         }
+        return round_chart_values(chart_data)
         
     except Exception as e:
         logger.error(f"Error creating scatter chart data: {e}")
@@ -627,6 +656,9 @@ async def process_main_metric(report_json: ReportJson, calc: MetricsCalculator) 
             entity = LEGACY_MAPPINGS[entity]
         
         real_value = await calculate_main_metric_value(entity, operation, calc)
+        # Round to 1 decimal place if float, keep as int if already int
+        if isinstance(real_value, float):
+            real_value = round(real_value, 1)
         report_json["main_metric"]["real_value"] = real_value
         
     except ChartProcessingError as e:
@@ -652,6 +684,9 @@ async def process_secondary_metrics(report_json: ReportJson, calc: MetricsCalcul
                 entity = LEGACY_MAPPINGS[entity]
             
             real_value = await calculate_main_metric_value(entity, operation, calc)
+            # Round to 1 decimal place if float, keep as int if already int
+            if isinstance(real_value, float):
+                real_value = round(real_value, 1)
             report_json["secondary_metrics"][i]["real_value"] = real_value
             
         except ChartProcessingError as e:
