@@ -42,10 +42,21 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
         for status_name, count in sorted(applicants_by_status.items(), key=lambda x: x[1], reverse=True):
             all_statuses_with_counts.append({"name": status_name, "count": count})
         
-        # Process ALL recruiters (not just top 3)
+        # Get actual recruiter data from coworkers API (with real IDs and names)
+        all_recruiters_data = await metrics_calc.recruiters_all()
+        
+        # Process ALL recruiters with real IDs and names
         all_recruiters_with_counts = []
-        for recruiter_name, count in sorted(applicants_by_recruiter.items(), key=lambda x: x[1], reverse=True):
-            all_recruiters_with_counts.append({"name": recruiter_name, "count": count})
+        for recruiter in all_recruiters_data:
+            recruiter_id = recruiter.get('id')
+            recruiter_name = recruiter.get('name', 'Unknown')
+            # Get count from applicants_by_recruiter if available, otherwise default to 0
+            count = applicants_by_recruiter.get(recruiter_name, 0)
+            all_recruiters_with_counts.append({
+                "id": recruiter_id,
+                "name": recruiter_name, 
+                "count": count
+            })
         
         # Process top for examples (still needed for prompt examples)
         top_statuses = all_statuses_with_counts[:5]
