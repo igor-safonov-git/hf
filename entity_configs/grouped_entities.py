@@ -123,6 +123,9 @@ GROUPED_ENTITY_SPECS = {
             "stages": "hires_by_stage",
             "division": "hires_by_division",
             "divisions": "hires_by_division",
+            "month": "hires_by_month",
+            "day": "hires_by_day", 
+            "year": "hires_by_year",
         }
     },
     

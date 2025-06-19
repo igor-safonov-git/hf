@@ -3,10 +3,9 @@ Metrics calculation script for Huntflow analytics.
 Provides standardized metric calculations used across the application.
 """
 
-import asyncio
 from typing import Dict, List, Any, Optional
 from huntflow_local_client import HuntflowLocalClient
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 class MetricsCalculator:
@@ -30,9 +29,8 @@ class MetricsCalculator:
         Get all stages that are used in open vacancies.
         Returns list of vacancy statuses that are active.
         """
-        # Get open vacancies
-        vacancies_data = await self.client._req("GET", f"/v2/accounts/{self.client.account_id}/vacancies")
-        open_vacancies = [v for v in vacancies_data.get("items", []) if v.get("state") == "OPEN"]
+        # Get open vacancies (for future use)
+        await self.client._req("GET", f"/v2/accounts/{self.client.account_id}/vacancies")
         
         # Get all vacancy statuses
         statuses_data = await self.client._req("GET", f"/v2/accounts/{self.client.account_id}/vacancies/statuses")
@@ -128,7 +126,6 @@ class MetricsCalculator:
                 
                 if source_names:
                     # Create realistic distribution
-                    total_applicants = 100
                     fallback_data = {}
                     
                     # Top sources get more candidates
@@ -1128,5 +1125,101 @@ class MetricsCalculator:
             result[group] = result.get(group, 0) + 1
         
         return result if result else {"No Data": 0}
+
+    async def hires_by_month(self, period_months: int = 6) -> Dict[str, int]:
+        """Get hires grouped by month, filtered by period."""
+        try:
+            from datetime import datetime, timedelta
+            
+            hired_applicants = await self.applicants_hired()
+            result = {}
+            
+            # Calculate cutoff date
+            today = datetime.now()
+            cutoff_date = today - timedelta(days=period_months * 30)  # Approximate months
+            
+            for hire in hired_applicants:
+                hired_date = hire.get('hired_date')
+                if hired_date:
+                    try:
+                        # Parse date and check if within period
+                        if isinstance(hired_date, str):
+                            date_obj = datetime.strptime(hired_date.split('T')[0], '%Y-%m-%d')
+                            
+                            # Only include dates within the specified period
+                            if date_obj >= cutoff_date:
+                                month_key = date_obj.strftime('%Y-%m')
+                                result[month_key] = result.get(month_key, 0) + 1
+                    except (ValueError, AttributeError):
+                        continue
+            
+            return result if result else {"No Data": 0}
+        except Exception as e:
+            self.logger.error(f"Error in hires_by_month: {e}")
+            return {"Error": 0}
+
+    async def hires_by_day(self, period_days: int = 30) -> Dict[str, int]:
+        """Get hires grouped by day, filtered by period."""
+        try:
+            from datetime import datetime, timedelta
+            
+            hired_applicants = await self.applicants_hired()
+            result = {}
+            
+            # Calculate cutoff date
+            today = datetime.now()
+            cutoff_date = today - timedelta(days=period_days)
+            
+            for hire in hired_applicants:
+                hired_date = hire.get('hired_date')
+                if hired_date:
+                    try:
+                        # Parse date and check if within period
+                        if isinstance(hired_date, str):
+                            date_obj = datetime.strptime(hired_date.split('T')[0], '%Y-%m-%d')
+                            
+                            # Only include dates within the specified period
+                            if date_obj >= cutoff_date:
+                                date_key = hired_date.split('T')[0]  # Remove time part
+                                result[date_key] = result.get(date_key, 0) + 1
+                    except (ValueError, AttributeError):
+                        continue
+            
+            return result if result else {"No Data": 0}
+        except Exception as e:
+            self.logger.error(f"Error in hires_by_day: {e}")
+            return {"Error": 0}
+
+    async def hires_by_year(self, period_years: int = 2) -> Dict[str, int]:
+        """Get hires grouped by year, filtered by period."""
+        try:
+            from datetime import datetime, timedelta
+            
+            hired_applicants = await self.applicants_hired()
+            result = {}
+            
+            # Calculate cutoff date
+            today = datetime.now()
+            cutoff_date = today - timedelta(days=period_years * 365)  # Approximate years
+            
+            for hire in hired_applicants:
+                hired_date = hire.get('hired_date')
+                if hired_date:
+                    try:
+                        # Parse date and check if within period
+                        if isinstance(hired_date, str):
+                            date_obj = datetime.strptime(hired_date.split('T')[0], '%Y-%m-%d')
+                            
+                            # Only include dates within the specified period
+                            if date_obj >= cutoff_date:
+                                year_key = hired_date.split('-')[0]  # Get YYYY part
+                                result[year_key] = result.get(year_key, 0) + 1
+                    except (ValueError, AttributeError):
+                        continue
+            
+            return result if result else {"No Data": 0}
+        except Exception as e:
+            self.logger.error(f"Error in hires_by_year: {e}")
+            return {"Error": 0}
 
 
