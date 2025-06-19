@@ -527,6 +527,10 @@ async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClien
         if "main_metric" in report_json:
             await process_main_metric(report_json, metrics_calc)
         
+        # Process secondary metrics if present
+        if "secondary_metrics" in report_json:
+            await process_secondary_metrics(report_json, metrics_calc)
+        
         return report_json
         
     except ChartProcessingError as e:
@@ -562,6 +566,31 @@ async def process_main_metric(report_json: ReportJson, calc: MetricsCalculator) 
     except (KeyError, TypeError, ValueError) as e:
         logger.error(f"Data access error in process_main_metric for entity '{entity}': {e}")
         report_json["main_metric"]["real_value"] = 0
+
+
+async def process_secondary_metrics(report_json: ReportJson, calc: MetricsCalculator) -> None:
+    """Process secondary metrics value updates."""
+    if not isinstance(report_json.get("secondary_metrics"), list):
+        return
+    
+    for i, metric in enumerate(report_json["secondary_metrics"]):
+        try:
+            entity = metric.get("value", {}).get(ENTITY_KEY, "")
+            operation = metric.get("value", {}).get(OPERATION_KEY, COUNT_OPERATION)
+            
+            # Handle legacy mappings
+            if entity in LEGACY_MAPPINGS:
+                entity = LEGACY_MAPPINGS[entity]
+            
+            real_value = await calculate_main_metric_value(entity, operation, calc)
+            report_json["secondary_metrics"][i]["real_value"] = real_value
+            
+        except ChartProcessingError as e:
+            logger.error(f"Secondary metric processing error for index {i}, entity '{entity}': {e}")
+            report_json["secondary_metrics"][i]["real_value"] = 0
+        except (KeyError, TypeError, ValueError) as e:
+            logger.error(f"Data access error in process_secondary_metrics for index {i}: {e}")
+            report_json["secondary_metrics"][i]["real_value"] = 0
 
 
 async def calculate_main_metric_value(entity: str, operation: str, calc: MetricsCalculator) -> Union[int, float]:
