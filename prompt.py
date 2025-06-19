@@ -311,6 +311,14 @@ MANDATORY RESPONSE TEMPLATE:
   }
 }
 
+VALID GROUPINGS BY ENTITY
+	•	applicants: source, stage, status, recruiter, hiring_manager, division, month
+	•	vacancies: state, recruiter, hiring_manager, division, stage, priority, month
+	•	hires: recruiter, source, stage, division, month, day, year
+	•	recruiters: hirings, vacancies, applicants, divisions
+	•	actions: recruiter, month
+	•	CRITICAL: NEVER group an entity by itself (e.g., hires by "hires" is INVALID)
+
 REMEMBER
 	•	Match question patterns to entity types precisely
 	•	Choose operations based on measurement intent (count/sum/avg)
@@ -319,6 +327,7 @@ REMEMBER
 	•	NEVER use group_by: null for distribution charts - follow the examples above
 	•	Always include exactly 2 secondary metrics
 	•	Entity names must match exactly from the reference list
+	•	Use only VALID groupings listed above - never group an entity by itself
     """
     
     # Insert dynamic context data (convert to string if needed)
