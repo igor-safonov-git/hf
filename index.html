@@ -551,29 +551,14 @@
                                         }
                                     }, '⏳')
                                 ]) :
-                                prefetchedData ? [
+                                [
                                     React.createElement('p', { key: 'welcome-text' }, 'Добро пожаловать! Я помогу вам анализировать процессы найма в Huntflow.'),
                                     React.createElement('div', { className: 'suggestions', key: 'suggestions' }, [
                                         'Кто наш лучший рекрутер по количеству найма?',
                                         'Покажи воронку найма по отделам',
                                         'Какое среднее время до найма?',
                                         'Анализ эффективности источников кандидатов',
-                                        'Статистика по статусам кандидатов',
-                                        'Конверсия кандидатов в найм по рекрутерам'
-                                    ].map((text, i) => 
-                                        React.createElement('button', {
-                                            key: i,
-                                            className: 'suggestion',
-                                            onClick: () => handleSuggestion(text)
-                                        }, text)
-                                    ))
-                                ] : [
-                                    React.createElement('p', { key: 'welcome-text' }, 'Добро пожаловать! Я помогу вам анализировать процессы найма в Huntflow.'),
-                                    React.createElement('div', { className: 'suggestions', key: 'suggestions' }, [
-                                        'Показать воронку найма IT-специалистов',
-                                        'Анализ продуктивности рекрутеров',
-                                        'Распределение кандидатов по источникам',
-                                        'Динамика найма за последние 6 месяцев'
+                                        'Статистика по статусам кандидатов'
                                     ].map((text, i) => 
                                         React.createElement('button', {
                                             key: i,
