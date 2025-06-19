@@ -46,9 +46,11 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
         all_recruiters_data = await metrics_calc.recruiters_all()
         
         # Process ALL recruiters with real IDs and names
+        # Use 'member' ID (which matches account_info.id in logs) not 'id' (which is coworker.id)
         all_recruiters_with_counts = []
         for recruiter in all_recruiters_data:
-            recruiter_id = recruiter.get('id')
+            # Use member ID for filtering (matches account_info.id in logs)
+            recruiter_id = recruiter.get('member', recruiter.get('id'))
             recruiter_name = recruiter.get('name', 'Unknown')
             # Get count from applicants_by_recruiter if available, otherwise default to 0
             count = applicants_by_recruiter.get(recruiter_name, 0)
@@ -77,7 +79,7 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
             hiring_managers = [worker for worker in all_coworkers.get("items", []) if worker.get("permission", {}).get("can_edit_vacancy", False)]
             
             # Get this month's hires (approximate from hired applicants)
-            hired_applicants = await metrics_calc.applicants_hired()
+            hired_applicants = await metrics_calc.hires()
             this_month_hires = hired_applicants[:10] if hired_applicants else []
             
         except Exception as e:

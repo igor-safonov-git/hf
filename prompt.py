@@ -365,13 +365,26 @@ REMEMBER
             return str(value)
         return str(value) if value is not None else ''
     
-    prompt = prompt.replace("{huntflow_context.get('stages', '')}", format_context_value(huntflow_context.get('stages', '')))
-    prompt = prompt.replace("{huntflow_context.get('recruiters', '')}", format_context_value(huntflow_context.get('recruiters', '')))
-    prompt = prompt.replace("{huntflow_context.get('hiring_managers', '')}", format_context_value(huntflow_context.get('hiring_managers', '')))
-    prompt = prompt.replace("{huntflow_context.get('recent_vacancies', '')}", format_context_value(huntflow_context.get('recent_vacancies', '')))
-    prompt = prompt.replace("{huntflow_context.get('sources', '')}", format_context_value(huntflow_context.get('sources', '')))
-    prompt = prompt.replace("{huntflow_context.get('rejection_types', '')}", format_context_value(huntflow_context.get('rejection_types', '')))
-    prompt = prompt.replace("{huntflow_context.get('divisions', '')}", format_context_value(huntflow_context.get('divisions', '')))
+    def format_entities_simple(entities):
+        """Format entities as 'Name (ID), Name (ID), ...' without extra fields"""
+        if not entities:
+            return ''
+        
+        formatted_list = []
+        for entity in entities:
+            name = entity.get('name', 'Unknown')
+            entity_id = entity.get('id', 'N/A')
+            formatted_list.append(f"{name} ({entity_id})")
+        
+        return ', '.join(formatted_list)
+    
+    prompt = prompt.replace("{huntflow_context.get('stages', '')}", format_entities_simple(huntflow_context.get('stages', [])))
+    prompt = prompt.replace("{huntflow_context.get('recruiters', '')}", format_entities_simple(huntflow_context.get('recruiters', [])))
+    prompt = prompt.replace("{huntflow_context.get('hiring_managers', '')}", format_entities_simple(huntflow_context.get('hiring_managers', [])))
+    prompt = prompt.replace("{huntflow_context.get('recent_vacancies', '')}", format_entities_simple(huntflow_context.get('recent_vacancies', [])))
+    prompt = prompt.replace("{huntflow_context.get('sources', '')}", format_entities_simple(huntflow_context.get('sources', [])))
+    prompt = prompt.replace("{huntflow_context.get('rejection_types', '')}", format_entities_simple(huntflow_context.get('rejection_types', [])))
+    prompt = prompt.replace("{huntflow_context.get('divisions', '')}", format_entities_simple(huntflow_context.get('divisions', [])))
     prompt = prompt.replace("{huntflow_context.get('this_month_hires', '')}", format_context_value(huntflow_context.get('this_month_hires', '')))
     
     return prompt

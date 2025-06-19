@@ -141,11 +141,11 @@ class EnhancedMetricsCalculator:
             period_str = filters['period']
             filtered_logs = self._apply_period_filter(status_logs, period_str)
         
-        # Apply recruiter filtering if specified
+        # Apply recruiter filtering if specified (by ID, not name)
         if 'recruiters' in filters:
-            recruiter_name = filters['recruiters']
+            recruiter_id = str(filters['recruiters'])  # Convert to string for comparison
             filtered_logs = [log for log in filtered_logs 
-                           if log.get('account_info', {}).get('name') == recruiter_name]
+                           if str(log.get('account_info', {}).get('id')) == recruiter_id]
         
         # Get unique applicants with applications to open vacancies
         active_applicants = set()
@@ -251,6 +251,7 @@ class EnhancedMetricsCalculator:
                     'created': log.get('created', ''),
                     'closed': None,
                     'days_active': 0,
+                    'recruiter_id': log.get('account_info', {}).get('id', 'Unknown'),
                     'recruiter': log.get('account_info', {}).get('name', 'Unknown'),
                     'hire_count': 0,
                     'logs': []
@@ -321,10 +322,10 @@ class EnhancedMetricsCalculator:
                 period_str = filters['period']
                 vacancy_list = self._apply_period_filter(vacancy_list, period_str)
             
-            # Apply recruiter filtering if specified
+            # Apply recruiter filtering if specified (by ID, not name)
             if 'recruiters' in filters:
-                recruiter_name = filters['recruiters']
-                vacancy_list = [v for v in vacancy_list if v.get('recruiter') == recruiter_name]
+                recruiter_id = str(filters['recruiters'])  # Convert to string for comparison
+                vacancy_list = [v for v in vacancy_list if str(v.get('recruiter_id')) == recruiter_id]
         
         return vacancy_list
     
@@ -356,9 +357,9 @@ class EnhancedMetricsCalculator:
                 period_str = filters['period']
                 hired = self._apply_period_filter_hires(hired, period_str)
             
-            # Apply recruiter filtering using logs
+            # Apply recruiter filtering using logs (by ID, not name)
             if 'recruiters' in filters:
-                recruiter_name = filters['recruiters']
+                recruiter_id = str(filters['recruiters'])  # Convert to string for comparison
                 all_logs = analyzer.get_merged_logs()
                 
                 # Filter hires by recruiter who handled them
@@ -368,9 +369,9 @@ class EnhancedMetricsCalculator:
                     applicant_logs = [log for log in all_logs if log.get('applicant_id') == applicant_id]
                     
                     if applicant_logs:
-                        # Find if this recruiter worked with this applicant
+                        # Find if this recruiter worked with this applicant (by ID)
                         recruiter_handled = any(
-                            log.get('account_info', {}).get('name') == recruiter_name 
+                            str(log.get('account_info', {}).get('id')) == recruiter_id 
                             for log in applicant_logs
                         )
                         if recruiter_handled:
