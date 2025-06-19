@@ -311,9 +311,6 @@ class MetricsCalculator:
         recruiter_stats = analyzer.get_recruiter_activity()
         return {name: stats["total_actions"] for name, stats in recruiter_stats.items()}
     
-    # Legacy alias
-    async def get_actions_by_recruiter(self) -> Dict[str, int]:
-        return await self.actions_by_recruiter()
     
     async def recruiter_add(self) -> Dict[str, int]:
         """Get ADD actions by recruiter - adding candidates to vacancies."""
@@ -462,9 +459,6 @@ class MetricsCalculator:
         
         return rejection_counts
     
-    # Legacy alias
-    async def get_rejections_by_recruiter(self) -> Dict[str, int]:
-        return await self.rejections_by_recruiter()
     
     async def rejections_by_stage(self) -> Dict[str, int]:
         """Get rejection distribution by pipeline stage using real status data (simulated)."""
@@ -512,9 +506,6 @@ class MetricsCalculator:
         
         return stage_rejections
     
-    # Legacy alias
-    async def get_rejections_by_stage(self) -> Dict[str, int]:
-        return await self.rejections_by_stage()
     
     async def rejections_by_reason(self) -> Dict[str, int]:
         """Get rejection distribution by reason using real rejection reasons from database (simulated)."""
@@ -566,14 +557,7 @@ class MetricsCalculator:
         
         return reason_distribution
     
-    # Legacy alias
-    async def get_rejections_by_reason(self) -> Dict[str, int]:
-        return await self.rejections_by_reason()
     
-    # Legacy alias
-    async def get_status_groups(self) -> List[Dict[str, Any]]:
-        # Removed - not supported by prompt entities
-        return []
     
     def _parse_date(self, date_str: str) -> Optional[datetime]:
         """Parse date string to datetime object (timezone-naive for comparison)."""
@@ -590,15 +574,559 @@ class MetricsCalculator:
         except (ValueError, TypeError):
             return None
     
-    # Legacy alias
-    async def get_vacancies_last_6_months(self) -> List[Dict[str, Any]]:
-        # Removed - not supported by prompt entities
-        return []
-    
 
-    # Legacy alias
-    async def get_vacancies_last_year(self) -> List[Dict[str, Any]]:
-        # Removed - not supported by prompt entities
-        return []
+    async def divisions_all(self) -> List[Dict[str, Any]]:
+        """
+        Get all company divisions.
+        Returns list of division objects.
+        """
+        data = await self.client._req("GET", f"/v2/accounts/{self.client.account_id}/divisions")
+        return data.get("items", [])
+
+    async def sources_all(self) -> List[Dict[str, Any]]:
+        """
+        Get all applicant sources.
+        Returns list of source objects.
+        """
+        data = await self.client._req("GET", f"/v2/accounts/{self.client.account_id}/applicants/sources")
+        return data.get("items", [])
+
+    async def hiring_managers(self) -> List[Dict[str, Any]]:
+        """
+        Get all hiring managers (coworkers).
+        Returns list of hiring manager objects.
+        """
+        data = await self.client._req("GET", f"/v2/accounts/{self.client.account_id}/coworkers")
+        return data.get("items", [])
+
+    async def stages(self) -> List[Dict[str, Any]]:
+        """
+        Get all recruitment stages (vacancy statuses).
+        Returns list of stage objects.
+        """
+        return await self.statuses_all()
+
+    async def hires(self) -> List[Dict[str, Any]]:
+        """
+        Get all hired applicants.
+        Returns list of hired applicant objects.
+        """
+        return await self.applicants_hired()
+
+    async def actions(self) -> List[Dict[str, Any]]:
+        """
+        Get all recruiter actions from logs.
+        Returns list of action log entries.
+        """
+        from analyze_logs import LogAnalyzer
+        analyzer = LogAnalyzer(self.client.db_path)
+        all_logs = analyzer.get_merged_logs()
+        return all_logs
+
+    # Simplified aliases for prompt entities
+    async def applicants(self) -> List[Dict[str, Any]]:
+        """Alias for applicants_all"""
+        return await self.applicants_all()
+
+    async def vacancies(self) -> List[Dict[str, Any]]:
+        """Alias for vacancies_all"""
+        return await self.vacancies_all()
+
+    async def recruiters(self) -> List[Dict[str, Any]]:
+        """Alias for recruiters_all"""
+        return await self.recruiters_all()
+
+    async def sources(self) -> List[Dict[str, Any]]:
+        """Alias for sources_all"""
+        return await self.sources_all()
+
+    async def divisions(self) -> List[Dict[str, Any]]:
+        """Alias for divisions_all"""
+        return await self.divisions_all()
+
+    async def rejections(self) -> Dict[str, int]:
+        """Alias for rejections_by_stage"""
+        return await self.rejections_by_stage()
+    
+    # New methods for missing groupings
+    
+    async def applicants_by_division(self) -> Dict[str, int]:
+        """
+        Get applicants grouped by division based on vacancy relationships.
+        Maps applicants -> vacancies -> divisions through logs.
+        """
+        # Get vacancy-division mapping from JSON data
+        vacancy_divisions = self.client._query("""
+            SELECT id, 
+                   json_extract(raw_data, '$.account_division') as account_division,
+                   position 
+            FROM vacancies 
+            WHERE json_extract(raw_data, '$.account_division') IS NOT NULL
+        """)
+        
+        # Create division lookup
+        divisions = self.client._query("SELECT id, name FROM divisions")
+        division_map = {d['id']: d['name'] for d in divisions}
+        
+        # Get applicant-vacancy relationships from logs
+        applicant_vacancies = self.client._query("""
+            SELECT DISTINCT applicant_id, vacancy_id 
+            FROM applicant_logs 
+            WHERE vacancy_id IS NOT NULL
+        """)
+        
+        # Build division counts
+        division_counts = {}
+        for av in applicant_vacancies:
+            # Find division for this vacancy
+            vacancy_id = av['vacancy_id']
+            division_id = None
+            
+            for vd in vacancy_divisions:
+                if vd['id'] == vacancy_id:
+                    division_id = vd['account_division']
+                    break
+            
+            if division_id and division_id in division_map:
+                division_name = division_map[division_id]
+                division_counts[division_name] = division_counts.get(division_name, 0) + 1
+        
+        return division_counts if division_counts else {"No Division Data": 0}
+    
+    async def vacancies_by_recruiter(self) -> Dict[str, int]:
+        """
+        Get vacancies grouped by recruiter (owner).
+        Uses log data to map vacancies to recruiters who actively work on them.
+        """
+        # Get recruiter activity by vacancy
+        recruiter_vacancies = self.client._query("""
+            SELECT 
+                json_extract(raw_data, '$.account_info.name') as recruiter_name,
+                vacancy_id,
+                COUNT(*) as activity_count
+            FROM applicant_logs 
+            WHERE vacancy_id IS NOT NULL 
+            AND json_extract(raw_data, '$.account_info.name') IS NOT NULL
+            GROUP BY recruiter_name, vacancy_id
+        """)
+        
+        # Count unique vacancies per recruiter
+        recruiter_counts = {}
+        seen_vacancies = {}  # Track which recruiter "owns" each vacancy (most active)
+        
+        # First pass: determine primary recruiter for each vacancy
+        for rv in recruiter_vacancies:
+            vacancy_id = rv['vacancy_id']
+            recruiter = rv['recruiter_name']
+            activity = rv['activity_count']
+            
+            if vacancy_id not in seen_vacancies or activity > seen_vacancies[vacancy_id][1]:
+                seen_vacancies[vacancy_id] = (recruiter, activity)
+        
+        # Second pass: count vacancies per recruiter
+        for vacancy_id, (recruiter, _) in seen_vacancies.items():
+            recruiter_counts[recruiter] = recruiter_counts.get(recruiter, 0) + 1
+        
+        return recruiter_counts if recruiter_counts else {"No Recruiter Data": 0}
+    
+    async def vacancies_by_hiring_manager(self) -> Dict[str, int]:
+        """
+        Get vacancies grouped by hiring manager.
+        For now, uses recruiter data as proxy since direct hiring manager field not available.
+        """
+        # Using same logic as vacancies_by_recruiter but filtering for manager-type users
+        managers = [c['name'] for c in self.client._query(
+            "SELECT name FROM coworkers WHERE json_extract(raw_data, '$.type') IN ('manager', 'owner')"
+        )]
+        
+        recruiter_vacancies = await self.vacancies_by_recruiter()
+        
+        # Filter to only include managers
+        manager_vacancies = {}
+        for name, count in recruiter_vacancies.items():
+            if name in managers:
+                manager_vacancies[name] = count
+        
+        return manager_vacancies if manager_vacancies else {"No Manager Data": 0}
+    
+    async def vacancies_by_division(self) -> Dict[str, int]:
+        """
+        Get vacancies grouped by division.
+        Uses account_division field from vacancies table.
+        """
+        # Get divisions
+        divisions = self.client._query("SELECT id, name FROM divisions")
+        division_map = {d['id']: d['name'] for d in divisions}
+        
+        # Get vacancy division data from JSON
+        vacancy_divisions = self.client._query("""
+            SELECT json_extract(raw_data, '$.account_division') as account_division, 
+                   COUNT(*) as count 
+            FROM vacancies 
+            WHERE json_extract(raw_data, '$.account_division') IS NOT NULL 
+            GROUP BY json_extract(raw_data, '$.account_division')
+        """)
+        
+        # Map to division names
+        division_counts = {}
+        for vd in vacancy_divisions:
+            division_id = vd['account_division']
+            if division_id in division_map:
+                division_name = division_map[division_id]
+                division_counts[division_name] = vd['count']
+        
+        return division_counts if division_counts else {"No Division Data": 0}
+    
+    async def vacancies_by_stage(self) -> Dict[str, int]:
+        """
+        Get vacancies grouped by their current stage/status.
+        Note: This is different from applicant stages - these are vacancy statuses.
+        """
+        # Get vacancy status groups from JSON data
+        vacancy_statuses = self.client._query("""
+            SELECT json_extract(raw_data, '$.state') as state, 
+                   COUNT(*) as count 
+            FROM vacancies 
+            WHERE json_extract(raw_data, '$.state') IS NOT NULL
+            GROUP BY json_extract(raw_data, '$.state')
+        """)
+        
+        # Map states to readable names
+        state_map = {
+            'OPEN': 'Открытые',
+            'CLOSED': 'Закрытые',
+            'HOLD': 'На паузе'
+        }
+        
+        stage_counts = {}
+        for vs in vacancy_statuses:
+            state = vs['state']
+            readable_name = state_map.get(state, state)
+            stage_counts[readable_name] = vs['count']
+        
+        return stage_counts if stage_counts else {"No Stage Data": 0}
+    
+    async def hires_by_source(self) -> Dict[str, int]:
+        """
+        Get hires grouped by source.
+        Joins hired applicants with their source information.
+        """
+        # Get hired applicants
+        hired = await self.applicants_hired()
+        hired_ids = [h['applicant_id'] for h in hired]
+        
+        if not hired_ids:
+            return {"No Hires": 0}
+        
+        # Get source info for hired applicants from logs
+        placeholders = ','.join(['?' for _ in hired_ids])
+        source_data = self.client._query(f"""
+            SELECT DISTINCT
+                applicant_id,
+                json_extract(raw_data, '$.source.name') as source_name
+            FROM applicant_logs
+            WHERE applicant_id IN ({placeholders})
+            AND json_extract(raw_data, '$.source.name') IS NOT NULL
+        """, hired_ids)
+        
+        # Count by source
+        source_counts = {}
+        for sd in source_data:
+            source = sd['source_name']
+            source_counts[source] = source_counts.get(source, 0) + 1
+        
+        return source_counts if source_counts else {"Unknown Source": len(hired)}
+    
+    async def hires_by_stage(self) -> Dict[str, int]:
+        """
+        Get hires grouped by the stage they were hired from.
+        """
+        # Get hired applicants with their hired status
+        hired = await self.applicants_hired()
+        
+        stage_counts = {}
+        for h in hired:
+            stage = h.get('hired_status', 'Unknown')
+            stage_counts[stage] = stage_counts.get(stage, 0) + 1
+        
+        return stage_counts if stage_counts else {"No Stage Data": 0}
+    
+    async def hires_by_division(self) -> Dict[str, int]:
+        """
+        Get hires grouped by division.
+        Maps hired applicants -> vacancies -> divisions.
+        """
+        # Get hired applicants
+        hired = await self.applicants_hired()
+        hired_ids = [h['applicant_id'] for h in hired]
+        
+        if not hired_ids:
+            return {"No Hires": 0}
+        
+        # Get vacancy info for hired applicants
+        placeholders = ','.join(['?' for _ in hired_ids])
+        hire_vacancies = self.client._query(f"""
+            SELECT DISTINCT 
+                al.applicant_id,
+                json_extract(v.raw_data, '$.account_division') as account_division
+            FROM applicant_logs al
+            JOIN vacancies v ON al.vacancy_id = v.id
+            WHERE al.applicant_id IN ({placeholders})
+            AND json_extract(v.raw_data, '$.account_division') IS NOT NULL
+        """, hired_ids)
+        
+        # Get division names
+        divisions = self.client._query("SELECT id, name FROM divisions")
+        division_map = {d['id']: d['name'] for d in divisions}
+        
+        # Count by division
+        division_counts = {}
+        for hv in hire_vacancies:
+            division_id = hv['account_division']
+            if division_id in division_map:
+                division_name = division_map[division_id]
+                division_counts[division_name] = division_counts.get(division_name, 0) + 1
+        
+        return division_counts if division_counts else {"No Division Data": 0}
+    
+    async def applicants_by_month(self) -> Dict[str, int]:
+        """
+        Get applicants grouped by creation month.
+        """
+        applicants_by_month = self.client._query("""
+            SELECT 
+                strftime('%Y-%m', created) as month,
+                COUNT(*) as count
+            FROM applicants
+            WHERE created IS NOT NULL
+            GROUP BY strftime('%Y-%m', created)
+            ORDER BY month DESC
+            LIMIT 12
+        """)
+        
+        # Convert to dict
+        month_counts = {}
+        for row in applicants_by_month:
+            month = row['month']
+            if month:
+                month_counts[month] = row['count']
+        
+        return month_counts if month_counts else {"No Data": 0}
+    
+    async def vacancies_by_month(self) -> Dict[str, int]:
+        """
+        Get vacancies grouped by creation month.
+        """
+        vacancies_by_month = self.client._query("""
+            SELECT 
+                strftime('%Y-%m', created) as month,
+                COUNT(*) as count
+            FROM vacancies
+            WHERE created IS NOT NULL
+            GROUP BY strftime('%Y-%m', created)
+            ORDER BY month DESC
+            LIMIT 12
+        """)
+        
+        # Convert to dict
+        month_counts = {}
+        for row in vacancies_by_month:
+            month = row['month']
+            if month:
+                month_counts[month] = row['count']
+        
+        return month_counts if month_counts else {"No Data": 0}
+    
+    async def vacancies_by_priority(self) -> Dict[str, int]:
+        """
+        Get vacancies grouped by priority level.
+        """
+        priority_counts = self.client._query("""
+            SELECT 
+                json_extract(raw_data, '$.priority') as priority,
+                COUNT(*) as count
+            FROM vacancies
+            WHERE json_extract(raw_data, '$.priority') IS NOT NULL
+            GROUP BY json_extract(raw_data, '$.priority')
+        """)
+        
+        # Map priority values to readable names
+        priority_map = {
+            '0': 'Обычный',
+            '1': 'Высокий',
+            '2': 'Критический'
+        }
+        
+        result = {}
+        for row in priority_counts:
+            priority = str(row['priority'])
+            readable_name = priority_map.get(priority, f'Приоритет {priority}')
+            result[readable_name] = row['count']
+        
+        return result if result else {"No Priority Data": 0}
+    
+    async def actions_by_month(self) -> Dict[str, int]:
+        """
+        Get recruiter actions grouped by month.
+        """
+        actions_by_month = self.client._query("""
+            SELECT 
+                strftime('%Y-%m', created) as month,
+                COUNT(*) as count
+            FROM applicant_logs
+            WHERE created IS NOT NULL
+            GROUP BY strftime('%Y-%m', created)
+            ORDER BY month DESC
+            LIMIT 12
+        """)
+        
+        # Convert to dict
+        month_counts = {}
+        for row in actions_by_month:
+            month = row['month']
+            if month:
+                month_counts[month] = row['count']
+        
+        return month_counts if month_counts else {"No Data": 0}
+    
+    async def recruiters_by_vacancies(self) -> Dict[str, int]:
+        """
+        Get recruiters grouped by number of vacancies they manage.
+        Uses activity logs to determine vacancy ownership.
+        """
+        # Get recruiter activity by vacancy
+        recruiter_vacancy_activity = self.client._query("""
+            SELECT 
+                json_extract(raw_data, '$.account_info.name') as recruiter_name,
+                vacancy_id,
+                COUNT(*) as activity_count
+            FROM applicant_logs 
+            WHERE vacancy_id IS NOT NULL 
+            AND json_extract(raw_data, '$.account_info.name') IS NOT NULL
+            GROUP BY recruiter_name, vacancy_id
+        """)
+        
+        # Count unique vacancies per recruiter
+        recruiter_vacancy_counts = {}
+        for row in recruiter_vacancy_activity:
+            recruiter = row['recruiter_name']
+            if recruiter not in recruiter_vacancy_counts:
+                recruiter_vacancy_counts[recruiter] = set()
+            recruiter_vacancy_counts[recruiter].add(row['vacancy_id'])
+        
+        # Convert sets to counts
+        result = {}
+        for recruiter, vacancy_set in recruiter_vacancy_counts.items():
+            vacancy_count = len(vacancy_set)
+            # Group by vacancy count ranges
+            if vacancy_count == 0:
+                group = "0 vacancies"
+            elif vacancy_count == 1:
+                group = "1 vacancy"
+            elif vacancy_count <= 5:
+                group = "2-5 vacancies"
+            elif vacancy_count <= 10:
+                group = "6-10 vacancies"
+            else:
+                group = "11+ vacancies"
+            
+            result[group] = result.get(group, 0) + 1
+        
+        return result if result else {"No Data": 0}
+    
+    async def recruiters_by_applicants(self) -> Dict[str, int]:
+        """
+        Get recruiters grouped by number of applicants they manage.
+        Uses activity logs to determine applicant relationships.
+        """
+        # Get recruiter activity by applicant
+        recruiter_applicant_activity = self.client._query("""
+            SELECT 
+                json_extract(raw_data, '$.account_info.name') as recruiter_name,
+                applicant_id,
+                COUNT(*) as activity_count
+            FROM applicant_logs 
+            WHERE applicant_id IS NOT NULL 
+            AND json_extract(raw_data, '$.account_info.name') IS NOT NULL
+            GROUP BY recruiter_name, applicant_id
+        """)
+        
+        # Count unique applicants per recruiter
+        recruiter_applicant_counts = {}
+        for row in recruiter_applicant_activity:
+            recruiter = row['recruiter_name']
+            if recruiter not in recruiter_applicant_counts:
+                recruiter_applicant_counts[recruiter] = set()
+            recruiter_applicant_counts[recruiter].add(row['applicant_id'])
+        
+        # Convert sets to counts and group
+        result = {}
+        for recruiter, applicant_set in recruiter_applicant_counts.items():
+            applicant_count = len(applicant_set)
+            # Group by applicant count ranges
+            if applicant_count == 0:
+                group = "0 applicants"
+            elif applicant_count <= 5:
+                group = "1-5 applicants"
+            elif applicant_count <= 10:
+                group = "6-10 applicants"
+            elif applicant_count <= 20:
+                group = "11-20 applicants"
+            elif applicant_count <= 50:
+                group = "21-50 applicants"
+            else:
+                group = "51+ applicants"
+            
+            result[group] = result.get(group, 0) + 1
+        
+        return result if result else {"No Data": 0}
+    
+    async def recruiters_by_divisions(self) -> Dict[str, int]:
+        """
+        Get recruiters grouped by number of divisions they work with.
+        Maps recruiters -> vacancies -> divisions through activity logs.
+        """
+        # Get recruiter activity with vacancy info
+        recruiter_vacancy_activity = self.client._query("""
+            SELECT DISTINCT
+                json_extract(al.raw_data, '$.account_info.name') as recruiter_name,
+                al.vacancy_id,
+                json_extract(v.raw_data, '$.account_division') as division_id
+            FROM applicant_logs al
+            JOIN vacancies v ON al.vacancy_id = v.id
+            WHERE al.vacancy_id IS NOT NULL 
+            AND json_extract(al.raw_data, '$.account_info.name') IS NOT NULL
+            AND json_extract(v.raw_data, '$.account_division') IS NOT NULL
+        """)
+        
+        # Count unique divisions per recruiter
+        recruiter_division_counts = {}
+        for row in recruiter_vacancy_activity:
+            recruiter = row['recruiter_name']
+            division = row['division_id']
+            
+            if recruiter not in recruiter_division_counts:
+                recruiter_division_counts[recruiter] = set()
+            recruiter_division_counts[recruiter].add(division)
+        
+        # Convert sets to counts and group
+        result = {}
+        for recruiter, division_set in recruiter_division_counts.items():
+            division_count = len(division_set)
+            # Group by division count
+            if division_count == 0:
+                group = "0 divisions"
+            elif division_count == 1:
+                group = "1 division"
+            elif division_count == 2:
+                group = "2 divisions"
+            elif division_count <= 5:
+                group = "3-5 divisions"
+            else:
+                group = "6+ divisions"
+            
+            result[group] = result.get(group, 0) + 1
+        
+        return result if result else {"No Data": 0}
 
 

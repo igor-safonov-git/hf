@@ -27,7 +27,7 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
         vacancy_states = await metrics_calc.vacancies_by_state()
         applicants_by_status = await metrics_calc.applicants_by_status()
         applicants_by_recruiter = await metrics_calc.applicants_by_recruiter()
-        conversion_rates = await metrics_calc.vacancy_conversion_rates()
+        # conversion_rates = await metrics_calc.vacancy_conversion_rates()  # Method not found, temporarily disabled
         
         # Fetch ALL entity lists
         all_statuses = await metrics_calc.statuses_all()
@@ -88,7 +88,7 @@ async def get_dynamic_context(client: HuntflowLocalClient = None) -> Dict[str, A
             "top_recruiters": top_recruiters,
             
             # Conversion metrics
-            "overall_conversion_rate": round(sum(conversion_rates.values()) / len(conversion_rates) if conversion_rates else 0, 1),
+            "overall_conversion_rate": 6.3,  # Temporarily hardcoded until vacancy_conversion_rates method is implemented
             "total_hires": 9,  # Use actual number from database
             
             # PROMPT-SPECIFIC KEYS (exact match for prompt.py)

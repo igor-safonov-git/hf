@@ -112,7 +112,7 @@ async def chat(request: ChatRequest):
         huntflow_context = await get_dynamic_context(hf_client)
         
         # Build messages with system prompt for local cache
-        system_prompt = get_comprehensive_prompt(huntflow_context=huntflow_context, account_id=hf_client.account_id, use_local_cache=True)
+        system_prompt = get_comprehensive_prompt(huntflow_context=huntflow_context)
         
         # Save system prompt to file for debugging (async)
         if os.getenv("DEBUG_MODE"):
@@ -224,6 +224,11 @@ async def read_index():
     """Serve the main HTML file."""
     return FileResponse("index.html")
 
+@app.get("/index.html")
+async def read_index_html():
+    """Serve the main HTML file."""
+    return FileResponse("index.html")
+
 
 # Prefetch data endpoint
 @app.get("/api/prefetch-data")
@@ -289,4 +294,4 @@ if __name__ == "__main__":
     logger.info("Starting Huntflow Analytics Bot with LOCAL CACHE...")
     logger.info(f"Using database: {hf_client.db_path}")
     logger.info(f"Account ID: {hf_client.account_id}")
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

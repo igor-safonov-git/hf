@@ -1,6 +1,6 @@
 from typing import Optional
 
-def get_comprehensive_prompt(huntflow_context: Optional[dict] = None, account_id: Optional[str] = None, use_local_cache: bool = False) -> str:
+def get_comprehensive_prompt(huntflow_context: Optional[dict] = None) -> str:
     
     if huntflow_context is None:
         huntflow_context = {}
@@ -35,7 +35,7 @@ def get_comprehensive_prompt(huntflow_context: Optional[dict] = None, account_id
     
     ## 5. ALWAYS USE group_by for breakdowns and distributions 
     - For candidate flows: use {{ "field": "stages" }} to group applicants by recruitment stages
-    - For source analysis: use {{ "field": "sources" }} to group applicants by source
+    - For source analysis: use {{ "field": "source" }} to group applicants by source
     - For performance: use {{ "field": "recruiters" }} to group by recruiter
     - NEVER use group_by: null for distribution charts - always group by relevant dimension
     
