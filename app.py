@@ -15,7 +15,7 @@ from prompt import get_comprehensive_prompt
 from context_data_injector import get_dynamic_context
 from huntflow_local_client import HuntflowLocalClient
 from chart_data_processor import process_chart_data
-from metrics_calculator import MetricsCalculator
+from enhanced_metrics_calculator import EnhancedMetricsCalculator
 
 # Configure logging
 logging.basicConfig(
@@ -63,7 +63,7 @@ deepseek_client = AsyncOpenAI(
 
 # Initialize local Huntflow client and metrics calculator
 hf_client = HuntflowLocalClient()
-metrics_calc = MetricsCalculator(hf_client)
+metrics_calc = EnhancedMetricsCalculator(hf_client, None)
 
 class ChatRequest(BaseModel):
     message: str

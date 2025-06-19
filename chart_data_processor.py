@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional, TypedDict, Union, Callable
 from collections import Counter
 from functools import wraps
 from huntflow_local_client import HuntflowLocalClient
-from metrics_calculator import MetricsCalculator
+from enhanced_metrics_calculator import EnhancedMetricsCalculator
 import asyncio
 
 # Import modular configurations
@@ -256,7 +256,7 @@ ALLOWED_CALCULATOR_METHODS = {
     "vacancies_by_state", "vacancies_by_recruiter", "vacancies_by_hiring_manager",
     "vacancies_by_division", "vacancies_by_stage", "vacancies_by_priority",
     "vacancies_by_month", "recruiters_by_hirings", "recruiters_by_vacancies",
-    "recruiters_by_applicants", "recruiters_by_divisions", "hires_by_source",
+    "recruiters_by_applicants", "recruiters_by_divisions", "hires_by_source", "time_to_hire_by_source",
     "hires_by_stage", "hires_by_division", "hires_by_month", "hires_by_day", "hires_by_year", 
     "actions_by_recruiter", "actions_by_month",
     "moves_by_recruiter", "moves_by_recruiter_detailed", "applicants_added_by_recruiter",
@@ -271,7 +271,7 @@ ALLOWED_CALCULATOR_METHODS = {
 
 
 # Helper function to safely get method
-async def safe_method_call(calc: MetricsCalculator, method_name: str) -> Any:
+async def safe_method_call(calc: EnhancedMetricsCalculator, method_name: str, filters: Optional[Dict[str, Any]] = None) -> Any:
     """Safely call a method on the calculator with security checks."""
     # Security check - only allow whitelisted methods
     if method_name not in ALLOWED_CALCULATOR_METHODS:
@@ -279,20 +279,24 @@ async def safe_method_call(calc: MetricsCalculator, method_name: str) -> Any:
         raise ChartProcessingError(f"Method {method_name} is not authorized")
     
     if not hasattr(calc, method_name):
-        raise ChartProcessingError(f"Method {method_name} not found in MetricsCalculator")
+        raise ChartProcessingError(f"Method {method_name} not found in EnhancedMetricsCalculator")
     
     method = getattr(calc, method_name)
     if not callable(method):
         raise ChartProcessingError(f"{method_name} is not a callable method")
     
-    return await method()
+    # Call method with filters if provided
+    if filters:
+        return await method(filters=filters)
+    else:
+        return await method()
 
 
 # Named handler functions (replacing lambdas)
 @handle_chart_errors
-async def handle_count_entities(calc: MetricsCalculator, method_name: str, label: str) -> ChartData:
+async def handle_count_entities(calc: EnhancedMetricsCalculator, method_name: str, label: str, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Handler for counting entities."""
-    data = await safe_method_call(calc, method_name)
+    data = await safe_method_call(calc, method_name, filters)
     return {
         "labels": [label],
         "values": [len(data)],
@@ -301,9 +305,9 @@ async def handle_count_entities(calc: MetricsCalculator, method_name: str, label
 
 
 @handle_chart_errors
-async def handle_dict_to_chart(calc: MetricsCalculator, method_name: str) -> ChartData:
+async def handle_dict_to_chart(calc: EnhancedMetricsCalculator, method_name: str, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Handler for converting dict results to chart data."""
-    data = await safe_method_call(calc, method_name)
+    data = await safe_method_call(calc, method_name, filters)
     if not isinstance(data, dict):
         raise ChartProcessingError(f"Expected dict from {method_name}, got {type(data)}")
     
@@ -316,12 +320,13 @@ async def handle_dict_to_chart(calc: MetricsCalculator, method_name: str) -> Cha
 
 
 @handle_chart_errors
-async def handle_list_entities(calc: MetricsCalculator, method_name: str, 
+async def handle_list_entities(calc: EnhancedMetricsCalculator, method_name: str, 
                               name_field: str = "name", 
                               id_field: str = "id",
-                              entity_type: str = "Item") -> ChartData:
+                              entity_type: str = "Item",
+                              filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Handler for processing list of entities."""
-    data = await safe_method_call(calc, method_name)
+    data = await safe_method_call(calc, method_name, filters)
     if not isinstance(data, list):
         raise ChartProcessingError(f"Expected list from {method_name}, got {type(data)}")
     
@@ -339,9 +344,9 @@ async def handle_list_entities(calc: MetricsCalculator, method_name: str,
 
 
 @handle_chart_errors
-async def handle_conversion_summary(calc: MetricsCalculator, top_n: int = 10) -> ChartData:
+async def handle_conversion_summary(calc: EnhancedMetricsCalculator, top_n: int = 10, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Handler for vacancy conversion summary."""
-    summary_data = await safe_method_call(calc, "vacancy_conversion_summary")
+    summary_data = await safe_method_call(calc, "vacancy_conversion_summary", filters)
     if not isinstance(summary_data, dict) or "best_performing_vacancies" not in summary_data:
         raise ChartProcessingError("Invalid conversion summary data")
     
@@ -355,9 +360,9 @@ async def handle_conversion_summary(calc: MetricsCalculator, top_n: int = 10) ->
 
 
 @handle_chart_errors
-async def handle_status_groups(calc: MetricsCalculator) -> ChartData:
+async def handle_status_groups(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Handler for status groups."""
-    groups_data = await safe_method_call(calc, "status_groups")
+    groups_data = await safe_method_call(calc, "status_groups", filters)
     if not isinstance(groups_data, list):
         raise ChartProcessingError("Invalid status groups data")
     
@@ -369,9 +374,9 @@ async def handle_status_groups(calc: MetricsCalculator) -> ChartData:
 
 
 @handle_chart_errors
-async def handle_actions_by_type(calc: MetricsCalculator) -> ChartData:
+async def handle_actions_by_type(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Handler for actions grouped by type."""
-    actions_data = await safe_method_call(calc, "actions")
+    actions_data = await safe_method_call(calc, "actions", filters)
     if not isinstance(actions_data, list):
         raise ChartProcessingError("Invalid actions data")
     
@@ -386,9 +391,9 @@ async def handle_actions_by_type(calc: MetricsCalculator) -> ChartData:
 
 
 @handle_chart_errors
-async def handle_moves_by_type(calc: MetricsCalculator) -> ChartData:
+async def handle_moves_by_type(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Handler for moves grouped by type."""
-    detailed_moves = await safe_method_call(calc, "moves_by_recruiter_detailed")
+    detailed_moves = await safe_method_call(calc, "moves_by_recruiter_detailed", filters)
     if not isinstance(detailed_moves, dict):
         raise ChartProcessingError("Invalid moves data")
     
@@ -406,9 +411,9 @@ async def handle_moves_by_type(calc: MetricsCalculator) -> ChartData:
 
 
 @handle_chart_errors
-async def handle_total_moves(calc: MetricsCalculator) -> ChartData:
+async def handle_total_moves(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Handler for total moves count."""
-    moves_data = await safe_method_call(calc, "moves_by_recruiter")
+    moves_data = await safe_method_call(calc, "moves_by_recruiter", filters)
     if not isinstance(moves_data, dict):
         raise ChartProcessingError("Invalid moves data")
     
@@ -423,22 +428,22 @@ async def handle_total_moves(calc: MetricsCalculator) -> ChartData:
 # Handler factories to create specific handlers
 def create_count_handler(method_name: str, label: str) -> Callable:
     """Factory to create count handlers."""
-    async def handler(calc: MetricsCalculator) -> ChartData:
-        return await handle_count_entities(calc, method_name, label)
+    async def handler(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
+        return await handle_count_entities(calc, method_name, label, filters)
     return handler
 
 
 def create_dict_handler(method_name: str) -> Callable:
     """Factory to create dict handlers."""
-    async def handler(calc: MetricsCalculator) -> ChartData:
-        return await handle_dict_to_chart(calc, method_name)
+    async def handler(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
+        return await handle_dict_to_chart(calc, method_name, filters)
     return handler
 
 
 def create_list_handler(method_name: str, entity_type: str) -> Callable:
     """Factory to create list handlers."""
-    async def handler(calc: MetricsCalculator) -> ChartData:
-        return await handle_list_entities(calc, method_name, entity_type=entity_type)
+    async def handler(calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
+        return await handle_list_entities(calc, method_name, entity_type=entity_type, filters=filters)
     return handler
 
 
@@ -477,7 +482,7 @@ def normalize_group_by(group_by_obj: Optional[Union[GroupByConfig, str]]) -> Opt
     return None
 
 
-async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc: MetricsCalculator) -> ChartData:
+async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Get data for scatter charts by correlating x_axis and y_axis data."""
     try:
         # Extract entity and group_by for both axes
@@ -488,8 +493,8 @@ async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc:
         y_group_by = normalize_group_by(y_axis_config.get("group_by"))
         
         # Get data for both axes
-        x_data = await get_entity_data(x_entity, x_group_by, calc)
-        y_data = await get_entity_data(y_entity, y_group_by, calc)
+        x_data = await get_entity_data(x_entity, x_group_by, calc, filters)
+        y_data = await get_entity_data(y_entity, y_group_by, calc, filters)
         
         # Check if either axis returned an error
         if x_data.get("labels") == [ERROR_LABEL] or y_data.get("labels") == [ERROR_LABEL]:
@@ -532,7 +537,7 @@ async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc:
         return create_error_response("Failed to create scatter chart")
 
 
-async def get_entity_data(entity: str, group_by: Optional[str], calc: MetricsCalculator) -> ChartData:
+async def get_entity_data(entity: str, group_by: Optional[str], calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
     """Get data for an entity, handling groupings if specified."""
     try:
         # Handle legacy mappings
@@ -548,12 +553,12 @@ async def get_entity_data(entity: str, group_by: Optional[str], calc: MetricsCal
         
         # If it's a simple handler (no groupings)
         if HANDLER_KEY in handler_config:
-            return await handler_config[HANDLER_KEY](calc)
+            return await handler_config[HANDLER_KEY](calc, filters)
         
         # If it has groupings and group_by is specified
         if group_by:
             if GROUPINGS_KEY in handler_config and group_by in handler_config[GROUPINGS_KEY]:
-                return await handler_config[GROUPINGS_KEY][group_by](calc)
+                return await handler_config[GROUPINGS_KEY][group_by](calc, filters)
             else:
                 # Invalid grouping field
                 logger.warning(f"Invalid grouping '{group_by}' for entity '{entity}'")
@@ -561,7 +566,7 @@ async def get_entity_data(entity: str, group_by: Optional[str], calc: MetricsCal
         
         # Use default handler if available
         if DEFAULT_KEY in handler_config:
-            return await handler_config[DEFAULT_KEY](calc)
+            return await handler_config[DEFAULT_KEY](calc, filters)
         
         # No handler found
         return create_error_response(f"No handler available for {entity}")
@@ -589,12 +594,16 @@ async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClien
         report_json = validate_report_json(report_json)
         
         # Initialize metrics calculator
-        metrics_calc = MetricsCalculator(client)
+        metrics_calc = EnhancedMetricsCalculator(client, None)
         
         # Process chart data if present
         if "chart" in report_json:
             chart = report_json["chart"]
             chart_type = chart.get("type", "bar")
+            
+            # Extract filters from y_axis (main data source)
+            y_axis_config = chart.get("y_axis", {})
+            filters = y_axis_config.get("filters", {})
             
             try:
                 # Handle scatter charts differently
@@ -602,13 +611,13 @@ async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClien
                     x_axis_config = chart.get("x_axis", {})
                     y_axis_config = chart.get("y_axis", {})
                     
-                    real_data = await get_scatter_chart_data(x_axis_config, y_axis_config, metrics_calc)
+                    real_data = await get_scatter_chart_data(x_axis_config, y_axis_config, metrics_calc, filters)
                 else:
                     # Handle regular bar/line charts
-                    entity = chart.get("y_axis", {}).get(ENTITY_KEY, "")
-                    group_by = normalize_group_by(chart.get("y_axis", {}).get("group_by"))
+                    entity = y_axis_config.get(ENTITY_KEY, "")
+                    group_by = normalize_group_by(y_axis_config.get("group_by"))
                     
-                    real_data = await get_entity_data(entity, group_by, metrics_calc)
+                    real_data = await get_entity_data(entity, group_by, metrics_calc, filters)
                 
                 # Add title from chart label or description if not set
                 if not real_data.get("title"):
@@ -644,18 +653,19 @@ async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClien
         return report_json
 
 
-async def process_main_metric(report_json: ReportJson, calc: MetricsCalculator) -> None:
+async def process_main_metric(report_json: ReportJson, calc: EnhancedMetricsCalculator) -> None:
     """Process main metric value updates."""
     try:
         metric = report_json["main_metric"]["value"]
         entity = metric.get(ENTITY_KEY, "")
         operation = metric.get(OPERATION_KEY, COUNT_OPERATION)
+        filters = metric.get("filters", {})
         
         # Handle legacy mappings
         if entity in LEGACY_MAPPINGS:
             entity = LEGACY_MAPPINGS[entity]
         
-        real_value = await calculate_main_metric_value(entity, operation, calc)
+        real_value = await calculate_main_metric_value(entity, operation, calc, filters)
         # Round to 1 decimal place if float, keep as int if already int
         if isinstance(real_value, float):
             real_value = round(real_value, 1)
@@ -669,21 +679,23 @@ async def process_main_metric(report_json: ReportJson, calc: MetricsCalculator) 
         report_json["main_metric"]["real_value"] = 0
 
 
-async def process_secondary_metrics(report_json: ReportJson, calc: MetricsCalculator) -> None:
+async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetricsCalculator) -> None:
     """Process secondary metrics value updates."""
     if not isinstance(report_json.get("secondary_metrics"), list):
         return
     
     for i, metric in enumerate(report_json["secondary_metrics"]):
         try:
-            entity = metric.get("value", {}).get(ENTITY_KEY, "")
-            operation = metric.get("value", {}).get(OPERATION_KEY, COUNT_OPERATION)
+            value_config = metric.get("value", {})
+            entity = value_config.get(ENTITY_KEY, "")
+            operation = value_config.get(OPERATION_KEY, COUNT_OPERATION)
+            filters = value_config.get("filters", {})
             
             # Handle legacy mappings
             if entity in LEGACY_MAPPINGS:
                 entity = LEGACY_MAPPINGS[entity]
             
-            real_value = await calculate_main_metric_value(entity, operation, calc)
+            real_value = await calculate_main_metric_value(entity, operation, calc, filters)
             # Round to 1 decimal place if float, keep as int if already int
             if isinstance(real_value, float):
                 real_value = round(real_value, 1)
@@ -697,7 +709,7 @@ async def process_secondary_metrics(report_json: ReportJson, calc: MetricsCalcul
             report_json["secondary_metrics"][i]["real_value"] = 0
 
 
-async def calculate_main_metric_value(entity: str, operation: str, calc: MetricsCalculator) -> Union[int, float]:
+async def calculate_main_metric_value(entity: str, operation: str, calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> Union[int, float]:
     """Calculate the real value for a main metric using consolidated logic."""
     try:
         # Check special cases first
@@ -706,14 +718,14 @@ async def calculate_main_metric_value(entity: str, operation: str, calc: Metrics
             if operation in special_config:
                 handler = special_config[operation]
                 if callable(handler):
-                    data = await safe_method_call(calc, entity)
+                    data = await safe_method_call(calc, entity, filters)
                     return handler(data)
         
         # Determine method name from entity
         method_name = get_method_name_for_entity(entity)
         
         # Get data
-        data = await safe_method_call(calc, method_name)
+        data = await safe_method_call(calc, method_name, filters)
         
         # Process based on operation and data type
         if isinstance(data, list):
@@ -778,6 +790,9 @@ def get_method_name_for_entity(entity: str) -> str:
     """Get the appropriate method name for an entity."""
     # Direct mappings
     direct_mappings = {
+        "applicants": "applicants_all",
+        "vacancies": "vacancies_all", 
+        "recruiters": "recruiters_all",
         "hired_applicants": "applicants_hired",
         "successful_closures": "vacancies_closed",
         "added_applicants_by_recruiter": "applicants_added_by_recruiter",

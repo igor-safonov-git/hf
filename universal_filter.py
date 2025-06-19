@@ -23,7 +23,9 @@ class FilterOperator(Enum):
     IN = "in"
     NOT_IN = "not_in"
     GREATER_THAN = "gt"
+    GREATER_THAN_EQUAL = "gte"
     LESS_THAN = "lt"
+    LESS_THAN_EQUAL = "lte"
     BETWEEN = "between"
     CONTAINS = "contains"
     EXISTS = "exists"
@@ -88,8 +90,19 @@ class PeriodFilter:
         )
 
 @dataclass
+class LogicalFilter:
+    """Logical combination of filters using AND/OR"""
+    operator: str  # "and" or "or"
+    filters: List[Union['LogicalFilter', UniversalFilter, Dict[str, Any]]]
+    
+    def __post_init__(self):
+        if self.operator not in ["and", "or"]:
+            raise ValueError(f"Invalid logical operator: {self.operator}. Must be 'and' or 'or'")
+
+@dataclass
 class FilterSet:
     """Collection of all filters to apply"""
     period_filter: Optional[PeriodFilter] = None
     entity_filters: List[UniversalFilter] = field(default_factory=list)
     cross_entity_filters: List[UniversalFilter] = field(default_factory=list)
+    logical_filters: List[LogicalFilter] = field(default_factory=list)

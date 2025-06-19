@@ -117,8 +117,8 @@ GROUPED_ENTITY_SPECS = {
         "groupings": {
             "recruiter": "recruiters_by_hirings",
             "recruiters": "recruiters_by_hirings",
-            "source": "hires_by_source",
-            "sources": "hires_by_source", 
+            "source": "time_to_hire_by_source",
+            "sources": "time_to_hire_by_source", 
             "stage": "hires_by_stage",
             "stages": "hires_by_stage",
             "division": "hires_by_division",

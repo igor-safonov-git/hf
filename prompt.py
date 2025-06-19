@@ -92,6 +92,12 @@ rejections: id
 actions: id | add | mail | interview | hired
 divisions: id | town
 
+ADVANCED FILTERING (can be combined with above):
+- Cross-entity filtering: any entity can filter by any other entity
+- Logical operators: "and" and "or" for combining filters
+- Advanced operators: {"operator": "in", "value": [...]} | {"operator": "gt", "value": number} | {"operator": "contains", "value": text}
+- Nested combinations: logical operators can be nested for complex queries
+
 YOU CAN USE THESE OPERATIONS
 
 count
@@ -317,6 +323,13 @@ For specific entity queries, use actual IDs from the system:
 	•	"hiring_managers": "67890" - for specific hiring manager by ID
 	•	"divisions": "101" - for specific division by ID
 	•	"sources": "202" - for specific source by ID
+
+ADVANCED FILTER EXAMPLES
+For complex queries, combine filters using logical operators:
+	•	"and": [{"period": "3 month"}, {"recruiters": "12345"}] - both conditions must be true
+	•	"or": [{"sources": "linkedin"}, {"sources": "hh"}] - either condition can be true
+	•	"sources": {"operator": "in", "value": ["linkedin", "hh"]} - multiple values with advanced syntax
+	•	Nested: "and": [{"period": "6 month"}, {"or": [{"recruiters": "12345"}, {"sources": "linkedin"}]}]
 
 VALID GROUPINGS BY ENTITY
 	•	applicants: source, stage, status, recruiter, hiring_manager, division, month
