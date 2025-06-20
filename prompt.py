@@ -44,21 +44,23 @@ Determine what the user wants to assess
 
 2. Choose most specific entity (list below), matching the assesment intent 
 	•	Specific breakdown > General count (prefer “stages” over “applicants” for pipeline analysis)
-	•	Results-focused > Activity-focused (prefer “hires/rejections” over “actions”)
 	•	Status-grouped > Total numbers (prefer filtered entities over raw counts)
 
 CRITICAL RULES TO PREVENT COMMON ERRORS:
 
 2.1. OPERATION SELECTION RULES (count vs avg vs sum):
-	• COUNT: Use for "сколько", "количество", "число"
+	• COUNT: Use for "сколько", "количество", "число", "всего", "общее количество"
 		✅ "Сколько нанял" → operation: "count", entity: "hires"
-		✅ "Количество кандидатов" → operation: "count", entity: "applicants"
+		✅ "Количество кандидатов" → operation: "count", entity: "applicants" 
+		✅ "Всего нанято" → operation: "count", entity: "hires"
+		✅ "Общее количество" → operation: "count", entity: "applicants"
 		Example: {"operation": "count", "entity": "hires", "value_field": null}
-	• AVG: Use for "среднее", "в среднем", "средний", time-related metrics
+	• AVG: Use ONLY for "среднее", "в среднем", "средний", and explicit time/numeric metrics
 		✅ "Среднее время найма" → operation: "avg", value_field: "time_to_hire"
 		✅ "Средняя конверсия" → operation: "avg", value_field: "conversion"
+		❌ NEVER use AVG for counting questions like "всего", "количество", "сколько"
 		Example: {"operation": "avg", "entity": "hires", "value_field": "time_to_hire"}
-	• NEVER mix operations randomly - be consistent with question intent
+	• CRITICAL: If label does NOT explicitly say "среднее", "средний", "в среднем" → use COUNT
 
 2.2. SECONDARY METRICS RULE:
 	NEVER duplicate the main metric with different filters. Provide COMPLEMENTARY information that adds business context:
@@ -93,6 +95,19 @@ CRITICAL RULES TO PREVENT COMMON ERRORS:
 	❌ WRONG: Main metric "count", secondary metric "avg" for same type question
 	✅ CORRECT: All counting metrics use "count", all time metrics use "avg"
 	Example: Main: {"operation": "count", "entity": "hires"}, Secondary: {"operation": "count", "entity": "applicants"}
+
+2.5. SECONDARY METRICS OPERATION RULE:
+	For secondary metrics, if label contains "всего", "количество", "число", "сколько" → ALWAYS use "count":
+	✅ "Всего нанято" → {"operation": "count", "entity": "hires", "value_field": null}
+	✅ "Общее количество кандидатов" → {"operation": "count", "entity": "applicants", "value_field": null}
+	❌ NEVER use "avg" unless label explicitly says "среднее", "средний", "в среднем"
+
+2.6. SECONDARY METRICS ENTITY DIVERSITY RULE:
+	Provide DIVERSE complementary information in secondary metrics - avoid entity repetition:
+	✅ Choose entities that add business context to the main metric
+	✅ Consider all relevant entities: applicants, hires, vacancies, sources, recruiters, stages
+	❌ AVOID using the same entity multiple times unless specifically needed for the question
+	❌ DON'T automatically default to "hires" - think about what adds the most value
     
 3. Choose chart type: bar, line or scatter
 	•	bar: for comparisons, distributions
@@ -320,6 +335,22 @@ Question: "Динамика найма за год"
   "chart": {"type": "line"}  // ✅ Line chart for time series
 }
 
+❌ WRONG - Operation confusion with "всего":
+Question: "Покажи общую ситуацию с наймом"
+{
+  "secondary_metrics": [
+    {"label": "Всего нанято", "value": {"operation": "avg", "entity": "hires"}}  // ❌ "Всего" = count, not avg
+  ]
+}
+
+✅ CORRECT - Proper operation for "всего":
+Question: "Покажи общую ситуацию с наймом"
+{
+  "secondary_metrics": [
+    {"label": "Всего нанято", "value": {"operation": "count", "entity": "hires", "value_field": null}}  // ✅ "Всего" = count
+  ]
+}
+
 
 ENTITIES AVAILABLE IN THE SYSTEM: NAMES AND ID'S
 
@@ -473,6 +504,9 @@ MANDATORY RESPONSE TEMPLATE:
       }
     }
   ],
+
+CRITICAL: Notice that BOTH secondary metrics use "operation": "count" and "value_field": null.
+NEVER use "operation": "avg" in secondary metrics unless the label explicitly contains "среднее", "средний", or "в среднем".
   "chart": {
     "label": "Название графика",
     "type": "bar",
