@@ -276,7 +276,7 @@ Question: "Сколько нанял Настя?"
     "filters": {"recruiters": "14824"}
   },
   "secondary_metrics": [
-    {"operation": "count", "entity": "hires", "filters": {"recruiters": "14824", "period": "1 month"}},
+    {"operation": "count", "entity": "applicants", "filters": {"recruiters": "14824"}},
     {"operation": "avg", "entity": "hires", "value_field": "time_to_hire", "filters": {"recruiters": "14824"}}
   ]
 }
