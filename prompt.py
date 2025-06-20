@@ -39,12 +39,54 @@ Determine what the user wants to assess
 	•	rejection numbers: 'сколько отваливается', 'скольким отказываем'
 	•	hiring managers speed: 'как быстро отвечает', 'как быстро проводит интервью', 'как быстро смотрит кандидатов'
 	•	compare divisions: 'в каком отделе', 'в каком филиале', 'в какой команде'
-	•	get insights about division: usually contains the non-formal name of the division 'вакансии маркетинга', 'кандидаты разработки', 'продавцы'  
+	•	get insights about division: usually contains the non-formal name of the division 'вакансии маркетинга', 'кандидаты разработки', 'продавцы'
+	•	vacancy-specific pipeline: 'а что с вакансией', 'как дела с вакансией [название]', 'что с позицией' -> applicants grouped by stages, filtered by specific vacancy ID  
 
 2. Choose most specific entity (list below), matching the assesment intent 
 	•	Specific breakdown > General count (prefer “stages” over “applicants” for pipeline analysis)
 	•	Results-focused > Activity-focused (prefer “hires/rejections” over “actions”)
 	•	Status-grouped > Total numbers (prefer filtered entities over raw counts)
+
+CRITICAL RULES TO PREVENT COMMON ERRORS:
+
+2.1. OPERATION SELECTION RULES (count vs avg vs sum):
+	• COUNT: Use for "сколько", "количество", "число"
+		✅ "Сколько нанял" → operation: "count", entity: "hires"
+		✅ "Количество кандидатов" → operation: "count", entity: "applicants"
+	• AVG: Use for "среднее", "в среднем", "средний", time-related metrics
+		✅ "Среднее время найма" → operation: "avg", value_field: "time_to_hire"
+		✅ "Средняя конверсия" → operation: "avg", value_field: "conversion"
+	• NEVER mix operations randomly - be consistent with question intent
+
+2.2. SECONDARY METRICS RULE:
+	NEVER duplicate the main metric with different filters. Provide COMPLEMENTARY information that adds business context:
+	
+	For recruiter questions: Main=hires → Secondary=applicants + time_to_hire
+	• "Сколько нанял Настя?" → Main: count hires, Secondary 1: count applicants, Secondary 2: avg time_to_hire
+	
+	For source questions: Main=source_hires → Secondary=source_applicants + conversion
+	• "Эффективность LinkedIn?" → Main: count hires from source, Secondary 1: count applicants from source, Secondary 2: avg conversion
+	
+	For pipeline questions: Main=stage_counts → Secondary=conversion_rates + time_metrics  
+	• "Что с воронкой?" → Main: count applicants by stages, Secondary 1: avg conversion by stage, Secondary 2: avg time in stage
+	
+	❌ WRONG: Main "count hires", Secondary 1 "count hires with different period" (duplication)
+	✅ CORRECT: Main "count hires", Secondary 1 "count applicants", Secondary 2 "avg time_to_hire" (complementary)
+
+2.3. CHART TYPE SELECTION RULES:
+	• BAR charts: Use for distributions, comparisons between categories
+		✅ "Кандидаты по этапам" → bar chart
+		✅ "Сравни источники" → bar chart
+	• LINE charts: Use for time-based trends, dynamics over months/days
+		✅ "Динамика найма" → line chart
+		✅ "Как изменился найм" → line chart  
+	• SCATTER charts: Use for correlation analysis, performance comparisons
+		✅ "Сравни рекрутеров по эффективности" → scatter chart
+
+2.4. METRICS CONSISTENCY RULE:
+	In single report, maintain operation consistency:
+	❌ WRONG: Main metric "count", secondary metric "avg" for same type question
+	✅ CORRECT: All counting metrics use "count", all time metrics use "avg"
     
 3. Choose chart type: bar, line or scatter
 	•	bar: for comparisons, distributions
@@ -82,6 +124,17 @@ Specify the numeric column to calculate averages or sums on (e.g., “days_open�
 
 6. Choose one or several filters from the list below
 Apply time periods (recent data preferred) and entity-specific filters to narrow results
+
+CRITICAL FILTERING RULE FOR SPECIFIC ENTITIES:
+When user asks about a specific entity (recruiter, vacancy, source, etc.), ALL metrics (main_metric, secondary_metrics, chart axes) must be filtered by that entity:
+
+Examples:
+• "Сколько вакансий закрыла Настя?" -> ALL metrics filtered by {"recruiters": "14824"}
+• "Что с вакансией Python Developer?" -> ALL metrics filtered by {"vacancies": "2536466"}  
+• "Эффективность LinkedIn?" -> ALL metrics filtered by {"sources": "274886"}
+• "Как работает отдел маркетинга?" -> ALL metrics filtered by {"divisions": "101"}
+
+NEVER mix filtered and unfiltered metrics in the same report - maintain consistency across all calculations.
 
 
 
@@ -167,6 +220,97 @@ For complex queries, combine filters using logical operators:
 	•	"or": [{"sources": "linkedin"}, {"sources": "hh"}] - either condition can be true
 	•	"sources": {"operator": "in", "value": ["linkedin", "hh"]} - multiple values with advanced syntax
 	•	Nested: "and": [{"period": "6 month"}, {"or": [{"recruiters": "12345"}, {"sources": "linkedin"}]}]
+
+EXAMPLES: CORRECT PERCENTAGE/RATIO CALCULATIONS
+For percentage metrics like "доля источника", "процент от общего", use these patterns:
+
+❌ WRONG (returns 0):
+{
+  "label": "Доля LinkedIn среди всех источников", 
+  "value": {
+    "operation": "avg",
+    "entity": "sources",
+    "value_field": "applicants", 
+    "filters": {"sources": "274886"}  // ❌ Filtering sources by specific source = always 0
+  }
+}
+
+✅ CORRECT for percentage metrics:
+{
+  "label": "Всего кандидатов из всех источников",
+  "value": {
+    "operation": "count",
+    "entity": "applicants", 
+    "value_field": null,
+    "group_by": null,
+    "filters": {"period": "6 month"}  // ✅ Total count without source filter
+  }
+}
+
+✅ CORRECT for source-specific counts:
+{
+  "label": "Кандидатов через LinkedIn", 
+  "value": {
+    "operation": "count",
+    "entity": "applicants",
+    "value_field": null,
+    "group_by": null, 
+    "filters": {"period": "6 month", "sources": "274886"}  // ✅ Count applicants filtered by source
+  }
+}
+
+ADDITIONAL EXAMPLES TO FIX COMMON ERRORS:
+
+❌ WRONG - Operation mismatch:
+Question: "Сколько нанял Настя?"
+{
+  "main_metric": {"operation": "avg", "entity": "hires"}  // ❌ Should be "count" for "сколько"
+}
+
+✅ CORRECT - Proper operation:
+Question: "Сколько нанял Настя?"
+{
+  "main_metric": {
+    "operation": "count", 
+    "entity": "hires",
+    "filters": {"recruiters": "14824"}
+  },
+  "secondary_metrics": [
+    {"operation": "count", "entity": "hires", "filters": {"recruiters": "14824", "period": "1 month"}},
+    {"operation": "avg", "entity": "hires", "value_field": "time_to_hire", "filters": {"recruiters": "14824"}}
+  ]
+}
+
+❌ WRONG - Entity inconsistency:
+Question: "Эффективность LinkedIn?"
+{
+  "main_metric": {"entity": "hires", "filters": {"sources": "274886"}},
+  "secondary_metrics": [
+    {"entity": "applicants", "filters": {"period": "6 month"}}  // ❌ Different filter, should also filter by LinkedIn
+  ]
+}
+
+✅ CORRECT - Consistent entity filtering:
+Question: "Эффективность LinkedIn?"
+{
+  "main_metric": {"entity": "hires", "filters": {"sources": "274886"}},
+  "secondary_metrics": [
+    {"entity": "applicants", "filters": {"sources": "274886"}},  // ✅ Same source filter
+    {"entity": "hires", "value_field": "time_to_hire", "filters": {"sources": "274886"}}  // ✅ Same source filter
+  ]
+}
+
+❌ WRONG - Chart type mismatch:
+Question: "Динамика найма за год"
+{
+  "chart": {"type": "bar"}  // ❌ Should be "line" for time dynamics
+}
+
+✅ CORRECT - Proper chart type:
+Question: "Динамика найма за год"
+{
+  "chart": {"type": "line"}  // ✅ Line chart for time series
+}
 
 
 ENTITIES AVAILABLE IN THE SYSTEM: NAMES AND ID'S
@@ -372,7 +516,8 @@ REMEMBER
         
         formatted_list = []
         for entity in entities:
-            name = entity.get('name', 'Unknown')
+            # Handle different name fields: 'name' for most entities, 'position' for vacancies
+            name = entity.get('name') or entity.get('position', 'Unknown')
             entity_id = entity.get('id', 'N/A')
             formatted_list.append(f"{name} ({entity_id})")
         
