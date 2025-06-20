@@ -53,9 +53,11 @@ CRITICAL RULES TO PREVENT COMMON ERRORS:
 	• COUNT: Use for "сколько", "количество", "число"
 		✅ "Сколько нанял" → operation: "count", entity: "hires"
 		✅ "Количество кандидатов" → operation: "count", entity: "applicants"
+		Example: {"operation": "count", "entity": "hires", "value_field": null}
 	• AVG: Use for "среднее", "в среднем", "средний", time-related metrics
 		✅ "Среднее время найма" → operation: "avg", value_field: "time_to_hire"
 		✅ "Средняя конверсия" → operation: "avg", value_field: "conversion"
+		Example: {"operation": "avg", "entity": "hires", "value_field": "time_to_hire"}
 	• NEVER mix operations randomly - be consistent with question intent
 
 2.2. SECONDARY METRICS RULE:
@@ -67,8 +69,8 @@ CRITICAL RULES TO PREVENT COMMON ERRORS:
 	For source questions: Main=source_hires → Secondary=source_applicants + conversion
 	• "Эффективность LinkedIn?" → Main: count hires from source, Secondary 1: count applicants from source, Secondary 2: avg conversion
 	
-	For pipeline questions: Main=stage_counts → Secondary=conversion_rates + time_metrics  
-	• "Что с воронкой?" → Main: count applicants by stages, Secondary 1: avg conversion by stage, Secondary 2: avg time in stage
+	For pipeline questions: Main=stage_counts → Secondary=stage_counts + hire_counts
+	• "Что с воронкой?" → Main: count applicants by stages, Secondary 1: count applicants by stages (previous period), Secondary 2: count hires by stages
 	
 	❌ WRONG: Main "count hires", Secondary 1 "count hires with different period" (duplication)
 	✅ CORRECT: Main "count hires", Secondary 1 "count applicants", Secondary 2 "avg time_to_hire" (complementary)
@@ -77,16 +79,20 @@ CRITICAL RULES TO PREVENT COMMON ERRORS:
 	• BAR charts: Use for distributions, comparisons between categories
 		✅ "Кандидаты по этапам" → bar chart
 		✅ "Сравни источники" → bar chart
+		Example: {"type": "bar", "x_axis": {"group_by": {"field": "stages"}}, "y_axis": {"group_by": {"field": "stages"}}}
 	• LINE charts: Use for time-based trends, dynamics over months/days
 		✅ "Динамика найма" → line chart
-		✅ "Как изменился найм" → line chart  
+		✅ "Как изменился найм" → line chart
+		Example: {"type": "line", "x_axis": {"group_by": {"field": "month"}}, "y_axis": {"group_by": {"field": "month"}}}
 	• SCATTER charts: Use for correlation analysis, performance comparisons
 		✅ "Сравни рекрутеров по эффективности" → scatter chart
+		Example: {"type": "scatter", "x_axis": {"entity": "hires"}, "y_axis": {"entity": "applicants"}}
 
 2.4. METRICS CONSISTENCY RULE:
 	In single report, maintain operation consistency:
 	❌ WRONG: Main metric "count", secondary metric "avg" for same type question
 	✅ CORRECT: All counting metrics use "count", all time metrics use "avg"
+	Example: Main: {"operation": "count", "entity": "hires"}, Secondary: {"operation": "count", "entity": "applicants"}
     
 3. Choose chart type: bar, line or scatter
 	•	bar: for comparisons, distributions
@@ -121,6 +127,7 @@ Specify the numeric column to calculate averages or sums on (e.g., “days_open�
 	•	CRITICAL: For bar charts showing distributions, BOTH x_axis AND y_axis must have the same group_by field
 	•	Example: Pipeline chart needs y_axis with {{ "field": "stages" }}, not group_by: null
 	•	NEVER use group_by: null for distribution charts - always group by relevant dimension
+	Example JSON: {"operation": "count", "entity": "applicants", "group_by": {"field": "stages"}}
 
 6. Choose one or several filters from the list below
 Apply time periods (recent data preferred) and entity-specific filters to narrow results
@@ -133,6 +140,7 @@ Examples:
 • "Что с вакансией Python Developer?" -> ALL metrics filtered by {"vacancies": "2536466"}  
 • "Эффективность LinkedIn?" -> ALL metrics filtered by {"sources": "274886"}
 • "Как работает отдел маркетинга?" -> ALL metrics filtered by {"divisions": "101"}
+Example JSON: {"main_metric": {"filters": {"recruiters": "14824"}}, "secondary_metrics": [{"filters": {"recruiters": "14824"}}, {"filters": {"recruiters": "14824"}}]}
 
 NEVER mix filtered and unfiltered metrics in the same report - maintain consistency across all calculations.
 
@@ -442,9 +450,9 @@ MANDATORY RESPONSE TEMPLATE:
     {
       "label": "Дополнительная метрика 1",
       "value": {
-        "operation": "avg",
+        "operation": "count",
         "entity": "hires",
-        "value_field": "time_to_hire",
+        "value_field": null,
         "group_by": null,
         "filters": {
           "period": "1 year"
