@@ -21,7 +21,8 @@ class UniversalChartProcessor:
     async def process_chart_request(self, entity: str, operation: str = "count", 
                                   group_by: Optional[str] = None, 
                                   filters: Optional[Dict[str, Any]] = None,
-                                  value_field: Optional[str] = None) -> Dict[str, Any]:
+                                  value_field: Optional[str] = None,
+                                  chart_type: str = "bar") -> Dict[str, Any]:
         """
         Universal chart processor - handles any entity/operation/grouping combination
         
@@ -30,9 +31,11 @@ class UniversalChartProcessor:
             operation: count, avg, sum
             group_by: Field to group by (recruiters, sources, stages, etc.)
             filters: Filter conditions (period, entity filters, etc.)
+            value_field: Field for avg/sum operations
+            chart_type: Type of visualization (bar, line, scatter, table)
             
         Returns:
-            Chart-ready data: {"labels": [...], "values": [...]}
+            Chart-ready data: {"labels": [...], "values": [...]} or table data
         """
         try:
             # Step 1: Get base entity data with filtering
@@ -46,11 +49,14 @@ class UniversalChartProcessor:
                 # No grouping - single value
                 grouped_data = {entity: base_data}
             
-            # Step 3: Apply operation (count, avg, sum)
-            result_data = self._apply_operation(grouped_data, operation, value_field)
-            
-            # Step 4: Format for charts
-            return self._format_for_chart(result_data)
+            # Step 3: Format based on chart type
+            if chart_type == "table":
+                # For tables, return grouped data with full details
+                return self._format_for_table(grouped_data, entity, operation, value_field)
+            else:
+                # For charts, apply operation and format
+                result_data = self._apply_operation(grouped_data, operation, value_field)
+                return self._format_for_chart(result_data)
             
         except Exception as e:
             logger.error(f"Universal chart processing error: {e}")
@@ -466,13 +472,154 @@ class UniversalChartProcessor:
             "values": list(data.values()),
             "title": ""
         }
+    
+    def _format_for_table(self, grouped_data: Dict[str, List[Dict]], entity: str, operation: str, value_field: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Format data for table display with columns and rows
+        
+        Returns table structure with columns definition and row data
+        """
+        # Define columns based on entity type
+        columns = self._get_table_columns(entity)
+        
+        # Build rows from grouped data
+        rows = []
+        total_count = sum(len(items) for items in grouped_data.values())
+        
+        # Check if this is individual record listing (single group with entity name as key)
+        is_individual_listing = len(grouped_data) == 1 and list(grouped_data.keys())[0] == entity
+        
+        if is_individual_listing and entity == 'applicants':
+            # For individual applicant listings, show each record as a row
+            all_items = list(grouped_data.values())[0]  # Get the applicants list
+            for item in all_items[:50]:  # Limit to first 50 for performance
+                row = {
+                    "name": item.get('full_name', item.get('first_name', 'Unknown')),
+                    "count": 1,  # Each individual counts as 1
+                    "percentage": 100.0 / len(all_items) if all_items else 0
+                }
+                # Add more applicant details if available
+                if 'current_status' in item:
+                    row["status"] = item.get('current_status', 'Unknown')
+                if 'position' in item:
+                    row["position"] = item.get('position', 'Unknown')
+                rows.append(row)
+        else:
+            # Regular grouped data handling
+            for group_name, group_items in grouped_data.items():
+                row = {"name": group_name}
+                
+                # Calculate metrics for this group
+                if operation == "count":
+                    row["count"] = len(group_items)
+                    row["percentage"] = (len(group_items) / total_count * 100) if total_count > 0 else 0
+                elif operation == "avg" and value_field:
+                    # Calculate average for specified field
+                    numeric_values = []
+                    for item in group_items:
+                        if value_field in item and isinstance(item[value_field], (int, float)):
+                            numeric_values.append(item[value_field])
+                    row["avg_value"] = sum(numeric_values) / len(numeric_values) if numeric_values else 0
+                    row["count"] = len(group_items)
+                
+                # Add entity-specific additional data
+                if entity == 'recruiters' and group_items:
+                    # Add hire rate or other recruiter-specific metrics if available
+                    pass
+                elif entity == 'vacancies' and group_items:
+                    # Add vacancy status or days open if available
+                    first_item = group_items[0] if group_items else {}
+                    if 'status' in first_item:
+                        row["status"] = first_item.get('status', 'Unknown')
+                elif entity == 'sources' and group_items:
+                    # Add source-specific metrics if available
+                    pass
+                
+                rows.append(row)
+        
+        # Sort rows by count descending by default
+        rows.sort(key=lambda x: x.get("count", 0), reverse=True)
+        
+        # Apply row limit based on entity type
+        row_limits = {
+            'recruiters': 50,
+            'vacancies': 100,
+            'sources': 30,
+            'stages': 20,
+            'divisions': 50
+        }
+        
+        limit = row_limits.get(entity, 100)
+        if len(rows) > limit:
+            rows = rows[:limit]
+        
+        return {
+            "columns": columns,
+            "rows": rows,
+            "metadata": {
+                "total_rows": len(rows),
+                "sorted_by": "count",
+                "sort_order": "desc",
+                "entity_type": entity
+            }
+        }
+    
+    def _get_table_columns(self, entity: str) -> List[Dict[str, Any]]:
+        """Get column definitions based on entity type"""
+        
+        # Entity-specific configurations
+        entity_configs = {
+            'recruiters': [
+                {"key": "name", "label": "Рекрутер", "type": "text", "sortable": True},
+                {"key": "count", "label": "Нанято", "type": "number", "sortable": True},
+                {"key": "percentage", "label": "% от общего", "type": "percentage", "sortable": True}
+            ],
+            'hires': [
+                {"key": "name", "label": "Название", "type": "text", "sortable": True},
+                {"key": "count", "label": "Количество найма", "type": "number", "sortable": True},
+                {"key": "percentage", "label": "Процент", "type": "percentage", "sortable": True}
+            ],
+            'vacancies': [
+                {"key": "name", "label": "Вакансия", "type": "text", "sortable": True},
+                {"key": "count", "label": "Кандидатов", "type": "number", "sortable": True},
+                {"key": "percentage", "label": "% от общего", "type": "percentage", "sortable": True}
+            ],
+            'sources': [
+                {"key": "name", "label": "Источник", "type": "text", "sortable": True},
+                {"key": "count", "label": "Кандидатов", "type": "number", "sortable": True},
+                {"key": "percentage", "label": "% от общего", "type": "percentage", "sortable": True}
+            ],
+            'applicants': [
+                {"key": "name", "label": "Кандидат", "type": "text", "sortable": True},
+                {"key": "count", "label": "Статус", "type": "text", "sortable": True},
+                {"key": "percentage", "label": "Позиция", "type": "text", "sortable": True}
+            ],
+            'stages': [
+                {"key": "name", "label": "Этап", "type": "text", "sortable": True},
+                {"key": "count", "label": "Кандидатов", "type": "number", "sortable": True},
+                {"key": "percentage", "label": "% в воронке", "type": "percentage", "sortable": True}
+            ],
+            'divisions': [
+                {"key": "name", "label": "Подразделение", "type": "text", "sortable": True},
+                {"key": "count", "label": "Вакансий", "type": "number", "sortable": True},
+                {"key": "percentage", "label": "% от общего", "type": "percentage", "sortable": True}
+            ]
+        }
+        
+        # Return entity-specific config or default
+        return entity_configs.get(entity, [
+            {"key": "name", "label": "Название", "type": "text", "sortable": True},
+            {"key": "count", "label": "Количество", "type": "number", "sortable": True},
+            {"key": "percentage", "label": "Процент", "type": "percentage", "sortable": True}
+        ])
 
 # Convenience function for easy integration
 async def process_chart_via_universal_engine(entity: str, operation: str = "count",
                                            group_by: Optional[str] = None,
                                            filters: Optional[Dict[str, Any]] = None,
                                            calc: EnhancedMetricsCalculator = None,
-                                           value_field: Optional[str] = None) -> Dict[str, Any]:
+                                           value_field: Optional[str] = None,
+                                           chart_type: str = "bar") -> Dict[str, Any]:
     """
     Main entry point for universal chart processing
     
@@ -481,8 +628,9 @@ async def process_chart_via_universal_engine(entity: str, operation: str = "coun
             entity="hires",
             operation="count", 
             group_by="recruiters",
-            filters={"period": "1 year"}
+            filters={"period": "1 year"},
+            chart_type="table"
         )
     """
     processor = UniversalChartProcessor(calc)
-    return await processor.process_chart_request(entity, operation, group_by, filters, value_field)
+    return await processor.process_chart_request(entity, operation, group_by, filters, value_field, chart_type)

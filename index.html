@@ -82,6 +82,94 @@
             margin-top: 2rem;
             height: 400px;
         }
+        
+        /* Table styles */
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            margin-top: 2rem;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+            background-color: white;
+        }
+        
+        .data-table thead {
+            background-color: #f9fafb;
+        }
+        
+        .data-table th {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+            white-space: nowrap;
+        }
+        
+        .data-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 2rem;
+        }
+        
+        .data-table th.sortable:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .data-table th.sortable::after {
+            content: '↕';
+            position: absolute;
+            right: 0.75rem;
+            opacity: 0.5;
+        }
+        
+        .data-table th.sortable.asc::after {
+            content: '↑';
+            opacity: 1;
+        }
+        
+        .data-table th.sortable.desc::after {
+            content: '↓';
+            opacity: 1;
+        }
+        
+        .data-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .data-table td.numeric {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .data-table tbody tr:hover {
+            background-color: #f9fafb;
+        }
+        
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 640px) {
+            .data-table {
+                font-size: 0.75rem;
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: 0.5rem;
+            }
+        }
+        
         .no-report {
             text-align: center;
             color: #6b7280;
@@ -415,13 +503,153 @@
 
                 return data;
             };
+            
+            const renderTable = (tableData, container) => {
+                if (!container) {
+                    console.error('Container is null in renderTable');
+                    return;
+                }
+                
+                // Clear container
+                container.innerHTML = '';
+                
+                // Create wrapper div for responsive scrolling
+                const wrapper = document.createElement('div');
+                wrapper.className = 'table-wrapper';
+                
+                // Create table element
+                const table = document.createElement('table');
+                table.className = 'data-table';
+                
+                // Generate table header
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                
+                tableData.columns.forEach(col => {
+                    const th = document.createElement('th');
+                    th.textContent = col.label;
+                    th.className = col.sortable ? 'sortable' : '';
+                    th.dataset.key = col.key;
+                    
+                    // Add sort indicator class
+                    if (tableData.metadata?.sorted_by === col.key) {
+                        th.className += ' ' + (tableData.metadata.sort_order || 'desc');
+                    }
+                    
+                    if (col.sortable) {
+                        th.addEventListener('click', () => sortTable(col.key, tableData, container));
+                    }
+                    
+                    headerRow.appendChild(th);
+                });
+                
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+                
+                // Generate table body
+                const tbody = document.createElement('tbody');
+                
+                tableData.rows.forEach(row => {
+                    const tr = document.createElement('tr');
+                    
+                    tableData.columns.forEach(col => {
+                        const td = document.createElement('td');
+                        const value = row[col.key];
+                        
+                        // Format based on column type
+                        switch(col.type) {
+                            case 'number':
+                                td.textContent = value ? value.toLocaleString('ru-RU') : '0';
+                                td.className = 'numeric';
+                                break;
+                            case 'percentage':
+                                td.textContent = value ? `${value.toFixed(1)}%` : '0%';
+                                td.className = 'numeric';
+                                break;
+                            default:
+                                td.textContent = value || '';
+                        }
+                        
+                        tr.appendChild(td);
+                    });
+                    
+                    tbody.appendChild(tr);
+                });
+                
+                table.appendChild(tbody);
+                wrapper.appendChild(table);
+                container.appendChild(wrapper);
+            };
+            
+            const sortTable = (key, tableData, container) => {
+                // Toggle sort order
+                const currentSort = tableData.metadata?.sorted_by;
+                const currentOrder = tableData.metadata?.sort_order || 'desc';
+                const newOrder = (currentSort === key && currentOrder === 'desc') ? 'asc' : 'desc';
+                
+                // Sort rows
+                tableData.rows.sort((a, b) => {
+                    const aVal = a[key];
+                    const bVal = b[key];
+                    
+                    if (typeof aVal === 'number' && typeof bVal === 'number') {
+                        return newOrder === 'desc' ? bVal - aVal : aVal - bVal;
+                    }
+                    
+                    const aStr = String(aVal || '');
+                    const bStr = String(bVal || '');
+                    return newOrder === 'desc' ? bStr.localeCompare(aStr, 'ru') : aStr.localeCompare(bStr, 'ru');
+                });
+                
+                // Update metadata
+                if (!tableData.metadata) tableData.metadata = {};
+                tableData.metadata.sorted_by = key;
+                tableData.metadata.sort_order = newOrder;
+                
+                // Re-render table
+                renderTable(tableData, container);
+            };
 
             const createChart = (reportData) => {
+                if (!chartRef.current || !reportData.chart) return;
+                
+                // Check if it's a table type
+                if (reportData.chart.type === 'table') {
+                    // Destroy any existing chart
+                    if (chartInstance.current) {
+                        chartInstance.current.destroy();
+                        chartInstance.current = null;
+                    }
+                    
+                    // Get the chart container (parent of canvas)
+                    if (!chartRef.current || !chartRef.current.parentElement) {
+                        console.error('Chart container not found');
+                        return;
+                    }
+                    
+                    const container = chartRef.current.parentElement;
+                    
+                    // Render table instead of chart
+                    if (reportData.chart.real_data && container) {
+                        renderTable(reportData.chart.real_data, container);
+                    }
+                    return;
+                }
+                
+                // If switching from table to chart, ensure canvas exists
+                if (!chartRef.current.getContext) {
+                    // Canvas was replaced by table, recreate it
+                    const container = chartRef.current.parentElement || chartRef.current;
+                    container.innerHTML = '';
+                    const canvas = document.createElement('canvas');
+                    container.appendChild(canvas);
+                    chartRef.current = canvas;
+                }
+                
+                // Regular chart handling
                 if (chartInstance.current) {
                     chartInstance.current.destroy();
                 }
-
-                if (!chartRef.current || !reportData.chart) return;
 
                 const ctx = chartRef.current.getContext('2d');
                 const chartData = generateChartData(reportData);
@@ -478,7 +706,10 @@
 
             useEffect(() => {
                 if (report) {
-                    createChart(report);
+                    // Small delay to ensure DOM is ready
+                    setTimeout(() => {
+                        createChart(report);
+                    }, 100);
                 }
             }, [report]);
 

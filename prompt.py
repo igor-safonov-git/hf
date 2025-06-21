@@ -20,7 +20,7 @@ Follow the JSON schema in the last section verbatim. No extra or missing keys.
 	•	Entities – see §Entities
 	•	Filters – see §Filters
 	•	Operations – count, avg, sum, date_trunc
-	•	Chart types – bar, line, scatter, bubble
+	•	Chart types – bar, line, scatter, table
 	4.	Russian labels
 All labels (report_title, axis titles, etc.) must be human‑friendly Russian phrases.
 
@@ -109,10 +109,16 @@ CRITICAL RULES TO PREVENT COMMON ERRORS:
 	❌ AVOID using the same entity multiple times unless specifically needed for the question
 	❌ DON'T automatically default to "hires" - think about what adds the most value
     
-3. Choose chart type: bar, line or scatter
+3. Choose chart type: bar, line, scatter, or table
 	•	bar: for comparisons, distributions
 	•	line: for trends over time. If the user wants to know about one specific recruiter, hiring manager or any one specific metric, show metric dynamics in time with line chart.
 	•	scatter: for correlations and comparisons on two parameters, if user wants to compare
+	•	table: for entity listings, detailed breakdowns, "who/which/list" questions
+		✅ "Список всех рекрутеров" → table with recruiter names and metrics (group_by: "recruiters")
+		✅ "Какие вакансии открыты?" → table with vacancy details (group_by: "vacancies")  
+		✅ "Покажи источники кандидатов" → table with source breakdown (group_by: "sources")
+		✅ "Таблица с кандидатами" → table with individual candidates (group_by: null)
+		✅ "Кто из рекрутеров нанял больше всех?" → table sorted by hires (group_by: "recruiters")
 
 4. Choose main metric: it should answer user's question directly
     'сколько нанял' -> hires by recruiter
@@ -351,6 +357,30 @@ Question: "Покажи общую ситуацию с наймом"
   ]
 }
 
+❌ WRONG - Using chart for entity listing:
+Question: "Покажи всех рекрутеров"
+{
+  "chart": {"type": "bar"}  // ❌ Should be "table" for listings
+}
+
+✅ CORRECT - Using table for entity listing:
+Question: "Покажи всех рекрутеров"
+{
+  "chart": {"type": "table", "y_axis": {"entity": "hires", "group_by": "recruiters"}}  // ✅ Table for detailed entity lists
+}
+
+❌ WRONG - Wrong grouping for individual candidates:
+Question: "Покажи таблицу с кандидатами"
+{
+  "chart": {"type": "table", "y_axis": {"entity": "applicants", "group_by": "stages"}}  // ❌ Should group by "applicants" for individual listings
+}
+
+✅ CORRECT - Proper grouping for individual candidates:
+Question: "Покажи таблицу с кандидатами"
+{
+  "chart": {"type": "table", "y_axis": {"entity": "applicants", "group_by": null}}  // ✅ Use null for individual candidate listings
+}
+
 
 ENTITIES AVAILABLE IN THE SYSTEM: NAMES AND ID'S
 
@@ -428,7 +458,7 @@ MANDATORY JSON SCHEMA:
       "required": ["label", "type", "x_label", "y_label", "x_axis", "y_axis"],
       "properties": {
         "label": { "type": "string" },
-        "type": { "enum": ["bar", "line", "scatter"] },
+        "type": { "enum": ["bar", "line", "scatter", "table"] },
         "x_label": { "type": "string" },
         "y_label": { "type": "string" },
         "x_axis": { "$ref": "#/definitions/query" },

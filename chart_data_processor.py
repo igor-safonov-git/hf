@@ -164,13 +164,25 @@ def _validate_chart_section(chart: Any) -> None:
     if not isinstance(chart, dict):
         raise ChartProcessingError("Chart must be a dictionary")
     
-    # Validate y_axis (required for chart processing)
-    if "y_axis" not in chart:
-        raise ChartProcessingError("Chart must have a y_axis")
+    # Get chart type (default to 'bar' if not specified)
+    chart_type = chart.get("type", "bar")
     
-    y_axis = chart["y_axis"]
-    if not isinstance(y_axis, dict):
-        raise ChartProcessingError("Y-axis must be a dictionary")
+    # Table charts have different validation requirements
+    if chart_type == "table":
+        # Tables still need y_axis for entity/filters for now (to maintain compatibility)
+        if "y_axis" not in chart:
+            raise ChartProcessingError("Chart must have a y_axis")
+        y_axis = chart["y_axis"]
+        if not isinstance(y_axis, dict):
+            raise ChartProcessingError("Y-axis must be a dictionary")
+    else:
+        # Validate y_axis (required for non-table charts)
+        if "y_axis" not in chart:
+            raise ChartProcessingError("Chart must have a y_axis")
+        
+        y_axis = chart["y_axis"]
+        if not isinstance(y_axis, dict):
+            raise ChartProcessingError("Y-axis must be a dictionary")
     
     # Entity is required
     if ENTITY_KEY not in y_axis:
@@ -323,22 +335,27 @@ async def get_scatter_chart_data(x_axis_config: dict, y_axis_config: dict, calc:
         return create_error_response("Failed to create scatter chart")
 
 
-async def get_entity_data(entity: str, group_by: Optional[str], calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> ChartData:
+async def get_entity_data(entity: str, group_by: Optional[str], calc: EnhancedMetricsCalculator, 
+                         filters: Optional[Dict[str, Any]] = None, chart_type: str = "bar") -> ChartData:
     """Get data for an entity using Universal Chart Processor - handles any entity/grouping combination"""
     try:
         # Use Universal Chart Processor for all requests
-        logger.info(f"Processing chart request via Universal Engine: entity={entity}, group_by={group_by}")
+        logger.info(f"Processing chart request via Universal Engine: entity={entity}, group_by={group_by}, chart_type={chart_type}")
         
         result = await process_chart_via_universal_engine(
             entity=entity,
             operation="count",  # Default operation for charts
             group_by=group_by,
             filters=filters,
-            calc=calc
+            calc=calc,
+            chart_type=chart_type
         )
         
-        # Add round_chart_values for consistency
-        return round_chart_values(result)
+        # Add round_chart_values for consistency only for non-table charts
+        if chart_type == "table":
+            return result
+        else:
+            return round_chart_values(result)
         
     except Exception as e:
         logger.error(f"Universal chart processing error for {entity}: {e}")
@@ -373,18 +390,25 @@ async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClien
             filters = y_axis_config.get("filters", {})
             
             try:
-                # Handle scatter charts differently
+                # Handle different chart types
                 if chart_type == "scatter":
                     x_axis_config = chart.get("x_axis", {})
                     y_axis_config = chart.get("y_axis", {})
                     
                     real_data = await get_scatter_chart_data(x_axis_config, y_axis_config, metrics_calc, filters)
+                elif chart_type == "table":
+                    # Handle table charts - tables don't need x/y axis, just entity and filters
+                    # Use y_axis as the primary data source for consistency
+                    entity = y_axis_config.get(ENTITY_KEY, "")
+                    group_by = normalize_group_by(y_axis_config.get("group_by"))
+                    
+                    real_data = await get_entity_data(entity, group_by, metrics_calc, filters, chart_type="table")
                 else:
                     # Handle regular bar/line charts
                     entity = y_axis_config.get(ENTITY_KEY, "")
                     group_by = normalize_group_by(y_axis_config.get("group_by"))
                     
-                    real_data = await get_entity_data(entity, group_by, metrics_calc, filters)
+                    real_data = await get_entity_data(entity, group_by, metrics_calc, filters, chart_type=chart_type)
                 
                 # Add title from chart label or description if not set
                 if not real_data.get("title"):
