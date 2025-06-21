@@ -77,7 +77,7 @@ class PeriodFilter:
         elif period_str == "6 month":
             start_date = now - timedelta(days=180)
             end_date = now
-        elif period_str == "year":
+        elif period_str == "year" or period_str == "1 year":
             start_date = now - timedelta(days=365)
             end_date = now
         else:

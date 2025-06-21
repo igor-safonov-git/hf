@@ -81,3 +81,64 @@ result = await calculator.get_applicants(complex_filters)
 - **Integration**: Fully compatible with existing prompt.py system
 
 **Recommendation**: Deploy immediately - all success criteria exceeded.
+
+## Development Commands
+
+### Testing
+```bash
+# Run all tests with coverage
+pytest
+
+# Run specific test file
+pytest tests/unit/test_universal_filter.py
+
+# Run integration tests only
+pytest tests/integration/
+
+# Run with verbose output
+pytest -v
+```
+
+### Running the Application
+```bash
+# Start FastAPI server
+python app.py
+
+# The app runs on localhost:8000 by default
+# Main endpoint: POST /ask for AI analytics queries
+```
+
+### Environment Setup
+- Requires `DEEPSEEK_API_KEY` environment variable
+- Uses SQLite database: `huntflow_cache.db`
+- Local data client: `HuntflowLocalClient` for cached Huntflow data
+
+## Architecture Overview
+
+### Core Components
+- **app.py**: FastAPI server with `/ask` endpoint for AI analytics
+- **prompt.py**: Main AI prompt engineering for HR analytics (1500+ lines)
+- **enhanced_metrics_calculator.py**: Universal filtering integration layer
+- **universal_filter_engine.py**: Core filtering logic engine
+- **universal_filter.py**: Type-safe filter data structures
+- **huntflow_local_client.py**: SQLite-based Huntflow API client
+- **context_data_injector.py**: Dynamic context injection for AI responses
+
+### Data Flow
+1. User question → `/ask` endpoint
+2. `prompt.py` processes natural language → structured filters
+3. `EnhancedMetricsCalculator` → `UniversalFilterEngine` → filtered data
+4. `chart_data_processor.py` → visualization JSON
+5. AI generates Russian language analytics response
+
+### Entity Relationships
+- **Entities**: applicants, vacancies, hires, recruiters, sources, divisions
+- **Universal Filtering**: Every entity can filter by every other entity
+- **Logical Operators**: AND/OR combinations with nested support
+- **Time Filtering**: period-based filtering (1 month, 3 month, etc.)
+
+### Key Patterns
+- All AI responses must be in Russian for user-facing text
+- JSON schema compliance enforced for chart outputs
+- Real Huntflow data only - no mock/test data in production
+- Async/await throughout for performance

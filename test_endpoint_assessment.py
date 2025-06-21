@@ -69,6 +69,10 @@ class EndpointAssessor:
         """Analyze AI response structure and filtering usage"""
         print(f"📊 Analysis:")
         
+        # Check report-level period (NEW schema)
+        report_period = ai_response.get("period", "N/A")
+        print(f"   ⏱️  Report period: {report_period}")
+        
         # Check main metric
         if "main_metric" in ai_response:
             main_metric = ai_response["main_metric"]
@@ -107,7 +111,10 @@ class EndpointAssessor:
                     all_filters.extend([y_filters, x_filters])
         
         # Analyze filtering sophistication
-        has_basic_filters = any("period" in f for f in all_filters)
+        # Check for report-level period (NEW schema)
+        has_report_period = "period" in ai_response
+        # Check for period in filters (OLD schema - should be empty now)
+        has_period_in_filters = any("period" in f for f in all_filters)
         has_entity_filters = any(any(k in f for k in ["recruiters", "sources", "vacancies"]) for f in all_filters)
         has_logical_operators = any(any(k in f for k in ["and", "or"]) for f in all_filters)
         has_advanced_operators = any(
@@ -116,7 +123,9 @@ class EndpointAssessor:
         )
         
         print(f"   🎯 Filtering assessment:")
-        print(f"      Basic filters (period): {'✅' if has_basic_filters else '❌'}")
+        print(f"      Report-level period: {'✅' if has_report_period else '❌'}")
+        print(f"      Period in filters (OLD): {'⚠️ ' if has_period_in_filters else '✅'}")
+        print(f"      Basic filters (period): {'✅' if has_report_period else '❌'}")
         print(f"      Entity filters: {'✅' if has_entity_filters else '❌'}")
         print(f"      Logical operators (and/or): {'✅' if has_logical_operators else '❌'}")
         print(f"      Advanced operators: {'✅' if has_advanced_operators else '❌'}")

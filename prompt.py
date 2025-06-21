@@ -424,9 +424,13 @@ MANDATORY JSON SCHEMA:
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "HR Analytics Report",
   "type": "object",
-  "required": ["report_title", "main_metric", "secondary_metrics", "chart"],
+  "required": ["report_title", "period", "main_metric", "secondary_metrics", "chart"],
   "properties": {
     "report_title": { "type": "string" },
+    "period": { 
+      "type": "string",
+      "enum": ["year", "6 month", "3 month", "1 month", "2 weeks", "this week", "today"]
+    },
 
     "main_metric": {
       "type": "object",
@@ -495,6 +499,7 @@ MANDATORY RESPONSE TEMPLATE:
 
 {
   "report_title": "Краткий заголовок отчета",
+  "period": "1 year",
   "main_metric": {
     "label": "Основная метрика",
     "value": {
@@ -503,7 +508,6 @@ MANDATORY RESPONSE TEMPLATE:
       "value_field": null,
       "group_by": null,
       "filters": {
-        "period": "1 year"
       }
     }
   },
@@ -516,7 +520,6 @@ MANDATORY RESPONSE TEMPLATE:
         "value_field": null,
         "group_by": null,
         "filters": {
-          "period": "1 year"
         }
       }
     },
@@ -528,7 +531,6 @@ MANDATORY RESPONSE TEMPLATE:
         "value_field": null,
         "group_by": null,
         "filters": {
-          "period": "1 year",
           "vacancies": "open"
         }
       }
@@ -548,7 +550,6 @@ NEVER use "operation": "avg" in secondary metrics unless the label explicitly co
       "value_field": null,
       "group_by": { "field": "stages" },
       "filters": {
-        "period": "1 year"
       }
     },
     "y_axis": {
@@ -557,7 +558,6 @@ NEVER use "operation": "avg" in secondary metrics unless the label explicitly co
       "value_field": null,
       "group_by": { "field": "stages" },
       "filters": {
-        "period": "1 year"
       }
     }
   }

@@ -82,6 +82,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "general_pipeline",
             "report_json": {
                 "report_title": "Общая воронка найма",
+                "period": "3 month",
                 "main_metric": {
                     "label": "Всего кандидатов в работе",
                     "value": {
@@ -89,7 +90,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "applicants",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "3 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -100,7 +101,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires", 
                             "value_field": "time_to_hire",
                             "group_by": None,
-                            "filters": {"period": "3 month"}
+                            "filters": {}
                         }
                     },
                     {
@@ -110,7 +111,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "3 month"}
+                            "filters": {}
                         }
                     }
                 ],
@@ -124,14 +125,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "stages",
                         "value_field": None,
                         "group_by": {"field": "stages"},
-                        "filters": {"period": "3 month"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "applicants",
                         "value_field": None,
                         "group_by": {"field": "stages"},
-                        "filters": {"period": "3 month"}
+                        "filters": {}
                     }
                 }
             },
@@ -146,6 +147,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "general_pipeline",
             "report_json": {
                 "report_title": "Конверсия по этапам найма",
+                "period": "6 month",
                 "main_metric": {
                     "label": "Общая конверсия в найм (%)",
                     "value": {
@@ -153,7 +155,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "vacancies",
                         "value_field": "conversion",
                         "group_by": None,
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -164,7 +166,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month", "stages": "103677"}
+                            "filters": {"stages": "103677"}
                         }
                     },
                     {
@@ -174,7 +176,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month", "stages": "103675"}
+                            "filters": {"stages": "103675"}
                         }
                     }
                 ],
@@ -188,14 +190,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "stages",
                         "value_field": None,
                         "group_by": {"field": "stages"},
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "avg",
                         "entity": "applicants",
                         "value_field": "conversion",
                         "group_by": {"field": "stages"},
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     }
                 }
             },
@@ -210,6 +212,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "general_pipeline", 
             "report_json": {
                 "report_title": "Динамика найма по месяцам",
+                "period": "1 month",
                 "main_metric": {
                     "label": "Нанято в этом месяце",
                     "value": {
@@ -217,7 +220,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "hires",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "1 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -228,7 +231,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "2 month"}
+                            "filters": {}
                         }
                     },
                     {
@@ -238,7 +241,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month"}
+                            "filters": {}
                         }
                     }
                 ],
@@ -253,14 +256,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "value_field": None,
                         "group_by": {"field": "month"},
                         "date_trunc": "month",
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "hires",
                         "value_field": None,
                         "group_by": {"field": "month"},
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     }
                 }
             },
@@ -288,7 +291,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month", "recruiters": recruiter["id"]}
+                            "filters": {"recruiters": recruiter["id"]}
                         }
                     },
                     "secondary_metrics": [
@@ -299,7 +302,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "applicants",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "6 month", "recruiters": recruiter["id"]}
+                                "filters": {"recruiters": recruiter["id"]}
                             }
                         },
                         {
@@ -309,7 +312,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": "time_to_hire",
                                 "group_by": None,
-                                "filters": {"period": "6 month", "recruiters": recruiter["id"]}
+                                "filters": {"recruiters": recruiter["id"]}
                             }
                         }
                     ],
@@ -324,14 +327,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "value_field": None,
                             "group_by": {"field": "month"},
                             "date_trunc": "month",
-                            "filters": {"period": "6 month", "recruiters": recruiter["id"]}
+                            "filters": {"recruiters": recruiter["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "hires",
                             "value_field": None,
                             "group_by": {"field": "month"},
-                            "filters": {"period": "6 month", "recruiters": recruiter["id"]}
+                            "filters": {"recruiters": recruiter["id"]}
                         }
                     }
                 },
@@ -353,7 +356,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "vacancies",
                             "value_field": "conversion",
                             "group_by": None,
-                            "filters": {"period": "3 month", "recruiters": recruiter["id"]}
+                            "filters": {"recruiters": recruiter["id"]}
                         }
                     },
                     "secondary_metrics": [
@@ -364,7 +367,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "vacancies",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "3 month", "recruiters": recruiter["id"]}
+                                "filters": {"recruiters": recruiter["id"]}
                             }
                         },
                         {
@@ -374,7 +377,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "vacancies",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "3 month", "recruiters": recruiter["id"], "vacancies": "closed"}
+                                "filters": {"recruiters": recruiter["id"], "vacancies": "closed"}
                             }
                         }
                     ],
@@ -388,14 +391,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "stages",
                             "value_field": None,
                             "group_by": {"field": "stages"},
-                            "filters": {"period": "3 month", "recruiters": recruiter["id"]}
+                            "filters": {"recruiters": recruiter["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": {"field": "stages"},
-                            "filters": {"period": "3 month", "recruiters": recruiter["id"]}
+                            "filters": {"recruiters": recruiter["id"]}
                         }
                     }
                 },
@@ -417,7 +420,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month", "recruiters": recruiter["id"], "sources": "274883"}
+                            "filters": {"recruiters": recruiter["id"], "sources": "274883"}
                         }
                     },
                     "secondary_metrics": [
@@ -428,7 +431,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "applicants",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "6 month", "recruiters": recruiter["id"], "sources": "274886"}
+                                "filters": {"recruiters": recruiter["id"], "sources": "274886"}
                             }
                         },
                         {
@@ -438,7 +441,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "sources",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "6 month", "recruiters": recruiter["id"]}
+                                "filters": {"recruiters": recruiter["id"]}
                             }
                         }
                     ],
@@ -452,14 +455,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "sources",
                             "value_field": None,
                             "group_by": {"field": "sources"},
-                            "filters": {"period": "6 month", "recruiters": recruiter["id"]}
+                            "filters": {"recruiters": recruiter["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": {"field": "sources"},
-                            "filters": {"period": "6 month", "recruiters": recruiter["id"]}
+                            "filters": {"recruiters": recruiter["id"]}
                         }
                     }
                 },
@@ -488,7 +491,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "hires",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "6 month", "sources": source["id"]}
+                        "filters": {"sources": source["id"]}
                     }
                 },
                 "secondary_metrics": [
@@ -499,7 +502,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month", "sources": source["id"]}
+                            "filters": {"sources": source["id"]}
                         }
                     },
                     {
@@ -509,7 +512,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": "time_to_hire",
                             "group_by": None,
-                            "filters": {"period": "6 month", "sources": source["id"]}
+                            "filters": {"sources": source["id"]}
                         }
                     }
                 ],
@@ -524,14 +527,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "value_field": None,
                         "group_by": {"field": "month"},
                         "date_trunc": "month",
-                        "filters": {"period": "6 month", "sources": source["id"]}
+                        "filters": {"sources": source["id"]}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "hires",
                         "value_field": None,
                         "group_by": {"field": "month"},
-                        "filters": {"period": "6 month", "sources": source["id"]}
+                        "filters": {"sources": source["id"]}
                     }
                 }
             },
@@ -548,14 +551,15 @@ def create_sample_reports() -> List[Dict[str, Any]]:
         "category": "source_effectiveness",
         "report_json": {
             "report_title": "Сравнение эффективности источников",
-            "main_metric": {
+                "period": "6 month",
+                "main_metric": {
                 "label": "Лучший источник по найму",
                 "value": {
                     "operation": "count",
                     "entity": "hires",
                     "value_field": None,
                     "group_by": None,
-                    "filters": {"period": "6 month"}
+                    "filters": {}
                 }
             },
             "secondary_metrics": [
@@ -566,7 +570,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "applicants",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     }
                 },
                 {
@@ -576,7 +580,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "hires",
                         "value_field": "time_to_hire",
                         "group_by": None,
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     }
                 }
             ],
@@ -590,14 +594,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                     "entity": "sources",
                     "value_field": None,
                     "group_by": {"field": "sources"},
-                    "filters": {"period": "6 month"}
+                    "filters": {}
                 },
                 "y_axis": {
                     "operation": "count",
                     "entity": "hires",
                     "value_field": None,
                     "group_by": {"field": "sources"},
-                    "filters": {"period": "6 month"}
+                    "filters": {}
                 }
             }
         },
@@ -626,7 +630,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "3 month", "vacancies": vacancy["id"]}
+                            "filters": {"vacancies": vacancy["id"]}
                         }
                     },
                     "secondary_metrics": [
@@ -647,7 +651,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "3 month", "vacancies": vacancy["id"]}
+                                "filters": {"vacancies": vacancy["id"]}
                             }
                         }
                     ],
@@ -661,14 +665,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "stages",
                             "value_field": None,
                             "group_by": {"field": "stages"},
-                            "filters": {"period": "3 month", "vacancies": vacancy["id"]}
+                            "filters": {"vacancies": vacancy["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": {"field": "stages"},
-                            "filters": {"period": "3 month", "vacancies": vacancy["id"]}
+                            "filters": {"vacancies": vacancy["id"]}
                         }
                     }
                 },
@@ -690,7 +694,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "3 month", "vacancies": vacancy["id"], "sources": "274883"}
+                            "filters": {"vacancies": vacancy["id"], "sources": "274883"}
                         }
                     },
                     "secondary_metrics": [
@@ -701,7 +705,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "applicants",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "3 month", "vacancies": vacancy["id"], "sources": "274886"}
+                                "filters": {"vacancies": vacancy["id"], "sources": "274886"}
                             }
                         },
                         {
@@ -711,7 +715,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "sources",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "3 month", "vacancies": vacancy["id"]}
+                                "filters": {"vacancies": vacancy["id"]}
                             }
                         }
                     ],
@@ -725,14 +729,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "sources",
                             "value_field": None,
                             "group_by": {"field": "sources"},
-                            "filters": {"period": "3 month", "vacancies": vacancy["id"]}
+                            "filters": {"vacancies": vacancy["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": {"field": "sources"},
-                            "filters": {"period": "3 month", "vacancies": vacancy["id"]}
+                            "filters": {"vacancies": vacancy["id"]}
                         }
                     }
                 },
@@ -754,7 +758,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": "time_to_hire",
                             "group_by": None,
-                            "filters": {"period": "6 month", "vacancies": vacancy["id"]}
+                            "filters": {"vacancies": vacancy["id"]}
                         }
                     },
                     "secondary_metrics": [
@@ -790,14 +794,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "value_field": None,
                             "group_by": {"field": "month"},
                             "date_trunc": "month",
-                            "filters": {"period": "6 month", "vacancies": vacancy["id"]}
+                            "filters": {"vacancies": vacancy["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "hires",
                             "value_field": None,
                             "group_by": {"field": "month"},
-                            "filters": {"period": "6 month", "vacancies": vacancy["id"]}
+                            "filters": {"vacancies": vacancy["id"]}
                         }
                     }
                 },
@@ -827,7 +831,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month", "divisions": division["id"]}
+                            "filters": {"divisions": division["id"]}
                         }
                     },
                     "secondary_metrics": [
@@ -838,7 +842,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "applicants",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "6 month", "divisions": division["id"]}
+                                "filters": {"divisions": division["id"]}
                             }
                         },
                         {
@@ -863,14 +867,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "value_field": None,
                             "group_by": {"field": "month"},
                             "date_trunc": "month",
-                            "filters": {"period": "6 month", "divisions": division["id"]}
+                            "filters": {"divisions": division["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "hires",
                             "value_field": None,
                             "group_by": {"field": "month"},
-                            "filters": {"period": "6 month", "divisions": division["id"]}
+                            "filters": {"divisions": division["id"]}
                         }
                     }
                 },
@@ -892,7 +896,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month", "divisions": division["id"], "sources": "274883"}
+                            "filters": {"divisions": division["id"], "sources": "274883"}
                         }
                     },
                     "secondary_metrics": [
@@ -903,7 +907,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "applicants",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "6 month", "divisions": division["id"], "sources": "274886"}
+                                "filters": {"divisions": division["id"], "sources": "274886"}
                             }
                         },
                         {
@@ -913,7 +917,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": "time_to_hire",
                                 "group_by": None,
-                                "filters": {"period": "6 month", "divisions": division["id"]}
+                                "filters": {"divisions": division["id"]}
                             }
                         }
                     ],
@@ -927,14 +931,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "sources",
                             "value_field": None,
                             "group_by": {"field": "sources"},
-                            "filters": {"period": "6 month", "divisions": division["id"]}
+                            "filters": {"divisions": division["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": {"field": "sources"},
-                            "filters": {"period": "6 month", "divisions": division["id"]}
+                            "filters": {"divisions": division["id"]}
                         }
                     }
                 },
@@ -955,6 +959,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "time_analysis",
             "report_json": {
                 "report_title": "Сравнение найма по месяцам",
+                "period": "1 month",
                 "main_metric": {
                     "label": "Нанято в этом месяце",
                     "value": {
@@ -962,7 +967,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "hires",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "1 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -973,7 +978,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "2 month"}
+                            "filters": {}
                         }
                     },
                     {
@@ -983,7 +988,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": "count",
                             "group_by": None,
-                            "filters": {"period": "6 month"}
+                            "filters": {}
                         }
                     }
                 ],
@@ -998,14 +1003,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "value_field": None,
                         "group_by": {"field": "month"},
                         "date_trunc": "month",
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "hires",
                         "value_field": None,
                         "group_by": {"field": "month"},
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     }
                 }
             },
@@ -1020,6 +1025,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "time_analysis",
             "report_json": {
                 "report_title": "Сезонность найма",
+                "period": "3 month",
                 "main_metric": {
                     "label": "Нанято за текущий квартал",
                     "value": {
@@ -1027,7 +1033,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "hires",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "3 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -1038,7 +1044,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "3 month"}
+                            "filters": {}
                         }
                     },
                     {
@@ -1048,7 +1054,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "vacancies",
                             "value_field": "conversion",
                             "group_by": None,
-                            "filters": {"period": "3 month"}
+                            "filters": {}
                         }
                     }
                 ],
@@ -1063,14 +1069,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "value_field": None,
                         "group_by": {"field": "month"},
                         "date_trunc": "month",
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "hires",
                         "value_field": None,
                         "group_by": {"field": "month"},
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     }
                 }
             },
@@ -1099,7 +1105,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "actions",
                         "value_field": "count",
                         "group_by": None,
-                        "filters": {"period": "3 month", "hiring_managers": hm["id"]}
+                        "filters": {"hiring_managers": hm["id"]}
                     }
                 },
                 "secondary_metrics": [
@@ -1110,7 +1116,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "actions",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "3 month", "hiring_managers": hm["id"], "actions": "interview"}
+                            "filters": {"hiring_managers": hm["id"], "actions": "interview"}
                         }
                     },
                     {
@@ -1120,7 +1126,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "3 month", "hiring_managers": hm["id"]}
+                            "filters": {"hiring_managers": hm["id"]}
                         }
                     }
                 ],
@@ -1135,14 +1141,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "value_field": None,
                         "group_by": {"field": "month"},
                         "date_trunc": "month",
-                        "filters": {"period": "6 month", "hiring_managers": hm["id"], "actions": "interview"}
+                        "filters": {"hiring_managers": hm["id"], "actions": "interview"}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "actions",
                         "value_field": None,
                         "group_by": {"field": "month"},
-                        "filters": {"period": "6 month", "hiring_managers": hm["id"], "actions": "interview"}
+                        "filters": {"hiring_managers": hm["id"], "actions": "interview"}
                     }
                 }
             },
@@ -1162,6 +1168,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "comparison_analysis",
             "report_json": {
                 "report_title": "Сравнение рекрутеров по эффективности",
+                "period": "6 month",
                 "main_metric": {
                     "label": "Лучший рекрутер по найму",
                     "value": {
@@ -1169,7 +1176,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "hires",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -1180,7 +1187,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": "time_to_hire",
                             "group_by": None,
-                            "filters": {"period": "6 month"}
+                            "filters": {}
                         }
                     },
                     {
@@ -1190,7 +1197,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "recruiters",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "6 month", "recruiters": "with_vacancies"}
+                            "filters": {"recruiters": "with_vacancies"}
                         }
                     }
                 ],
@@ -1204,14 +1211,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "applicants",
                         "value_field": None,
                         "group_by": {"field": "recruiters"},
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "hires",
                         "value_field": None,
                         "group_by": {"field": "recruiters"},
-                        "filters": {"period": "6 month"}
+                        "filters": {}
                     }
                 }
             },
@@ -1226,6 +1233,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "comparison_analysis",
             "report_json": {
                 "report_title": "Анализ воронки отказов",
+                "period": "3 month",
                 "main_metric": {
                     "label": "Всего отказов",
                     "value": {
@@ -1233,7 +1241,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "rejections",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "3 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -1244,7 +1252,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "rejections",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "3 month", "stages": "103677"}
+                            "filters": {"stages": "103677"}
                         }
                     },
                     {
@@ -1254,7 +1262,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "stages",
                             "value_field": "conversion",
                             "group_by": None,
-                            "filters": {"period": "3 month", "stages": "hire"}
+                            "filters": {"stages": "hire"}
                         }
                     }
                 ],
@@ -1268,14 +1276,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "stages",
                         "value_field": None,
                         "group_by": {"field": "stages"},
-                        "filters": {"period": "3 month", "stages": "rejection"}
+                        "filters": {"stages": "rejection"}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "rejections",
                         "value_field": None,
                         "group_by": {"field": "stages"},
-                        "filters": {"period": "3 month"}
+                        "filters": {}
                     }
                 }
             },
@@ -1290,6 +1298,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "comparison_analysis",
             "report_json": {
                 "report_title": "Общая эффективность системы найма",
+                "period": "1 year",
                 "main_metric": {
                     "label": "Общая конверсия найма (%)",
                     "value": {
@@ -1297,7 +1306,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "vacancies",
                         "value_field": "conversion",
                         "group_by": None,
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -1308,7 +1317,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": "time_to_hire",
                             "group_by": None,
-                            "filters": {"period": "1 year"}
+                            "filters": {}
                         }
                     },
                     {
@@ -1318,7 +1327,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "vacancies",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "1 year", "vacancies": "closed"}
+                            "filters": {"vacancies": "closed"}
                         }
                     }
                 ],
@@ -1333,14 +1342,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "value_field": None,
                         "group_by": {"field": "month"},
                         "date_trunc": "month",
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "avg",
                         "entity": "vacancies",
                         "value_field": "conversion",
                         "group_by": {"field": "month"},
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     }
                 }
             },
@@ -1355,6 +1364,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "general_pipeline",
             "report_json": {
                 "report_title": "Итоговая сводка по найму",
+                "period": "1 year",
                 "main_metric": {
                     "label": "Всего нанято за год",
                     "value": {
@@ -1362,7 +1372,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "hires",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -1373,7 +1383,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "1 year"}
+                            "filters": {}
                         }
                     },
                     {
@@ -1398,14 +1408,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "value_field": None,
                         "group_by": {"field": "month"},
                         "date_trunc": "month",
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "hires",
                         "value_field": None,
                         "group_by": {"field": "month"},
-                        "filters": {"period": "1 year"}
+                        "filters": {}
                     }
                 }
             },
@@ -1441,9 +1451,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {
-                                "period": "6 month",
-                                "and": [
+                            "filters": {"and": [
                                     {"recruiters": recruiter["id"]},
                                     {"sources": source["id"]}
                                 ]
@@ -1458,9 +1466,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "applicants",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {
-                                    "period": "6 month",
-                                    "and": [
+                                "filters": {"and": [
                                         {"recruiters": recruiter["id"]},
                                         {"sources": source["id"]}
                                     ]
@@ -1474,9 +1480,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "vacancies",
                                 "value_field": "conversion",
                                 "group_by": None,
-                                "filters": {
-                                    "period": "6 month",
-                                    "and": [
+                                "filters": {"and": [
                                         {"recruiters": recruiter["id"]},
                                         {"sources": source["id"]}
                                     ]
@@ -1495,9 +1499,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "value_field": None,
                             "group_by": {"field": "month"},
                             "date_trunc": "month",
-                            "filters": {
-                                "period": "6 month",
-                                "and": [
+                            "filters": {"and": [
                                     {"recruiters": recruiter["id"]},
                                     {"sources": source["id"]}
                                 ]
@@ -1508,9 +1510,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": {"field": "month"},
-                            "filters": {
-                                "period": "6 month",
-                                "and": [
+                            "filters": {"and": [
                                     {"recruiters": recruiter["id"]},
                                     {"sources": source["id"]}
                                 ]
@@ -1536,9 +1536,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {
-                                "period": "3 month",
-                                "or": [
+                            "filters": {"or": [
                                     {"sources": source["id"]},
                                     {"sources": ENTITIES['sources'][(i+1) % len(ENTITIES['sources'])]["id"]}
                                 ]
@@ -1553,7 +1551,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "3 month", "sources": source["id"]}
+                                "filters": {"sources": source["id"]}
                             }
                         },
                         {
@@ -1563,7 +1561,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "3 month", "sources": ENTITIES['sources'][(i+1) % len(ENTITIES['sources'])]["id"]}
+                                "filters": {"sources": ENTITIES['sources'][(i+1) % len(ENTITIES['sources'])]["id"]}
                             }
                         }
                     ],
@@ -1577,9 +1575,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "sources",
                             "value_field": None,
                             "group_by": {"field": "sources"},
-                            "filters": {
-                                "period": "3 month",
-                                "sources": {"operator": "in", "value": [source["id"], ENTITIES['sources'][(i+1) % len(ENTITIES['sources'])]["id"]]}
+                            "filters": {"sources": {"operator": "in", "value": [source["id"], ENTITIES['sources'][(i+1) % len(ENTITIES['sources'])]["id"]]}
                             }
                         },
                         "y_axis": {
@@ -1587,9 +1583,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": {"field": "sources"},
-                            "filters": {
-                                "period": "3 month",
-                                "sources": {"operator": "in", "value": [source["id"], ENTITIES['sources'][(i+1) % len(ENTITIES['sources'])]["id"]]}
+                            "filters": {"sources": {"operator": "in", "value": [source["id"], ENTITIES['sources'][(i+1) % len(ENTITIES['sources'])]["id"]]}
                             }
                         }
                     }
@@ -1694,9 +1688,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "actions",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {
-                                "period": "2 weeks",
-                                "and": [
+                            "filters": {"and": [
                                     {"recruiters": recruiter["id"]},
                                     {"divisions": division["id"]},
                                     {
@@ -1717,9 +1709,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "actions",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {
-                                    "period": "2 weeks",
-                                    "and": [
+                                "filters": {"and": [
                                         {"recruiters": recruiter["id"]},
                                         {"divisions": division["id"]},
                                         {"actions": "add"}
@@ -1734,9 +1724,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "actions",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {
-                                    "period": "2 weeks",
-                                    "and": [
+                                "filters": {"and": [
                                         {"recruiters": recruiter["id"]},
                                         {"divisions": division["id"]},
                                         {"actions": "interview"}
@@ -1756,9 +1744,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "value_field": None,
                             "group_by": {"field": "day"},
                             "date_trunc": "day",
-                            "filters": {
-                                "period": "2 weeks",
-                                "and": [
+                            "filters": {"and": [
                                     {"recruiters": recruiter["id"]},
                                     {"divisions": division["id"]}
                                 ]
@@ -1769,9 +1755,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "actions",
                             "value_field": None,
                             "group_by": {"field": "day"},
-                            "filters": {
-                                "period": "2 weeks",
-                                "and": [
+                            "filters": {"and": [
                                     {"recruiters": recruiter["id"]},
                                     {"divisions": division["id"]}
                                 ]
@@ -1797,9 +1781,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {
-                                "period": "6 month",
-                                "time_to_hire": {"operator": "between", "value": [10, 50]}
+                            "filters": {"time_to_hire": {"operator": "between", "value": [10, 50]}
                             }
                         }
                     },
@@ -1811,9 +1793,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {
-                                    "period": "6 month",
-                                    "time_to_hire": {"operator": "lt", "value": 10}
+                                "filters": {"time_to_hire": {"operator": "lt", "value": 10}
                                 }
                             }
                         },
@@ -1824,9 +1804,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {
-                                    "period": "6 month",
-                                    "time_to_hire": {"operator": "gt", "value": 50}
+                                "filters": {"time_to_hire": {"operator": "gt", "value": 50}
                                 }
                             }
                         }
@@ -1841,14 +1819,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": "time_to_hire",
                             "group_by": {"field": "time_to_hire"},
-                            "filters": {"period": "6 month"}
+                            "filters": {}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "hires",
                             "value_field": None,
                             "group_by": {"field": "time_to_hire"},
-                            "filters": {"period": "6 month"}
+                            "filters": {}
                         }
                     }
                 },
@@ -1870,9 +1848,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "vacancies",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {
-                                "period": "3 month",
-                                "position": {"operator": "contains", "value": "разработ"}
+                            "filters": {"position": {"operator": "contains", "value": "разработ"}
                             }
                         }
                     },
@@ -1884,9 +1860,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "applicants",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {
-                                    "period": "3 month",
-                                    "vacancy_position": {"operator": "contains", "value": "разработ"}
+                                "filters": {"vacancy_position": {"operator": "contains", "value": "разработ"}
                                 }
                             }
                         },
@@ -1897,9 +1871,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {
-                                    "period": "3 month",
-                                    "vacancy_position": {"operator": "contains", "value": "разработ"}
+                                "filters": {"vacancy_position": {"operator": "contains", "value": "разработ"}
                                 }
                             }
                         }
@@ -1914,9 +1886,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "stages",
                             "value_field": None,
                             "group_by": {"field": "stages"},
-                            "filters": {
-                                "period": "3 month",
-                                "vacancy_position": {"operator": "contains", "value": "разработ"}
+                            "filters": {"vacancy_position": {"operator": "contains", "value": "разработ"}
                             }
                         },
                         "y_axis": {
@@ -1924,9 +1894,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": {"field": "stages"},
-                            "filters": {
-                                "period": "3 month",
-                                "vacancy_position": {"operator": "contains", "value": "разработ"}
+                            "filters": {"vacancy_position": {"operator": "contains", "value": "разработ"}
                             }
                         }
                     }
@@ -2015,20 +1983,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": "time_to_hire",
                             "group_by": {"field": "time_to_hire"},
-                            "filters": {
-                                "sources": source["id"],
-                                "period": "6 month"
-                            }
+                            "filters": {"sources": source["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "hires",
                             "value_field": None,
                             "group_by": {"field": "time_to_hire"},
-                            "filters": {
-                                "sources": source["id"],
-                                "period": "6 month"
-                            }
+                            "filters": {"sources": source["id"]}
                         }
                     }
                 },
@@ -2251,6 +2213,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "abstract_questions",
             "report_json": {
                 "report_title": "Состояние воронки найма",
+                "period": "1 month",
                 "main_metric": {
                     "label": "Кандидатов в воронке",
                     "value": {
@@ -2258,7 +2221,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "applicants",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "1 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -2269,7 +2232,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "actions",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "1 month", "actions": "move"}
+                            "filters": {"actions": "move"}
                         }
                     },
                     {
@@ -2279,7 +2242,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "vacancies",
                             "value_field": "conversion",
                             "group_by": None,
-                            "filters": {"period": "1 month"}
+                            "filters": {}
                         }
                     }
                 ],
@@ -2293,14 +2256,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "stages",
                         "value_field": None,
                         "group_by": {"field": "stages"},
-                        "filters": {"period": "1 month"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "applicants",
                         "value_field": None,
                         "group_by": {"field": "stages"},
-                        "filters": {"period": "1 month"}
+                        "filters": {}
                     }
                 }
             },
@@ -2315,6 +2278,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "abstract_questions",
             "report_json": {
                 "report_title": "Общая ситуация с наймом",
+                "period": "1 month",
                 "main_metric": {
                     "label": "Нанято за месяц",
                     "value": {
@@ -2322,7 +2286,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "hires",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "1 month"}
+                        "filters": {}
                     }
                 },
                 "secondary_metrics": [
@@ -2333,7 +2297,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "1 month"}
+                            "filters": {}
                         }
                     },
                     {
@@ -2343,7 +2307,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "hires",
                             "value_field": "time_to_hire",
                             "group_by": None,
-                            "filters": {"period": "1 month"}
+                            "filters": {}
                         }
                     }
                 ],
@@ -2358,14 +2322,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "value_field": None,
                         "group_by": {"field": "day"},
                         "date_trunc": "day",
-                        "filters": {"period": "1 month"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "actions",
                         "value_field": None,
                         "group_by": {"field": "day"},
-                        "filters": {"period": "1 month"}
+                        "filters": {}
                     }
                 }
             },
@@ -2380,6 +2344,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
             "category": "abstract_questions",
             "report_json": {
                 "report_title": "Активность команды",
+                "period": "2 weeks",
                 "main_metric": {
                     "label": "Активных рекрутеров",
                     "value": {
@@ -2387,7 +2352,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "recruiters",
                         "value_field": None,
                         "group_by": None,
-                        "filters": {"period": "2 weeks", "recruiters": "with_vacancies"}
+                        "filters": {"recruiters": "with_vacancies"}
                     }
                 },
                 "secondary_metrics": [
@@ -2398,7 +2363,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "actions",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "2 weeks"}
+                            "filters": {}
                         }
                     },
                     {
@@ -2408,7 +2373,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "actions",
                             "value_field": "count",
                             "group_by": None,
-                            "filters": {"period": "2 weeks"}
+                            "filters": {}
                         }
                     }
                 ],
@@ -2422,14 +2387,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                         "entity": "recruiters",
                         "value_field": None,
                         "group_by": {"field": "recruiters"},
-                        "filters": {"period": "2 weeks"}
+                        "filters": {}
                     },
                     "y_axis": {
                         "operation": "count",
                         "entity": "actions",
                         "value_field": None,
                         "group_by": {"field": "recruiters"},
-                        "filters": {"period": "2 weeks"}
+                        "filters": {}
                     }
                 }
             },
@@ -2457,7 +2422,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": ["rejections", "hires", "hires", "recruiters", "vacancies"][i],
                             "value_field": [None, None, "quality_score", "performance", None][i],
                             "group_by": None,
-                            "filters": {"period": "1 month"} if i != 4 else {"and": [{"vacancies": "open"}, {"days_active": {"operator": "gt", "value": 45}}]}
+                            "filters": {} if i != 4 else {"and": [{"vacancies": "open"}, {"days_active": {"operator": "gt", "value": 45}}]}
                         }
                     },
                     "secondary_metrics": [
@@ -2468,7 +2433,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "applicants",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "1 month"}
+                                "filters": {}
                             }
                         }
                     ],
@@ -2482,14 +2447,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "stages",
                             "value_field": None,
                             "group_by": {"field": "stages"},
-                            "filters": {"period": "1 month"}
+                            "filters": {}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": {"field": "stages"},
-                            "filters": {"period": "1 month"}
+                            "filters": {}
                         }
                     }
                 },
@@ -2514,7 +2479,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": None,
-                            "filters": {"period": "1 month", "divisions": division["id"]}
+                            "filters": {"divisions": division["id"]}
                         }
                     },
                     "secondary_metrics": [
@@ -2525,7 +2490,7 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                                 "entity": "hires",
                                 "value_field": None,
                                 "group_by": None,
-                                "filters": {"period": "1 month", "divisions": division["id"]}
+                                "filters": {"divisions": division["id"]}
                             }
                         },
                         {
@@ -2550,14 +2515,14 @@ def create_sample_reports() -> List[Dict[str, Any]]:
                             "value_field": None,
                             "group_by": {"field": "week"},
                             "date_trunc": "week",
-                            "filters": {"period": "1 month", "divisions": division["id"]}
+                            "filters": {"divisions": division["id"]}
                         },
                         "y_axis": {
                             "operation": "count",
                             "entity": "applicants",
                             "value_field": None,
                             "group_by": {"field": "week"},
-                            "filters": {"period": "1 month", "divisions": division["id"]}
+                            "filters": {"divisions": division["id"]}
                         }
                     }
                 },

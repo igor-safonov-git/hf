@@ -51,33 +51,6 @@ class EnhancedMetricsCalculator:
             logger.warning(f"Failed to parse date: {date_str}")
             return datetime.min
     
-    def _apply_period_filter(self, logs: List[Dict[str, Any]], period_str: str) -> List[Dict[str, Any]]:
-        """Apply period filtering with proper date parsing for logs"""
-        if '3 month' in period_str:
-            cutoff_date = datetime.now() - timedelta(days=90)
-            return [log for log in logs if self._parse_date(log.get('created', '')) >= cutoff_date]
-        elif '6 month' in period_str:
-            cutoff_date = datetime.now() - timedelta(days=180)
-            return [log for log in logs if self._parse_date(log.get('created', '')) >= cutoff_date]
-        elif '1 year' in period_str:
-            cutoff_date = datetime.now() - timedelta(days=365)
-            return [log for log in logs if self._parse_date(log.get('created', '')) >= cutoff_date]
-        else:
-            return logs
-    
-    def _apply_period_filter_hires(self, hires: List[Dict[str, Any]], period_str: str) -> List[Dict[str, Any]]:
-        """Apply period filtering with proper date parsing for hires data"""
-        if '3 month' in period_str:
-            cutoff_date = datetime.now() - timedelta(days=90)
-            return [hire for hire in hires if self._parse_date(hire.get('hired_date', '')) >= cutoff_date]
-        elif '6 month' in period_str:
-            cutoff_date = datetime.now() - timedelta(days=180)
-            return [hire for hire in hires if self._parse_date(hire.get('hired_date', '')) >= cutoff_date]
-        elif '1 year' in period_str:
-            cutoff_date = datetime.now() - timedelta(days=365)
-            return [hire for hire in hires if self._parse_date(hire.get('hired_date', '')) >= cutoff_date]
-        else:
-            return hires
     
     @property
     def cached_log_analyzer(self):
@@ -135,17 +108,11 @@ class EnhancedMetricsCalculator:
             open_vacancy_ids = {log.get('vacancy_id', log.get('vacancy')) 
                               for log in status_logs if log.get('vacancy_id') or log.get('vacancy')}
         
-        # Apply period filtering if specified
+        # Apply Universal Filtering for all filtering including period
         filtered_logs = status_logs
-        if 'period' in filters:
-            period_str = filters['period']
-            filtered_logs = self._apply_period_filter(status_logs, period_str)
-        
-        # Apply recruiter filtering if specified (by ID, not name)
-        if 'recruiters' in filters:
-            recruiter_id = str(filters['recruiters'])  # Convert to string for comparison
-            filtered_logs = [log for log in filtered_logs 
-                           if str(log.get('account_info', {}).get('id')) == recruiter_id]
+        if filters:
+            filter_set = self.filter_engine.parse_prompt_filters(filters)
+            filtered_logs = await self.filter_engine.apply_filters(EntityType.APPLICANTS, filter_set, status_logs)
         
         # Get unique applicants with applications to open vacancies
         active_applicants = set()
@@ -317,15 +284,9 @@ class EnhancedMetricsCalculator:
                 elif state_filter == 'open':
                     vacancy_list = [v for v in vacancy_list if v.get('state') == 'OPEN']
             
-            # Apply period filtering if specified
-            if 'period' in filters:
-                period_str = filters['period']
-                vacancy_list = self._apply_period_filter(vacancy_list, period_str)
-            
-            # Apply recruiter filtering if specified (by ID, not name)
-            if 'recruiters' in filters:
-                recruiter_id = str(filters['recruiters'])  # Convert to string for comparison
-                vacancy_list = [v for v in vacancy_list if str(v.get('recruiter_id')) == recruiter_id]
+            # Apply Universal Filtering for all filtering including period
+            filter_set = self.filter_engine.parse_prompt_filters(filters)
+            vacancy_list = await self.filter_engine.apply_filters(EntityType.VACANCIES, filter_set, vacancy_list)
         
         return vacancy_list
     
@@ -350,34 +311,12 @@ class EnhancedMetricsCalculator:
         analyzer = self.cached_log_analyzer
         hired = analyzer.get_hired_applicants()
         
-        # Apply manual filters first (since UniversalFilterEngine doesn't handle all cases)
+        # Apply Universal Filtering for all filtering including period
         if filters:
-            # Apply period filtering if specified
-            if 'period' in filters:
-                period_str = filters['period']
-                hired = self._apply_period_filter_hires(hired, period_str)
+            # Use Universal Filter Engine for period and other filtering
+            filter_set = self.filter_engine.parse_prompt_filters(filters)
+            hired = await self.filter_engine.apply_filters(EntityType.HIRES, filter_set, hired)
             
-            # Apply recruiter filtering using logs (by ID, not name)
-            if 'recruiters' in filters:
-                recruiter_id = str(filters['recruiters'])  # Convert to string for comparison
-                all_logs = analyzer.get_merged_logs()
-                
-                # Filter hires by recruiter who handled them
-                filtered_hires = []
-                for hire in hired:
-                    applicant_id = hire.get('applicant_id')
-                    applicant_logs = [log for log in all_logs if log.get('applicant_id') == applicant_id]
-                    
-                    if applicant_logs:
-                        # Find if this recruiter worked with this applicant (by ID)
-                        recruiter_handled = any(
-                            str(log.get('account_info', {}).get('id')) == recruiter_id 
-                            for log in applicant_logs
-                        )
-                        if recruiter_handled:
-                            filtered_hires.append(hire)
-                
-                hired = filtered_hires
         
         return hired
     
@@ -636,12 +575,11 @@ class EnhancedMetricsCalculator:
         all_logs = analyzer.get_merged_logs()
         status_logs = [log for log in all_logs if log.get('type') == 'STATUS']
         
-        # Apply period filtering if specified
-        if filters and 'period' in filters:
-            period_str = filters['period']
-            filtered_logs = self._apply_period_filter(status_logs, period_str)
-        else:
-            filtered_logs = status_logs
+        # Use Universal Filtering for all filtering including period
+        filtered_logs = status_logs
+        if filters:
+            filter_set = self.filter_engine.parse_prompt_filters(filters)
+            filtered_logs = await self.filter_engine.apply_filters(EntityType.APPLICANTS, filter_set, status_logs)
         
         # Count by status name
         status_counts: Dict[str, int] = {}
