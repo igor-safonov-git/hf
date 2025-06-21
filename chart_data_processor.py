@@ -53,16 +53,35 @@ class ChartConfig(TypedDict):
     y_axis: YAxisConfig
     graph_description: Optional[str]
 
-class MainMetricValue(TypedDict):
+class MetricsQuery(TypedDict):
+    operation: str
     entity: str
-    operation: Optional[str]
+    value_field: Optional[str]
+    filters: Dict[str, Any]
+    # No group_by field - uses report-level metrics_group_by
+
+class ChartQuery(TypedDict):
+    operation: str
+    entity: str
+    value_field: Optional[str]
+    group_by: Optional[Union[GroupByConfig, str]]
+    filters: Dict[str, Any]
 
 class MainMetricConfig(TypedDict):
-    value: MainMetricValue
+    label: str
+    value: MetricsQuery
+
+class SecondaryMetricConfig(TypedDict):
+    label: str
+    value: MetricsQuery
 
 class ReportJson(TypedDict, total=False):
-    chart: ChartConfig
+    report_title: str
+    period: str
+    metrics_group_by: Optional[str]  # NEW
     main_metric: MainMetricConfig
+    secondary_metrics: List[SecondaryMetricConfig]
+    chart: ChartConfig
 
 
 # Error handling
@@ -148,6 +167,11 @@ def validate_report_json(report_json: Any) -> ReportJson:
     if not isinstance(report_json, dict):
         raise ChartProcessingError("Report JSON must be a dictionary")
     
+    # Validate required metrics_group_by field
+    if "metrics_group_by" not in report_json:
+        raise ChartProcessingError("metrics_group_by field is required")
+    _validate_metrics_group_by(report_json["metrics_group_by"])
+    
     # Validate chart section if present
     if "chart" in report_json:
         _validate_chart_section(report_json["chart"])
@@ -155,6 +179,10 @@ def validate_report_json(report_json: Any) -> ReportJson:
     # Validate main_metric section if present
     if "main_metric" in report_json:
         _validate_main_metric_section(report_json["main_metric"])
+    
+    # Validate secondary_metrics section if present
+    if "secondary_metrics" in report_json:
+        _validate_secondary_metrics_section(report_json["secondary_metrics"])
     
     return report_json
 
@@ -215,6 +243,12 @@ def _validate_main_metric_section(main_metric: Any) -> None:
     if not isinstance(main_metric, dict):
         raise ChartProcessingError("Main metric must be a dictionary")
     
+    # Validate label
+    if "label" not in main_metric:
+        raise ChartProcessingError("Main metric must have a label")
+    if not isinstance(main_metric["label"], str):
+        raise ChartProcessingError("Main metric label must be a string")
+    
     # Validate value (required for metric processing)
     if "value" not in main_metric:
         raise ChartProcessingError("Main metric must have a value")
@@ -223,27 +257,87 @@ def _validate_main_metric_section(main_metric: Any) -> None:
     if not isinstance(value, dict):
         raise ChartProcessingError("Main metric value must be a dictionary")
     
-    # Entity is required
-    if ENTITY_KEY not in value:
-        raise ChartProcessingError("Main metric value must have an entity")
+    # Use the metrics query validation
+    _validate_metrics_query(value, "Main metric")
+
+
+def _validate_metrics_group_by(metrics_group_by: Any) -> None:
+    """Validate metrics_group_by field."""
+    if metrics_group_by is None:
+        raise ChartProcessingError("metrics_group_by is required and cannot be null")
     
-    if not isinstance(value[ENTITY_KEY], str):
-        raise ChartProcessingError("Main metric entity must be a string")
+    if not isinstance(metrics_group_by, str):
+        raise ChartProcessingError("metrics_group_by must be a string")
     
-    # Validate operation if present
-    if OPERATION_KEY in value:
-        operation = value[OPERATION_KEY]
-        if operation is not None and not isinstance(operation, str):
-            raise ChartProcessingError("Operation must be a string or null")
+    # Validate that it's a valid grouping field
+    valid_groupings = {
+        "recruiters", "sources", "stages", "vacancies", "divisions", 
+        "hiring_managers"
+    }
+    if metrics_group_by not in valid_groupings:
+        raise ChartProcessingError(f"metrics_group_by must be one of: {', '.join(valid_groupings)}")
+
+
+def _validate_secondary_metrics_section(secondary_metrics: Any) -> None:
+    """Validate secondary metrics section structure."""
+    if not isinstance(secondary_metrics, list):
+        raise ChartProcessingError("Secondary metrics must be a list")
+    
+    for i, metric in enumerate(secondary_metrics):
+        if not isinstance(metric, dict):
+            raise ChartProcessingError(f"Secondary metric {i} must be a dictionary")
         
-        # Check if operation is valid
-        valid_operations = {COUNT_OPERATION, SUM_OPERATION, AVG_OPERATION}
-        if operation and operation not in valid_operations:
-            raise ChartProcessingError(f"Operation must be one of: {', '.join(valid_operations)}")
+        # Validate label
+        if "label" not in metric:
+            raise ChartProcessingError(f"Secondary metric {i} must have a label")
+        if not isinstance(metric["label"], str):
+            raise ChartProcessingError(f"Secondary metric {i} label must be a string")
+        
+        # Validate value
+        if "value" not in metric:
+            raise ChartProcessingError(f"Secondary metric {i} must have a value")
+        
+        value = metric["value"]
+        if not isinstance(value, dict):
+            raise ChartProcessingError(f"Secondary metric {i} value must be a dictionary")
+        
+        # Use same validation as main metric value
+        _validate_metrics_query(value, f"Secondary metric {i}")
+
+
+def _validate_metrics_query(query: Dict[str, Any], context: str = "Metrics query") -> None:
+    """Validate a metrics query structure (used by main and secondary metrics)."""
+    # Entity is required
+    if ENTITY_KEY not in query:
+        raise ChartProcessingError(f"{context} must have an entity")
     
-    # Validate optional fields
-    if "label" in main_metric and not isinstance(main_metric["label"], (str, type(None))):
-        raise ChartProcessingError("Main metric label must be a string or null")
+    if not isinstance(query[ENTITY_KEY], str):
+        raise ChartProcessingError(f"{context} entity must be a string")
+    
+    # Operation is required
+    if OPERATION_KEY not in query:
+        raise ChartProcessingError(f"{context} must have an operation")
+    
+    operation = query[OPERATION_KEY]
+    if not isinstance(operation, str):
+        raise ChartProcessingError(f"{context} operation must be a string")
+    
+    # Check if operation is valid
+    valid_operations = {COUNT_OPERATION, SUM_OPERATION, AVG_OPERATION, "date_trunc"}
+    if operation not in valid_operations:
+        raise ChartProcessingError(f"{context} operation must be one of: {', '.join(valid_operations)}")
+    
+    # Filters are required
+    if "filters" not in query:
+        raise ChartProcessingError(f"{context} must have filters")
+    
+    if not isinstance(query["filters"], dict):
+        raise ChartProcessingError(f"{context} filters must be a dictionary")
+    
+    # value_field is optional
+    if "value_field" in query and query["value_field"] is not None:
+        if not isinstance(query["value_field"], str):
+            raise ChartProcessingError(f"{context} value_field must be a string or null")
 
 
 # Removed old method whitelist system - Universal Chart Processor handles all requests
@@ -497,12 +591,22 @@ async def process_main_metric(report_json: ReportJson, calc: EnhancedMetricsCalc
         entity = metric.get(ENTITY_KEY, "")
         operation = metric.get(OPERATION_KEY, COUNT_OPERATION)
         filters = metric.get("filters", {})
+        metrics_group_by = report_json.get("metrics_group_by")  # NEW: Extract metrics grouping
         
-        real_value = await calculate_main_metric_value(entity, operation, calc, filters)
-        # Round to 1 decimal place if float, keep as int if already int
-        if isinstance(real_value, float):
-            real_value = round(real_value, 1)
-        report_json["main_metric"]["real_value"] = real_value
+        real_value = await calculate_main_metric_value(entity, operation, calc, filters, metrics_group_by)
+        
+        # Always store as grouped metrics (metrics_group_by is now required)
+        if isinstance(real_value, dict):
+            # Grouped metrics: store breakdown and total
+            report_json["main_metric"]["grouped_breakdown"] = real_value
+            report_json["main_metric"]["total_value"] = sum(real_value.values())
+            report_json["main_metric"]["real_value"] = sum(real_value.values())
+        else:
+            # Handle edge case where no grouped data returned - store as single total
+            if isinstance(real_value, float):
+                real_value = round(real_value, 1)
+            report_json["main_metric"]["real_value"] = real_value
+            report_json["main_metric"]["total_value"] = real_value
         
         # Enhance label with resolved entity names from filters
         if filters:
@@ -532,6 +636,8 @@ async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetri
     if not isinstance(report_json.get("secondary_metrics"), list):
         return
     
+    metrics_group_by = report_json.get("metrics_group_by")  # NEW: Use same grouping as main metric
+    
     for i, metric in enumerate(report_json["secondary_metrics"]):
         try:
             value_config = metric.get("value", {})
@@ -539,11 +645,20 @@ async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetri
             operation = value_config.get(OPERATION_KEY, COUNT_OPERATION)
             filters = value_config.get("filters", {})
             
-            real_value = await calculate_main_metric_value(entity, operation, calc, filters)
-            # Round to 1 decimal place if float, keep as int if already int
-            if isinstance(real_value, float):
-                real_value = round(real_value, 1)
-            report_json["secondary_metrics"][i]["real_value"] = real_value
+            real_value = await calculate_main_metric_value(entity, operation, calc, filters, metrics_group_by)
+            
+            # Always store as grouped metrics (same logic as main metric)
+            if isinstance(real_value, dict):
+                # Grouped metrics: store breakdown and total
+                report_json["secondary_metrics"][i]["grouped_breakdown"] = real_value
+                report_json["secondary_metrics"][i]["total_value"] = sum(real_value.values())
+                report_json["secondary_metrics"][i]["real_value"] = sum(real_value.values())
+            else:
+                # Handle edge case where no grouped data returned - store as single total
+                if isinstance(real_value, float):
+                    real_value = round(real_value, 1)
+                report_json["secondary_metrics"][i]["real_value"] = real_value
+                report_json["secondary_metrics"][i]["total_value"] = real_value
             
             # Enhance label with resolved entity names from filters
             if filters:
@@ -568,34 +683,48 @@ async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetri
             report_json["secondary_metrics"][i]["real_value"] = 0
 
 
-async def calculate_main_metric_value(entity: str, operation: str, calc: EnhancedMetricsCalculator, filters: Optional[Dict[str, Any]] = None) -> Union[int, float]:
-    """Calculate the real value for a main metric using Universal Chart Processor."""
+async def calculate_main_metric_value(
+    entity: str, 
+    operation: str, 
+    calc: EnhancedMetricsCalculator, 
+    filters: Optional[Dict[str, Any]] = None,
+    metrics_group_by: Optional[str] = None
+) -> Union[int, float, Dict[str, Any]]:
+    """Calculate main metric value - grouped or aggregated based on metrics_group_by."""
     try:
-        # Use Universal Chart Processor for main metrics too
+        # Use Universal Chart Processor with optional grouping
         result = await process_chart_via_universal_engine(
             entity=entity,
             operation=operation,
-            group_by=None,  # Main metrics don't group
+            group_by=metrics_group_by,  # Use report-level grouping
             filters=filters,
             calc=calc
         )
         
-        # For main metrics, we want the total value, not grouped data
-        if isinstance(result.get("values"), list) and result["values"]:
-            if operation == COUNT_OPERATION:
-                return sum(result["values"])
-            elif operation == AVG_OPERATION:
-                # For average, return the average of all values
-                values = result["values"]
-                return sum(values) / len(values) if values else 0
-            elif operation == SUM_OPERATION:
-                return sum(result["values"])
+        if metrics_group_by:
+            # Return grouped data: {"Nastya": 5, "Igor": 3, "Maria": 8}
+            labels = result.get("labels", [])
+            values = result.get("values", [])
+            if labels and values and len(labels) == len(values):
+                return dict(zip(labels, values))
+            else:
+                return {}
+        else:
+            # Return single aggregated value: 16
+            if isinstance(result.get("values"), list) and result["values"]:
+                if operation == COUNT_OPERATION:
+                    return sum(result["values"])
+                elif operation == AVG_OPERATION:
+                    # For average, return the average of all values
+                    values = result["values"]
+                    return sum(values) / len(values) if values else 0
+                elif operation == SUM_OPERATION:
+                    return sum(result["values"])
+            return 0
         
-        return 0
-            
     except Exception as e:
-        logger.error(f"Universal metric calculation error for {entity} with {operation}: {e}")
-        raise ChartProcessingError(f"Failed to calculate metric for {entity}")
+        logger.error(f"Main metric calculation error for entity '{entity}': {e}")
+        return {} if metrics_group_by else 0
 
 
 # Test function

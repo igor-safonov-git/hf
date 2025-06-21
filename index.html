@@ -170,6 +170,92 @@
             }
         }
         
+        /* Grouped Metrics Styles */
+        .grouped-metrics {
+            margin-bottom: 2rem;
+        }
+        
+        .grouped-metrics h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .metrics-breakdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .metrics-breakdown-table th {
+            background-color: #f9fafb;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .metrics-breakdown-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+        
+        .metrics-breakdown-table td.numeric {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            font-weight: 500;
+        }
+        
+        .metrics-breakdown-table tbody tr:hover {
+            background-color: #f9fafb;
+        }
+        
+        .metrics-breakdown-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .metrics-breakdown-table tfoot {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+        
+        .metrics-breakdown-table tfoot td {
+            border-top: 2px solid #d1d5db;
+            border-bottom: none;
+        }
+        
+        .grouped-totals {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+        }
+        
+        .grouped-total {
+            text-align: center;
+        }
+        
+        .grouped-total-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        
+        .grouped-total-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        
         .no-report {
             text-align: center;
             color: #6b7280;
@@ -502,6 +588,164 @@
                 }
 
                 return data;
+            };
+            
+            const renderGroupedMetrics = (reportData, container) => {
+                if (!container) {
+                    return;
+                }
+                
+                // Clear container
+                container.innerHTML = '';
+                
+                const mainMetric = reportData.main_metric;
+                const secondaryMetrics = reportData.secondary_metrics || [];
+                const groupBy = reportData.metrics_group_by;
+                
+                // Always expect grouped metrics - create grouped metrics container
+                const groupedContainer = document.createElement('div');
+                groupedContainer.className = 'grouped-metrics';
+                
+                // Add title
+                const title = document.createElement('h3');
+                const titleText = groupBy ? 
+                    `Metrics by ${groupBy.charAt(0).toUpperCase() + groupBy.slice(1)}` : 
+                    'Metrics Overview';
+                title.textContent = titleText;
+                groupedContainer.appendChild(title);
+                
+                // Get all entity names from the main metric breakdown
+                const breakdown = mainMetric.grouped_breakdown || {};
+                const entityNames = Object.keys(breakdown);
+                
+                // Create breakdown table
+                const table = document.createElement('table');
+                table.className = 'metrics-breakdown-table';
+                
+                // Create header
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                
+                // Add entity name column
+                const nameHeader = document.createElement('th');
+                nameHeader.textContent = groupBy.charAt(0).toUpperCase() + groupBy.slice(1);
+                headerRow.appendChild(nameHeader);
+                
+                // Add main metric column
+                const mainHeader = document.createElement('th');
+                mainHeader.textContent = mainMetric.label;
+                headerRow.appendChild(mainHeader);
+                
+                // Add secondary metric columns
+                secondaryMetrics.forEach(metric => {
+                    const header = document.createElement('th');
+                    header.textContent = metric.label;
+                    headerRow.appendChild(header);
+                });
+                
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+                
+                // Create body
+                const tbody = document.createElement('tbody');
+                
+                if (entityNames.length > 0) {
+                    // Render grouped breakdown rows
+                    entityNames.forEach(entityName => {
+                        const row = document.createElement('tr');
+                        
+                        // Entity name
+                        const nameCell = document.createElement('td');
+                        nameCell.textContent = entityName;
+                        row.appendChild(nameCell);
+                        
+                        // Main metric value
+                        const mainCell = document.createElement('td');
+                        mainCell.className = 'numeric';
+                        const mainValue = breakdown[entityName] || 0;
+                        mainCell.textContent = typeof mainValue === 'number' ? mainValue.toLocaleString('ru-RU') : mainValue;
+                        row.appendChild(mainCell);
+                        
+                        // Secondary metric values
+                        secondaryMetrics.forEach(metric => {
+                            const cell = document.createElement('td');
+                            cell.className = 'numeric';
+                            const secBreakdown = metric.grouped_breakdown || {};
+                            const value = secBreakdown[entityName] || 0;
+                            cell.textContent = typeof value === 'number' ? value.toLocaleString('ru-RU') : value;
+                            row.appendChild(cell);
+                        });
+                        
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    // No grouped data - show single aggregated row
+                    const row = document.createElement('tr');
+                    
+                    // Total label
+                    const nameCell = document.createElement('td');
+                    nameCell.textContent = 'Total';
+                    nameCell.style.fontWeight = 'bold';
+                    row.appendChild(nameCell);
+                    
+                    // Main metric total value
+                    const mainCell = document.createElement('td');
+                    mainCell.className = 'numeric';
+                    mainCell.style.fontWeight = 'bold';
+                    const mainTotalValue = mainMetric.total_value || mainMetric.real_value || 0;
+                    mainCell.textContent = typeof mainTotalValue === 'number' ? mainTotalValue.toLocaleString('ru-RU') : mainTotalValue;
+                    row.appendChild(mainCell);
+                    
+                    // Secondary metric total values
+                    secondaryMetrics.forEach(metric => {
+                        const cell = document.createElement('td');
+                        cell.className = 'numeric';
+                        cell.style.fontWeight = 'bold';
+                        const totalValue = metric.total_value || metric.real_value || 0;
+                        cell.textContent = typeof totalValue === 'number' ? totalValue.toLocaleString('ru-RU') : totalValue;
+                        row.appendChild(cell);
+                    });
+                    
+                    tbody.appendChild(row);
+                }
+                
+                table.appendChild(tbody);
+                
+                // Create footer with totals only when we have grouped data
+                if (entityNames.length > 0) {
+                    const tfoot = document.createElement('tfoot');
+                    const totalRow = document.createElement('tr');
+                    
+                    // Total label
+                    const totalLabel = document.createElement('td');
+                    totalLabel.textContent = 'Total';
+                    totalLabel.style.fontWeight = 'bold';
+                    totalRow.appendChild(totalLabel);
+                    
+                    // Main metric total
+                    const mainTotal = document.createElement('td');
+                    mainTotal.className = 'numeric';
+                    mainTotal.style.fontWeight = 'bold';
+                    const mainTotalValue = mainMetric.total_value || mainMetric.real_value || 0;
+                    mainTotal.textContent = typeof mainTotalValue === 'number' ? mainTotalValue.toLocaleString('ru-RU') : mainTotalValue;
+                    totalRow.appendChild(mainTotal);
+                    
+                    // Secondary metric totals
+                    secondaryMetrics.forEach(metric => {
+                        const total = document.createElement('td');
+                        total.className = 'numeric';
+                        total.style.fontWeight = 'bold';
+                        const totalValue = metric.total_value || metric.real_value || 0;
+                        total.textContent = typeof totalValue === 'number' ? totalValue.toLocaleString('ru-RU') : totalValue;
+                        totalRow.appendChild(total);
+                    });
+                    
+                    tfoot.appendChild(totalRow);
+                    table.appendChild(tfoot);
+                }
+                
+                groupedContainer.appendChild(table);
+                container.appendChild(groupedContainer);
             };
             
             const renderTable = (tableData, container) => {
@@ -892,18 +1136,8 @@
                 React.createElement('div', { className: 'report-panel', key: 'report-panel' }, [
                     report ? [
                         React.createElement('h1', { className: 'report-title', key: 'report-title' }, report.report_title),
-                        React.createElement('div', { className: 'metrics-container', key: 'metrics' }, [
-                            React.createElement('div', { className: 'metric', key: 'main-metric' }, [
-                                React.createElement('div', { className: 'metric-value', key: 'main-value' }, report.main_metric.value),
-                                React.createElement('div', { className: 'metric-label', key: 'main-label' }, report.main_metric.label)
-                            ]),
-                            ...report.secondary_metrics.map((metric, index) => 
-                                React.createElement('div', { className: 'metric', key: `secondary-${index}` }, [
-                                    React.createElement('div', { className: 'metric-value', key: `secondary-value-${index}` }, metric.value),
-                                    React.createElement('div', { className: 'metric-label', key: `secondary-label-${index}` }, metric.label)
-                                ])
-                            )
-                        ]),
+                        // Always render grouped metrics breakdown table
+                        renderGroupedMetrics(report, React.createElement('div', { className: 'grouped-metrics', key: 'grouped-metrics' })),
                         React.createElement('div', { className: 'chart-container', key: 'chart-container' }, [
                             React.createElement('canvas', { ref: chartRef, key: 'chart' })
                         ])
