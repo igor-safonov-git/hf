@@ -165,80 +165,71 @@ Example JSON: {"main_metric": {"filters": {"recruiters": "14824"}}, "secondary_m
 
 NEVER mix filtered and unfiltered metrics in the same report - maintain consistency across all calculations.
 
-# METRICS GROUPING RULES (metrics_group_by)
+# METRICS FILTERING RULES (metrics_filter)
 
-CRITICAL: You can group ALL metrics (main + secondary) by a single dimension using "metrics_group_by" field.
-This is SEPARATE from chart grouping and allows detailed performance breakdowns.
+CRITICAL: Use "metrics_filter" to centralize ALL filtering for metrics (main + secondary).
+This replaces individual metric filters and automatic grouping is applied.
 
-## When to Use metrics_group_by:
+## How metrics_filter Works:
 
-### ✅ USE metrics_group_by when user asks for:
-• **Individual performance**: "Сколько нанял каждый рекрутер?", "Кто лучше работает?"
-• **Comparison by entity**: "Сравни рекрутеров", "Какой источник лучше?"
-• **Entity breakdown**: "По рекрутерам", "По источникам", "По отделам"
-• **Performance ranking**: "Топ рекрутеров", "Лучшие источники"
-• **Individual metrics**: "Показатели каждого", "Кто сколько"
+### 📊 **Automatic Grouping Logic**:
+• **No entity filters** (only period) → Automatic breakdown by recruiters
+• **Specific entity filter** (e.g., recruiters: "12345") → Aggregated result for that entity
 
-### ❌ For general overview questions, still use metrics_group_by but choose the most relevant entity:
-• **"Сколько всего нанято?"** → Use metrics_group_by: "recruiters" to show each recruiter's contribution
-• **"Общая ситуация"** → Use metrics_group_by: "stages" to show pipeline breakdown  
-• **"Динамика за год"** → Use metrics_group_by: "recruiters" for metrics, chart group_by: "month" for trends
+### 🎯 **Filter Structure**:
+```json
+"metrics_filter": {
+  "period": "3 month",           // REQUIRED: Time period
+  "recruiters": "12345",         // OPTIONAL: Specific recruiter ID
+  "sources": "274886",           // OPTIONAL: Specific source ID  
+  "divisions": "101"             // OPTIONAL: Specific division ID
+}
+```
 
-## Valid metrics_group_by Values:
-• "recruiters" - breakdown by individual recruiters
-• "sources" - breakdown by recruitment sources  
-• "stages" - breakdown by recruitment stages
-• "divisions" - breakdown by company divisions
-• "vacancies" - breakdown by specific vacancies
-• "hiring_managers" - breakdown by hiring managers
+## Usage Patterns:
 
-## Example Usage Patterns:
-
-### Pattern 1: Recruiter Performance
-Question: "Сколько нанял каждый рекрутер?"
+### Pattern 1: General Overview (Automatic Breakdown)
+Question: "Общая ситуация с наймом"
 ```json
 {
-  "metrics_group_by": "recruiters",
-  "main_metric": {"operation": "count", "entity": "hires"},
-  "secondary_metrics": [
-    {"operation": "count", "entity": "applicants"},
-    {"operation": "avg", "entity": "hires", "value_field": "time_to_hire"}
-  ],
+  "metrics_filter": {"period": "6 month"},
+  "main_metric": {"value": {"operation": "count", "entity": "hires"}}
+}
+```
+Result: Breakdown by recruiters automatically + total values in cards
+
+### Pattern 2: Specific Entity Performance
+Question: "Сколько нанял Сафонов?"
+```json
+{
+  "metrics_filter": {
+    "period": "3 month",
+    "recruiters": "55498"
+  },
+  "main_metric": {"value": {"operation": "count", "entity": "hires"}}
+}
+```
+Result: Aggregated metrics for Safonov only + total values in cards
+
+### Pattern 3: Mixed Analysis (Metrics vs Charts)
+Question: "Результаты Сафонова и общий тренд"
+```json
+{
+  "metrics_filter": {
+    "period": "6 month", 
+    "recruiters": "55498"
+  },
+  "main_metric": {"value": {"operation": "count", "entity": "hires"}},
   "chart": {"y_axis": {"group_by": {"field": "month"}}}
 }
 ```
-Result: Metrics show individual recruiter performance, chart shows monthly trends
-
-### Pattern 2: Source Effectiveness
-Question: "Какой источник лучше работает?"
-```json
-{
-  "metrics_group_by": "sources",
-  "main_metric": {"operation": "count", "entity": "hires"},
-  "secondary_metrics": [
-    {"operation": "count", "entity": "applicants"},
-    {"operation": "avg", "entity": "sources", "value_field": "conversion"}
-  ]
-}
-```
-Result: Detailed breakdown by each source with hire/applicant counts and conversion rates
-
-### Pattern 3: Mixed Grouping (Advanced)
-Question: "Покажи результаты рекрутеров и динамику по месяцам"
-```json
-{
-  "metrics_group_by": "recruiters",
-  "main_metric": {"operation": "count", "entity": "hires"},
-  "chart": {"y_axis": {"group_by": {"field": "month"}}}
-}
-```
-Result: Metrics table shows individual recruiter performance, chart shows monthly hiring trend
+Result: Safonov's specific metrics + company-wide monthly trend
 
 ## CRITICAL RULES:
-1. **Same grouping for all metrics**: When metrics_group_by is set, ALL metrics (main + secondary) are grouped by the same field
-2. **Independent from chart**: Chart can have different group_by than metrics
-3. **No mixing**: Either ALL metrics are grouped OR ALL are aggregated - never mix
-4. **Consistent entities**: Use same grouping field across main and secondary metrics
+1. **Centralized filtering**: ALL metrics use same metrics_filter
+2. **Automatic grouping**: System decides breakdown vs aggregation
+3. **Charts independent**: Charts can have different group_by than metrics
+4. **Clean structure**: No individual metric filters anymore
 
 # YOU CAN USE ONLY THESE ENTITIES
 
@@ -497,17 +488,26 @@ MANDATORY JSON SCHEMA:
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "HR Analytics Report",
   "type": "object",
-  "required": ["report_title", "period", "metrics_group_by", "main_metric", "secondary_metrics", "chart"],
+  "required": ["report_title", "metrics_filter", "main_metric", "secondary_metrics", "chart"],
   "properties": {
     "report_title": { "type": "string" },
-    "period": { 
-      "type": "string",
-      "enum": ["year", "6 month", "3 month", "1 month", "2 weeks", "this week", "today"]
-    },
-    "metrics_group_by": { 
-      "type": "string",
-      "description": "Required grouping field for all metrics (main + secondary)",
-      "enum": ["recruiters", "sources", "stages", "divisions", "vacancies", "hiring_managers"]
+    "metrics_filter": {
+      "type": "object",
+      "description": "Centralized filtering for all metrics (main + secondary)",
+      "properties": {
+        "period": {
+          "type": "string",
+          "enum": ["year", "6 month", "3 month", "1 month", "2 weeks", "this week", "today"]
+        },
+        "recruiters": { "type": ["string", "null"] },
+        "sources": { "type": ["string", "null"] },
+        "stages": { "type": ["string", "null"] },
+        "divisions": { "type": ["string", "null"] },
+        "vacancies": { "type": ["string", "null"] },
+        "hiring_managers": { "type": ["string", "null"] }
+      },
+      "required": ["period"],
+      "additionalProperties": false
     },
 
     "main_metric": {
@@ -554,19 +554,18 @@ MANDATORY JSON SCHEMA:
   "definitions": {
     "metrics_query": {
       "type": "object",
-      "required": ["operation", "entity", "filters"],
+      "required": ["operation", "entity"],
       "properties": {
         "operation": { "enum": ["count", "avg", "sum", "date_trunc"] },
         "entity": { "enum": ["applicants","vacancies","recruiters","hiring_managers","stages","sources","hires","rejections","actions","divisions"] },
         "value_field": { "type": ["string", "null"] },
-        "date_trunc": { "type": ["string", "null"], "enum": ["day", "month", "year", null] },
-        "filters": { "type": "object" }
+        "date_trunc": { "type": ["string", "null"], "enum": ["day", "month", "year", null] }
       },
       "additionalProperties": false
     },
     "chart_query": {
       "type": "object",
-      "required": ["operation", "entity", "filters"],
+      "required": ["operation", "entity"],
       "properties": {
         "operation": { "enum": ["count", "avg", "sum", "date_trunc"] },
         "entity": { "enum": ["applicants","vacancies","recruiters","hiring_managers","stages","sources","hires","rejections","actions","divisions"] },
@@ -577,8 +576,7 @@ MANDATORY JSON SCHEMA:
             { "type": "object", "required": ["field"], "properties": { "field": { "type": "string" } }, "additionalProperties": false }
           ]
         },
-        "date_trunc": { "type": ["string", "null"], "enum": ["day", "month", "year", null] },
-        "filters": { "type": "object" }
+        "date_trunc": { "type": ["string", "null"], "enum": ["day", "month", "year", null] }
       },
       "additionalProperties": false
     }
@@ -589,16 +587,15 @@ MANDATORY RESPONSE TEMPLATE:
 
 {
   "report_title": "Краткий заголовок отчета",
-  "period": "1 year",
-  "metrics_group_by": "recruiters",
+  "metrics_filter": {
+    "period": "1 year"
+  },
   "main_metric": {
     "label": "Основная метрика",
     "value": {
       "operation": "count",
       "entity": "applicants",
-      "value_field": null,
-      "filters": {
-      }
+      "value_field": null
     }
   },
   "secondary_metrics": [
@@ -607,9 +604,7 @@ MANDATORY RESPONSE TEMPLATE:
       "value": {
         "operation": "count",
         "entity": "hires",
-        "value_field": null,
-        "filters": {
-        }
+        "value_field": null
       }
     },
     {
@@ -617,10 +612,7 @@ MANDATORY RESPONSE TEMPLATE:
       "value": {
         "operation": "count",
         "entity": "vacancies",
-        "value_field": null,
-        "filters": {
-          "vacancies": "open"
-        }
+        "value_field": null
       }
     }
   ],
@@ -636,91 +628,91 @@ NEVER use "operation": "avg" in secondary metrics unless the label explicitly co
       "operation": "count",
       "entity": "stages",
       "value_field": null,
-      "group_by": { "field": "stages" },
-      "filters": {
-      }
+      "group_by": { "field": "stages" }
     },
     "y_axis": {
       "operation": "count",
       "entity": "applicants",
       "value_field": null,
-      "group_by": { "field": "stages" },
-      "filters": {
-      }
+      "group_by": { "field": "stages" }
     }
   }
 }
 
-# COMPREHENSIVE EXAMPLES - metrics_group_by vs chart group_by
+# COMPREHENSIVE EXAMPLES - metrics_filter structure
 
-## Example 1: Individual Recruiter Performance + Time Trends
-Question: "Покажи результаты каждого рекрутера и тренд по месяцам"
+## Example 1: General Performance Overview (Automatic Grouping)
+Question: "Покажи общие результаты найма"
 ```json
 {
-  "report_title": "Результаты рекрутеров с трендом по месяцам",
-  "period": "6 month",
-  "metrics_group_by": "recruiters",
+  "report_title": "Общие результаты найма",
+  "metrics_filter": {
+    "period": "6 month"
+  },
   "main_metric": {
-    "label": "Нанято рекрутером",
-    "value": {"operation": "count", "entity": "hires", "filters": {"period": "6 month"}}
+    "label": "Нанято",
+    "value": {"operation": "count", "entity": "hires"}
   },
   "secondary_metrics": [
-    {"label": "Кандидатов добавлено", "value": {"operation": "count", "entity": "applicants", "filters": {"period": "6 month"}}},
-    {"label": "Среднее время найма", "value": {"operation": "avg", "entity": "hires", "value_field": "time_to_hire", "filters": {"period": "6 month"}}}
+    {"label": "Кандидатов добавлено", "value": {"operation": "count", "entity": "applicants"}},
+    {"label": "Среднее время найма", "value": {"operation": "avg", "entity": "hires", "value_field": "time_to_hire"}}
   ],
   "chart": {
     "type": "line",
-    "y_axis": {"operation": "count", "entity": "hires", "group_by": {"field": "month"}, "filters": {"period": "6 month"}}
+    "y_axis": {"operation": "count", "entity": "hires", "group_by": {"field": "month"}}
   }
 }
 ```
-Result: Detailed recruiter breakdown table + monthly hiring trend chart
+Result: Automatic recruiter breakdown table + monthly hiring trend chart
 
-## Example 2: Source Comparison Only (No Chart Grouping)
+## Example 2: Specific Recruiter Performance (Filtered)
+Question: "Сколько нанял Сафонов?"
+```json
+{
+  "report_title": "Результаты Сафонова",
+  "metrics_filter": {
+    "period": "3 month",
+    "recruiters": "55498"
+  },
+  "main_metric": {
+    "label": "Нанято Сафоновым",
+    "value": {"operation": "count", "entity": "hires"}
+  },
+  "secondary_metrics": [
+    {"label": "Кандидатов добавил Сафонов", "value": {"operation": "count", "entity": "applicants"}},
+    {"label": "Среднее время найма Сафонова", "value": {"operation": "avg", "entity": "hires", "value_field": "time_to_hire"}}
+  ],
+  "chart": {
+    "type": "line",
+    "y_axis": {"operation": "count", "entity": "hires", "group_by": {"field": "month"}}
+  }
+}
+```
+Result: Aggregated metrics for specific recruiter + monthly trend chart
+
+## Example 3: Source Effectiveness Analysis (Charts Match Metrics)
 Question: "Сравни эффективность источников"
 ```json
 {
-  "report_title": "Сравнение эффективности источников",
-  "period": "3 month", 
-  "metrics_group_by": "sources",
+  "report_title": "Эффективность источников",
+  "metrics_filter": {
+    "period": "1 month"
+  },
   "main_metric": {
-    "label": "Нанято через источник",
-    "value": {"operation": "count", "entity": "hires", "filters": {"period": "3 month"}}
+    "label": "Нанято через источники",
+    "value": {"operation": "count", "entity": "hires"}
   },
   "secondary_metrics": [
-    {"label": "Кандидатов через источник", "value": {"operation": "count", "entity": "applicants", "filters": {"period": "3 month"}}},
-    {"label": "Конверсия источника", "value": {"operation": "avg", "entity": "sources", "value_field": "conversion", "filters": {"period": "3 month"}}}
+    {"label": "Кандидатов через источники", "value": {"operation": "count", "entity": "applicants"}},
+    {"label": "Открытых вакансий", "value": {"operation": "count", "entity": "vacancies"}}
   ],
   "chart": {
     "type": "bar",
-    "y_axis": {"operation": "count", "entity": "hires", "group_by": {"field": "sources"}, "filters": {"period": "3 month"}}
+    "y_axis": {"operation": "count", "entity": "applicants", "group_by": {"field": "stages"}}
   }
 }
 ```
-Result: Source breakdown table + bar chart showing same source data
-
-## Example 3: Pipeline Overview with Stage Breakdown
-Question: "Общая ситуация с наймом"
-```json
-{
-  "report_title": "Ситуация с наймом по этапам",
-  "period": "1 month",
-  "metrics_group_by": "stages",
-  "main_metric": {
-    "label": "Нанято по этапам", 
-    "value": {"operation": "count", "entity": "hires", "filters": {"period": "1 month"}}
-  },
-  "secondary_metrics": [
-    {"label": "Кандидатов по этапам", "value": {"operation": "count", "entity": "applicants", "filters": {"period": "1 month"}}},
-    {"label": "Конверсия по этапам", "value": {"operation": "avg", "entity": "stages", "value_field": "conversion", "filters": {"period": "1 month"}}}
-  ],
-  "chart": {
-    "type": "bar",
-    "y_axis": {"operation": "count", "entity": "applicants", "group_by": {"field": "stages"}, "filters": {"period": "1 month"}}
-  }
-}
-```
-Result: Stage breakdown table + pipeline chart
+Result: Automatic recruiter breakdown + pipeline chart
 
 REMEMBER
 	•	Match question patterns to entity types precisely

@@ -167,10 +167,10 @@ def validate_report_json(report_json: Any) -> ReportJson:
     if not isinstance(report_json, dict):
         raise ChartProcessingError("Report JSON must be a dictionary")
     
-    # Validate required metrics_group_by field
-    if "metrics_group_by" not in report_json:
-        raise ChartProcessingError("metrics_group_by field is required")
-    _validate_metrics_group_by(report_json["metrics_group_by"])
+    # Validate required metrics_filter field
+    if "metrics_filter" not in report_json:
+        raise ChartProcessingError("metrics_filter field is required")
+    _validate_metrics_filter(report_json["metrics_filter"])
     
     # Validate chart section if present
     if "chart" in report_json:
@@ -261,21 +261,30 @@ def _validate_main_metric_section(main_metric: Any) -> None:
     _validate_metrics_query(value, "Main metric")
 
 
-def _validate_metrics_group_by(metrics_group_by: Any) -> None:
-    """Validate metrics_group_by field."""
-    if metrics_group_by is None:
-        raise ChartProcessingError("metrics_group_by is required and cannot be null")
+def _validate_metrics_filter(metrics_filter: Any) -> None:
+    """Validate metrics_filter field."""
+    if not isinstance(metrics_filter, dict):
+        raise ChartProcessingError("metrics_filter must be an object")
     
-    if not isinstance(metrics_group_by, str):
-        raise ChartProcessingError("metrics_group_by must be a string")
+    # Validate required period field
+    if "period" not in metrics_filter:
+        raise ChartProcessingError("metrics_filter.period is required")
     
-    # Validate that it's a valid grouping field
-    valid_groupings = {
-        "recruiters", "sources", "stages", "vacancies", "divisions", 
-        "hiring_managers"
+    period = metrics_filter["period"]
+    valid_periods = {"year", "6 month", "3 month", "1 month", "2 weeks", "this week", "today"}
+    if period not in valid_periods:
+        raise ChartProcessingError(f"period must be one of: {', '.join(valid_periods)}")
+    
+    # Validate optional entity filters
+    valid_entity_filters = {
+        "recruiters", "sources", "stages", "vacancies", "divisions", "hiring_managers"
     }
-    if metrics_group_by not in valid_groupings:
-        raise ChartProcessingError(f"metrics_group_by must be one of: {', '.join(valid_groupings)}")
+    for key, value in metrics_filter.items():
+        if key != "period":
+            if key not in valid_entity_filters:
+                raise ChartProcessingError(f"Invalid filter key: {key}. Must be one of: {', '.join(valid_entity_filters)}")
+            if value is not None and not isinstance(value, str):
+                raise ChartProcessingError(f"Filter value for {key} must be a string or null")
 
 
 def _validate_secondary_metrics_section(secondary_metrics: Any) -> None:
@@ -327,12 +336,7 @@ def _validate_metrics_query(query: Dict[str, Any], context: str = "Metrics query
     if operation not in valid_operations:
         raise ChartProcessingError(f"{context} operation must be one of: {', '.join(valid_operations)}")
     
-    # Filters are required
-    if "filters" not in query:
-        raise ChartProcessingError(f"{context} must have filters")
-    
-    if not isinstance(query["filters"], dict):
-        raise ChartProcessingError(f"{context} filters must be a dictionary")
+    # Filters are no longer required - using centralized metrics_filter
     
     # value_field is optional
     if "value_field" in query and query["value_field"] is not None:
@@ -590,19 +594,18 @@ async def process_main_metric(report_json: ReportJson, calc: EnhancedMetricsCalc
         metric = report_json["main_metric"]["value"]
         entity = metric.get(ENTITY_KEY, "")
         operation = metric.get(OPERATION_KEY, COUNT_OPERATION)
-        filters = metric.get("filters", {})
-        metrics_group_by = report_json.get("metrics_group_by")  # NEW: Extract metrics grouping
+        filters = report_json.get("metrics_filter", {})  # NEW: Extract from centralized metrics_filter
         
-        real_value = await calculate_main_metric_value(entity, operation, calc, filters, metrics_group_by)
+        real_value = await calculate_main_metric_value(entity, operation, calc, filters)
         
-        # Always store as grouped metrics (metrics_group_by is now required)
+        # Always store as aggregated totals only
         if isinstance(real_value, dict):
-            # Grouped metrics: store breakdown and total
-            report_json["main_metric"]["grouped_breakdown"] = real_value
-            report_json["main_metric"]["total_value"] = sum(real_value.values())
-            report_json["main_metric"]["real_value"] = sum(real_value.values())
+            # Convert grouped data to total only
+            total_value = sum(real_value.values())
+            report_json["main_metric"]["real_value"] = total_value
+            report_json["main_metric"]["total_value"] = total_value
         else:
-            # Handle edge case where no grouped data returned - store as single total
+            # Already aggregated
             if isinstance(real_value, float):
                 real_value = round(real_value, 1)
             report_json["main_metric"]["real_value"] = real_value
@@ -636,25 +639,24 @@ async def process_secondary_metrics(report_json: ReportJson, calc: EnhancedMetri
     if not isinstance(report_json.get("secondary_metrics"), list):
         return
     
-    metrics_group_by = report_json.get("metrics_group_by")  # NEW: Use same grouping as main metric
+    filters = report_json.get("metrics_filter", {})  # NEW: Use shared metrics_filter
     
     for i, metric in enumerate(report_json["secondary_metrics"]):
         try:
             value_config = metric.get("value", {})
             entity = value_config.get(ENTITY_KEY, "")
             operation = value_config.get(OPERATION_KEY, COUNT_OPERATION)
-            filters = value_config.get("filters", {})
             
-            real_value = await calculate_main_metric_value(entity, operation, calc, filters, metrics_group_by)
+            real_value = await calculate_main_metric_value(entity, operation, calc, filters)
             
-            # Always store as grouped metrics (same logic as main metric)
+            # Always store as aggregated totals only (same as main metric)
             if isinstance(real_value, dict):
-                # Grouped metrics: store breakdown and total
-                report_json["secondary_metrics"][i]["grouped_breakdown"] = real_value
-                report_json["secondary_metrics"][i]["total_value"] = sum(real_value.values())
-                report_json["secondary_metrics"][i]["real_value"] = sum(real_value.values())
+                # Convert grouped data to total only
+                total_value = sum(real_value.values())
+                report_json["secondary_metrics"][i]["real_value"] = total_value
+                report_json["secondary_metrics"][i]["total_value"] = total_value
             else:
-                # Handle edge case where no grouped data returned - store as single total
+                # Already aggregated
                 if isinstance(real_value, float):
                     real_value = round(real_value, 1)
                 report_json["secondary_metrics"][i]["real_value"] = real_value
@@ -687,16 +689,26 @@ async def calculate_main_metric_value(
     entity: str, 
     operation: str, 
     calc: EnhancedMetricsCalculator, 
-    filters: Optional[Dict[str, Any]] = None,
-    metrics_group_by: Optional[str] = None
+    filters: Optional[Dict[str, Any]] = None
 ) -> Union[int, float, Dict[str, Any]]:
-    """Calculate main metric value - grouped or aggregated based on metrics_group_by."""
+    """Calculate main metric value - grouped or aggregated based on filters content."""
     try:
-        # Use Universal Chart Processor with optional grouping
+        # Determine grouping from filters content
+        metrics_group_by = None
+        if filters:
+            # Find entity filters (excluding period)
+            entity_filters = {k: v for k, v in filters.items() if k != "period" and v is not None}
+            if len(entity_filters) == 0:
+                # No entity filters means we want to show breakdown by the most relevant entity
+                # For now, default to recruiters for general analytics
+                metrics_group_by = "recruiters"
+            # If we have specific entity filters, we get aggregated results (no grouping)
+        
+        # Use Universal Chart Processor with inferred grouping
         result = await process_chart_via_universal_engine(
             entity=entity,
             operation=operation,
-            group_by=metrics_group_by,  # Use report-level grouping
+            group_by=metrics_group_by,  # Use inferred grouping
             filters=filters,
             calc=calc
         )
