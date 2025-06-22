@@ -99,14 +99,21 @@ class EnhancedMetricsCalculator:
         all_logs = analyzer.get_merged_logs()
         status_logs = [log for log in all_logs if log.get('type') == 'STATUS']
         
-        # Get open vacancies (with error handling)
+        # Get vacancies based on filters (with error handling)
         try:
-            open_vacancies = await self.vacancies_all()
-            open_vacancy_ids = {v['id'] for v in open_vacancies if v.get('state') == 'OPEN'}
+            # Extract vacancy-specific filters and pass them to vacancies_all
+            vacancy_filters = {}
+            if 'vacancies' in filters:
+                vacancy_filters['vacancies'] = filters['vacancies']
+            if 'period' in filters:
+                vacancy_filters['period'] = filters['period']
+            
+            target_vacancies = await self.vacancies_all(vacancy_filters)
+            target_vacancy_ids = {v['id'] for v in target_vacancies}
         except Exception:
             # If vacancies call fails, use all vacancy IDs from logs
-            open_vacancy_ids = {log.get('vacancy_id', log.get('vacancy')) 
-                              for log in status_logs if log.get('vacancy_id') or log.get('vacancy')}
+            target_vacancy_ids = {log.get('vacancy_id', log.get('vacancy')) 
+                                for log in status_logs if log.get('vacancy_id') or log.get('vacancy')}
         
         # Apply Universal Filtering for all filtering including period
         filtered_logs = status_logs
@@ -114,15 +121,15 @@ class EnhancedMetricsCalculator:
             filter_set = self.filter_engine.parse_prompt_filters(filters)
             filtered_logs = await self.filter_engine.apply_filters(EntityType.APPLICANTS, filter_set, status_logs)
         
-        # Get unique applicants with applications to open vacancies
+        # Get unique applicants with applications to target vacancies
         active_applicants = set()
         for log in filtered_logs:
             vacancy_id = log.get('vacancy_id', log.get('vacancy'))
             applicant_id = log.get('applicant_id')
             
-            # If we have vacancy filters, check open vacancies; otherwise include all
-            if open_vacancy_ids:
-                if vacancy_id in open_vacancy_ids and applicant_id:
+            # If we have vacancy filters, check target vacancies; otherwise include all
+            if target_vacancy_ids:
+                if vacancy_id in target_vacancy_ids and applicant_id:
                     active_applicants.add(applicant_id)
             else:
                 # No vacancy filtering available, include all applicants from filtered logs

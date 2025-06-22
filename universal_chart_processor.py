@@ -227,9 +227,10 @@ class UniversalChartProcessor:
         status_logs = [log for log in all_logs if log.get('type') == 'STATUS']
         
         # Apply period filtering to logs if specified
-        if filters and 'period' in filters:
-            period_str = filters['period']
-            status_logs = self.calc._apply_period_filter(status_logs, period_str)
+        if filters:
+            from universal_filter import EntityType
+            filter_set = self.filter_engine.parse_prompt_filters(filters)
+            status_logs = await self.filter_engine.apply_filters(EntityType.APPLICANTS, filter_set, status_logs)
         
         # Group by status name
         groups = {}

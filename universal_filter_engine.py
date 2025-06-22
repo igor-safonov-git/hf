@@ -153,6 +153,15 @@ class UniversalFilterEngine:
                         return float(field_value) == filter_obj.value
                     except ValueError:
                         return field_value == str(filter_obj.value)
+            
+            # Handle case insensitive string comparison for common values
+            if isinstance(field_value, str) and isinstance(filter_obj.value, str):
+                # Handle vacancy state case variations: 'open' -> 'OPEN', 'closed' -> 'CLOSED'
+                if filter_obj.value.lower() in ['open', 'closed']:
+                    return field_value.upper() == filter_obj.value.upper()
+                # Default case-sensitive comparison
+                return field_value == filter_obj.value
+            
             return field_value == filter_obj.value
         elif filter_obj.operator == FilterOperator.NOT_EQUALS:
             return field_value != filter_obj.value
