@@ -65,7 +65,7 @@ class ChartQuery(TypedDict):
     entity: str
     value_field: Optional[str]
     group_by: Optional[Union[GroupByConfig, str]]
-    filters: Dict[str, Any]
+    # No filters field - uses report-level metrics_filter
 
 class MainMetricConfig(TypedDict):
     label: str
@@ -483,9 +483,11 @@ async def process_chart_data(report_json: ReportJson, client: HuntflowLocalClien
             chart = report_json["chart"]
             chart_type = chart.get("type", "bar")
             
-            # Extract filters from y_axis (main data source)
+            # Use centralized metrics_filter for charts (same as metrics)
+            filters = report_json.get("metrics_filter", {})
+            
+            # Still need y_axis_config for entity and group_by information
             y_axis_config = chart.get("y_axis", {})
-            filters = y_axis_config.get("filters", {})
             
             try:
                 # Handle different chart types

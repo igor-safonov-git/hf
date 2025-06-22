@@ -242,24 +242,14 @@ class UniversalChartProcessor:
         return groups
     
     def _group_by_date(self, data: List[Dict[str, Any]], entity_type: EntityType, group_by: str) -> Dict[str, List]:
-        """Group data by date periods (month, week, etc.) with complete time series"""
+        """Group data by date periods (month, week, etc.) based on actual data range"""
         from datetime import datetime, timedelta
         from dateutil.relativedelta import relativedelta
         
         groups = {}
         
-        # First, create a complete set of month buckets for the period
-        now = datetime.now()
-        period_months = []
-        
-        for i in range(12):  # 12 months back (1 year)
-            month_date = now - relativedelta(months=i)
-            month_label = month_date.strftime("%B %Y")
-            period_months.append(month_label)
-            groups[month_label] = []
-        
-        # Reverse to show chronological order
-        period_months.reverse()
+        # Group data by date and track all months
+        date_groups = {}
         
         for item in data:
             # Determine the date field to use based on entity type
@@ -292,20 +282,17 @@ class UniversalChartProcessor:
                     # Default to month grouping
                     month_label = parsed_date.strftime("%B %Y")
                 
-                # Only add to groups if it's within our period months
-                if month_label in groups:
-                    groups[month_label].append(item)
+                # Add to group
+                if month_label not in date_groups:
+                    date_groups[month_label] = []
+                date_groups[month_label].append(item)
                 
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Failed to parse date '{date_field}': {e}")
+            except Exception as e:
+                logger.warning(f"Date parsing error: {e}")
                 continue
         
-        # Ensure chronological order and return only period months
-        sorted_groups = {}
-        for month in period_months:
-            sorted_groups[month] = groups[month]
-        
-        return sorted_groups if any(groups.values()) else {"No Date Data": data}
+        # Return the grouped data (sorted by date)
+        return dict(sorted(date_groups.items()))
     
     def _group_by_vacancies(self, data: List[Dict[str, Any]]) -> Dict[str, List]:
         """Group data by vacancies"""
