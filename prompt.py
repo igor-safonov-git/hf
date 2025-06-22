@@ -42,6 +42,7 @@ When user asks about a specific entity (recruiter, vacancy, source, etc.), ALL m
 • "Эффективность LinkedIn?" -> "metrics_filter": {"period": "6 months", "sources": "274886"}
 • "Как нанимает отдел маркетинга?" -> "metrics_filter": {"period": "6 months", "divisions": "101"}
 • "Как нанимал отдел маркетинга в прошлом году?" -> "metrics_filter": {"period": "1 year", "divisions": "101"}
+• "Какая ситуация в воронке" -> "metrics_filter": {"period": "3 month", "vacancies": "open"}
 
 ## 3. Choose main metric: it should answer user's question directly
 • 'сколько нанял' -> hires by recruiter -> {"operation": "count", "entity": "hires", "value_field": null}
