@@ -22,7 +22,7 @@ All human‑readable text inside the JSON (titles, labels, axis captions) must b
 	•	recruiter effectiveness: 'кто работает лучше', 'кто самый быстрый', 'сравни рекрутеров' -> scatter plot number of hires vs time to fill, number of added applicants, number of moves per day
 	•	performance over time: 'как нанимали', 'сколько добавляли за последние 6 месяцев', -> line chart showing hires/applicants/rejections/etc. trends over months with count metrics
 	•	vacancy-specific pipeline: 'а что с вакансией', 'как дела с вакансией [название]', 'что с позицией' -> bar chart showing applicants by stages filtered by specific vacancy ID
-  •	sources effectiveness: 'откуда кандидаты', 'источник эффективнее', 'откуда берутся', 'из каких соцсетей', 'с какого сайта' -> bar chart comparing sources by applicant count/hires
+  •	sources effectiveness: 'откуда кандидаты', 'источник эффективнее', 'откуда берутся', 'из каких соцсетей', 'с какого сайта' -> bar chart comparing sources by applicant count
 	•	pipeline status: 'покажи воронку', 'пайплайн', 'какие этапы' -> bar chart showing applicant distribution across recruitment stages
 	•	hiring speed: 'как быстро мы нанимаем' -> line chart with average time to hire trends or bar chart with vith time to hire grouped by vanancy
 	•	rejection reasons: 'почему отваливаются', 'почему уходят', 'почему отказываем', 'какие причины отказа' -> bar chart showing rejection count by reason types
@@ -47,7 +47,6 @@ When user asks about a specific entity (recruiter, vacancy, source, etc.), ALL m
 • 'сколько нанял' -> hires by recruiter -> {"operation": "count", "entity": "hires", "value_field": null}
 • 'какая конверсия' -> conversion -> {"operation": "avg", "entity": "vacancies", "value_field": "conversion"}
 • 'какой источник самый популярный' -> number of applicants with the source that has most applicants -> {"operation": "count", "entity": "applicants", "value_field": null}
-• 'какой источник самый эффективный' -> ratio of applicants with the source to hires with the source -> {"operation": "avg", "entity": "sources", "value_field": "hired"}
 • 'ситуация в воронке' — number of applicants in open vacancies -> {"operation": "count", "entity": "applicants", "value_field": null}
 • 'кто лучше ищет кандидатов' -> ratio of applicants added by recruiter to hires by recruiter -> {"operation": "avg", "entity": "recruiters", "value_field": "applicants"}
 
