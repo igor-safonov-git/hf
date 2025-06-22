@@ -196,7 +196,8 @@ class LogAnalyzer:
             a.phone,
             vs.name as hired_status,
             al.created as hired_date,
-            v.position as vacancy_position
+            v.position as vacancy_position,
+            al.raw_data
         FROM applicant_logs al
         JOIN applicants a ON al.applicant_id = a.id
         LEFT JOIN vacancy_statuses vs ON al.status_id = vs.id
@@ -206,6 +207,23 @@ class LogAnalyzer:
         """
         
         hired_applicants = self._query(sql)
+        
+        # Extract recruiter information from raw_data and add to each hire record
+        for applicant in hired_applicants:
+            if applicant.get("raw_data"):
+                try:
+                    parsed_data = json.loads(applicant["raw_data"])
+                    account_info = parsed_data.get("account_info", {})
+                    if isinstance(account_info, dict):
+                        applicant["recruiter_id"] = account_info.get("id")
+                        applicant["recruiter_name"] = account_info.get("name")
+                except json.JSONDecodeError:
+                    # If parsing fails, set default values
+                    applicant["recruiter_id"] = None
+                    applicant["recruiter_name"] = None
+            else:
+                applicant["recruiter_id"] = None
+                applicant["recruiter_name"] = None
         
         # Calculate time_to_hire for each hired applicant
         for applicant in hired_applicants:

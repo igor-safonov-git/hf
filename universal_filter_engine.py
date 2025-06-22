@@ -136,6 +136,23 @@ class UniversalFilterEngine:
         """Check if a field value matches the filter"""
         
         if filter_obj.operator == FilterOperator.EQUALS:
+            # Handle type conversion for numeric comparisons
+            if isinstance(field_value, (int, float)) and isinstance(filter_obj.value, str):
+                try:
+                    return field_value == int(filter_obj.value)
+                except ValueError:
+                    try:
+                        return field_value == float(filter_obj.value)
+                    except ValueError:
+                        return field_value == filter_obj.value
+            elif isinstance(field_value, str) and isinstance(filter_obj.value, (int, float)):
+                try:
+                    return int(field_value) == filter_obj.value
+                except ValueError:
+                    try:
+                        return float(field_value) == filter_obj.value
+                    except ValueError:
+                        return field_value == str(filter_obj.value)
             return field_value == filter_obj.value
         elif filter_obj.operator == FilterOperator.NOT_EQUALS:
             return field_value != filter_obj.value
