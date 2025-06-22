@@ -46,7 +46,7 @@ When user asks about a specific entity (recruiter, vacancy, source, etc.), ALL m
 ## 3. Choose main metric: it should answer user's question directly
 • 'сколько нанял' -> hires by recruiter -> {"operation": "count", "entity": "hires", "value_field": null}
 • 'какая конверсия' -> conversion -> {"operation": "avg", "entity": "vacancies", "value_field": "conversion"}
-• 'какой источник самый популярный' -> number of applicants with the source that has most applicants -> {"operation": "count", "entity": "applicants", "value_field": null}
+• 'какой источник???????????' -> number of applicants with the source that has most applicants -> {"operation": "count", "entity": "applicants", "value_field": null}
 • 'ситуация в воронке' — number of applicants in open vacancies -> {"operation": "count", "entity": "applicants", "value_field": null}
 • 'кто лучше ищет кандидатов' -> ratio of applicants added by recruiter to hires by recruiter -> {"operation": "avg", "entity": "recruiters", "value_field": "applicants"}
 
