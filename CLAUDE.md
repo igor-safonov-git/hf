@@ -4,277 +4,138 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a FastAPI-based chatbot that integrates with the Huntflow recruitment platform API and OpenAI's GPT-4 to provide AI-powered hiring analytics. The app provides real-time visualization of recruitment funnels and candidate statistics through a web interface.
+This is a FastAPI-based chatbot that integrates with the Huntflow recruitment platform API and DeepSeek AI to provide AI-powered hiring analytics. The app provides real-time visualization of recruitment funnels and candidate statistics through a web interface.
 
-## Absolute Rules
+## Commands
 
-- DO NOT EVER DELETE INFORMATION FROM PROMPT UNLESS ASKED TO
-- No mock or test data ever
-- Simulated metrics must be clearly marked and based on real data patterns
-- Always use actual database records as foundation for calculations
+### Running the Application
+```bash
+# Start the FastAPI server (runs on http://localhost:8000)
+python app.py
 
-## Universal Filtering System Implementation
-
-### Status: ✅ PRODUCTION READY (Completed 2025-06-19)
-
-The project now includes a comprehensive Universal Filtering System that enables **every entity to be filtered by every other entity** with advanced logical operators and real-time performance.
-
-#### Key Features Implemented:
-- **Universal Entity Filtering**: All entities (applicants, vacancies, hires, recruiters, sources, divisions) can be filtered by any other entity
-- **Advanced Logical Operators**: AND/OR combinations with nested support
-- **Complex Operator Syntax**: `{"operator": "in", "value": [...]}` for advanced filtering
-- **Numeric Comparisons**: gt, gte, lt, lte, between operators
-- **Period Filtering**: Comprehensive time-based filtering (1 month, 3 month, 6 month, etc.)
-- **AI Integration**: Seamless integration with prompt.py for natural language filtering
-
-#### Technical Implementation:
-- **EnhancedMetricsCalculator**: Extends base MetricsCalculator with universal filtering
-- **UniversalFilterEngine**: Core filtering logic with entity relationship mapping
-- **FilterSet & UniversalFilter**: Type-safe data structures for all filter operations
-- **LogicalFilter**: Support for complex AND/OR logical combinations
-
-#### Performance Metrics:
-- **Response Time**: 0.0344s maximum (99.98% better than 2s target)
-- **Processing Rate**: 16,737 items/second
-- **Test Coverage**: 50/50 tests passing (100% success rate)
-- **Memory Efficiency**: No leaks, minimal overhead
-
-#### Usage Examples:
-```python
-# Simple filtering
-filters = {"period": "3 month", "recruiters": "12345"}
-applicants = await calculator.get_applicants(filters)
-
-# Advanced logical combinations
-complex_filters = {
-    "and": [
-        {"period": "6 month"},
-        {
-            "or": [
-                {"recruiters": "12345"},
-                {"sources": {"operator": "in", "value": ["linkedin", "hh"]}}
-            ]
-        }
-    ]
-}
-result = await calculator.get_applicants(complex_filters)
+# The server automatically:
+# - Serves frontend at http://localhost:8000
+# - Provides API endpoints at /chat, /health, /api/prefetch-data, /db-info
+# - Enables HTTPS at https://localhost:8443 if cert.pem and key.pem exist
 ```
-
-#### Files Added/Modified:
-- `enhanced_metrics_calculator.py` - Universal filtering integration
-- `universal_filter_engine.py` - Core filtering logic
-- `universal_filter.py` - Data structures and types
-- `tests/integration/test_complex_filtering_features.py` - Complex filtering tests
-- `tests/integration/test_complete_entity_filtering.py` - Universal matrix tests
-- `tests/unit/test_universal_filter.py` - Unit tests for core classes
-- `tests/unit/test_filter_engine.py` - Engine logic tests
-
-#### Backwards Compatibility:
-✅ 100% backwards compatible - all existing functionality preserved
-✅ No breaking changes to existing API
-✅ All original tests continue to pass
-
-#### Production Deployment Status:
-- **Data Validation**: Tested with real Huntflow production data
-- **Performance**: Exceeds all requirements
-- **Error Handling**: Comprehensive validation and graceful failures
-- **Integration**: Fully compatible with existing prompt.py system
-
-**Recommendation**: Deploy immediately - all success criteria exceeded.
-
-## Unified Metrics Group By System
-
-### Status: ✅ PRODUCTION READY (Completed 2025-06-21)
-
-The project now includes a comprehensive **Unified Metrics Group By** system that enables all metrics (main + secondary) to be grouped by a single dimension while charts maintain independent grouping for powerful analytical insights.
-
-#### Key Features Implemented:
-- **Unified Grouping**: All metrics are grouped by the same field (`metrics_group_by`)
-- **Independent Chart Grouping**: Charts can have different grouping than metrics
-- **Breakdown Tables**: Rich tabular display showing individual entity performance
-- **No Backward Compatibility**: Always requires `metrics_group_by` field - no aggregated fallbacks
-- **Real-time Performance**: Average 0.376s processing time across all grouping types
-- **Complete Entity Support**: Works with recruiters, sources, stages, divisions, vacancies, hiring_managers
-
-#### Technical Implementation:
-- **Schema Updates**: Required `metrics_group_by` field in JSON schema with enum validation
-- **Backend Processing**: Enhanced `calculate_main_metric_value()` with unified grouping logic
-- **Frontend Rendering**: Single `renderGroupedMetrics()` function handles all scenarios
-- **AI Integration**: Comprehensive prompt rules and examples for natural language queries
-
-#### Performance Metrics:
-- **Average Processing Time**: 0.376s (excellent performance)
-- **Entity Coverage**: 9 recruiters, 7 sources, 16 divisions tested
-- **Test Coverage**: 100% success rate across all scenarios
-- **Real Data Validation**: All tests use actual Huntflow production data
-
-#### Usage Examples:
-```json
-// Recruiter performance with monthly trends
-{
-  "metrics_group_by": "recruiters",
-  "main_metric": {"operation": "count", "entity": "hires"},
-  "chart": {"y_axis": {"group_by": {"field": "month"}}}
-}
-// Result: Recruiter breakdown table + monthly hiring trend chart
-
-// Source effectiveness comparison
-{
-  "metrics_group_by": "sources", 
-  "main_metric": {"operation": "count", "entity": "hires"},
-  "chart": {"y_axis": {"group_by": {"field": "sources"}}}
-}
-// Result: Source breakdown table + source effectiveness bar chart
-```
-
-#### Frontend Display:
-- **Breakdown Tables**: Show individual entity performance with totals
-- **Responsive Design**: Clean table layout with hover effects and proper formatting
-- **Fallback Handling**: Shows single "Total" row when no grouped data available
-- **Unified Rendering**: Single function handles both grouped and edge cases
-
-#### Files Modified:
-- `prompt.py` - AI rules, schema, examples for metrics grouping
-- `chart_data_processor.py` - Backend processing and validation logic
-- `index.html` - Frontend rendering with breakdown tables
-- `test_*.py` - Comprehensive test suite covering all scenarios
-
-#### Backward Compatibility:
-❌ **Intentionally Removed** - All reports now require `metrics_group_by` field
-✅ **Clean Implementation** - No legacy code paths or fallback logic
-✅ **Consistent Experience** - All users see breakdown tables
-
-**Recommendation**: Feature fully deployed and production-ready with excellent performance.
-
-## Centralized Metrics Filter System
-
-### Status: ✅ PRODUCTION READY (Completed 2025-06-22)
-
-The project now features a **Centralized Metrics Filter System** that consolidates all metric filtering into a single `metrics_filter` object, simplifying the JSON structure and eliminating redundancy.
-
-#### Key Features Implemented:
-- **Centralized Filtering**: Single `metrics_filter` object for all metrics (main + secondary)
-- **Automatic Grouping Logic**: Period-only queries trigger automatic breakdown, specific entity queries provide aggregated results
-- **Clean Response Structure**: No more detailed `grouped_breakdown` objects - only clean aggregated totals
-- **Chart Independence**: Charts maintain independent `group_by` while metrics use centralized filtering
-- **Excellent Performance**: Average 0.259s processing time (48% faster than previous system)
-
-#### Technical Implementation:
-- **Schema Restructure**: Replaced individual metric filters with centralized `metrics_filter`
-- **Backend Processing**: Unified filtering logic in `calculate_main_metric_value()`
-- **Response Simplification**: All metrics return clean totals, no detailed breakdown data
-- **AI Integration**: Updated prompt rules and examples for new structure
-
-#### Performance Metrics:
-- **Average Processing Time**: 0.259s (exceeds <0.5s requirement by 48%)
-- **Success Rate**: 100% of queries under performance target
-- **Test Coverage**: 9/9 performance scenarios passed
-- **Memory Efficiency**: Reduced response payload size by removing breakdown objects
-
-#### Usage Patterns:
-
-**Pattern 1: General Overview (Automatic Breakdown)**
-```json
-{
-  "metrics_filter": {"period": "6 month"},
-  "main_metric": {"value": {"operation": "count", "entity": "hires"}}
-}
-```
-Result: Automatic grouping applied internally, clean total displayed
-
-**Pattern 2: Specific Entity Performance** 
-```json
-{
-  "metrics_filter": {
-    "period": "3 month",
-    "recruiters": "55498"
-  },
-  "main_metric": {"value": {"operation": "count", "entity": "hires"}}
-}
-```
-Result: Aggregated metrics for specific entity only
-
-**Pattern 3: Mixed Analysis (Metrics vs Charts)**
-```json
-{
-  "metrics_filter": {"period": "6 month", "recruiters": "55498"},
-  "main_metric": {"value": {"operation": "count", "entity": "hires"}},
-  "chart": {"y_axis": {"group_by": {"field": "month"}}}
-}
-```
-Result: Entity-specific metrics + independent chart grouping
-
-#### Files Modified:
-- `prompt.py` - Complete schema restructure and AI rules update
-- `chart_data_processor.py` - Centralized filtering logic and response simplification  
-- `test_*.py` - New test suite for metrics_filter structure
-- Performance tests added for validation
-
-#### Key Benefits:
-- **Simplified Structure**: Single filter object eliminates redundancy
-- **Cleaner Responses**: No detailed breakdown objects, just clean totals
-- **Better Performance**: 48% faster processing than previous implementation
-- **Easier Maintenance**: Centralized filtering logic
-
-**Recommendation**: Fully deployed and production-ready. The metrics_filter system provides excellent performance and clean, simplified responses.
-
-## Development Commands
 
 ### Testing
 ```bash
 # Run all tests with coverage
 pytest
 
-# Run specific test file
-pytest tests/unit/test_universal_filter.py
-
-# Run integration tests only
-pytest tests/integration/
-
-# Run with verbose output
-pytest -v
+# Run specific test categories
+pytest tests/unit/                    # Unit tests only
+pytest tests/integration/             # Integration tests only
+pytest -v                            # Verbose output
+pytest tests/unit/test_universal_filter.py  # Single test file
 ```
 
-### Running the Application
+### Environment Requirements
 ```bash
-# Start FastAPI server
-python app.py
+# Required environment variable
+export DEEPSEEK_API_KEY="your-api-key"
 
-# The app runs on localhost:8000 by default
-# Main endpoint: POST /ask for AI analytics queries
+# Optional for debugging
+export DEBUG_MODE=true
 ```
 
-### Environment Setup
-- Requires `DEEPSEEK_API_KEY` environment variable
-- Uses SQLite database: `huntflow_cache.db`
-- Local data client: `HuntflowLocalClient` for cached Huntflow data
+## High-Level Architecture
 
-## Architecture Overview
+### Core Data Flow
+1. **User Input** → Frontend sends Russian question to `/chat` endpoint
+2. **AI Processing** → `prompt.py` (1500+ lines) converts natural language to structured JSON
+3. **Data Filtering** → `EnhancedMetricsCalculator` → `UniversalFilterEngine` applies complex filters
+4. **Data Enrichment** → `chart_data_processor.py` adds real data from SQLite cache
+5. **Response Generation** → AI creates Russian analytics response with visualizations
 
-### Core Components
-- **app.py**: FastAPI server with `/ask` endpoint for AI analytics
-- **prompt.py**: Main AI prompt engineering for HR analytics (1500+ lines)
-- **enhanced_metrics_calculator.py**: Universal filtering integration layer
-- **universal_filter_engine.py**: Core filtering logic engine
-- **universal_filter.py**: Type-safe filter data structures
-- **huntflow_local_client.py**: SQLite-based Huntflow API client
-- **context_data_injector.py**: Dynamic context injection for AI responses
+### Key Architectural Components
 
-### Data Flow
-1. User question → `/ask` endpoint
-2. `prompt.py` processes natural language → structured filters
-3. `EnhancedMetricsCalculator` → `UniversalFilterEngine` → filtered data
-4. `chart_data_processor.py` → visualization JSON
-5. AI generates Russian language analytics response
+**AI Layer:**
+- `prompt.py` - Massive prompt engineering system defining all entities, operations, and patterns
+- `context_data_injector.py` - Injects dynamic context (recruiters, sources, etc.) into prompts
+- Uses DeepSeek API for LLM processing
 
-### Entity Relationships
-- **Entities**: applicants, vacancies, hires, recruiters, sources, divisions
-- **Universal Filtering**: Every entity can filter by every other entity
-- **Logical Operators**: AND/OR combinations with nested support
-- **Time Filtering**: period-based filtering (1 month, 3 month, etc.)
+**Data Processing Layer:**
+- `enhanced_metrics_calculator.py` - Integrates universal filtering with metrics calculation
+- `universal_filter_engine.py` - Core engine implementing entity-to-entity filtering
+- `universal_filter.py` - Type-safe filter structures supporting AND/OR logic
+- `chart_data_processor.py` - Processes and validates chart data
 
-### Key Patterns
-- All AI responses must be in Russian for user-facing text
-- JSON schema compliance enforced for chart outputs
-- Real Huntflow data only - no mock/test data in production
-- Async/await throughout for performance
+**Data Storage:**
+- `huntflow_local_client.py` - SQLite-based cache of Huntflow data
+- `huntflow_cache.db` - Local SQLite database with recruitment data
+- All queries work against real cached data, never mock data
+
+**Frontend:**
+- Single-page `index.html` with 35/65 split (chat/visualization)
+- Chart.js for rendering various chart types
+- Metrics cards and breakdown tables for grouped data
+
+### Universal Filtering System
+
+The codebase implements a sophisticated filtering system where **every entity can filter by every other entity**:
+
+- **Entities**: applicants, vacancies, hires, recruiters, sources, divisions, hiring_managers, stages
+- **Logical Operators**: AND/OR with nesting, complex operators (in, gt, gte, lt, lte, between)
+- **Time Filtering**: period-based (1 month, 3 month, 6 month, 1 year, all)
+
+Example:
+```python
+filters = {
+    "and": [
+        {"period": "6 month"},
+        {"or": [
+            {"recruiters": "12345"},
+            {"sources": {"operator": "in", "value": ["hh", "linkedin"]}}
+        ]}
+    ]
+}
+```
+
+### Metrics System
+
+The project uses a **centralized metrics_filter** approach:
+- Single `metrics_filter` object for all metrics (main + secondary)
+- Automatic grouping when only period is specified
+- Charts can have independent `group_by` from metrics
+- All responses return clean aggregated totals
+
+### Performance Characteristics
+- Average response time: 0.259s (exceeds <0.5s target by 48%)
+- Processing rate: 16,737 items/second
+- All operations are async for optimal performance
+- Response caching via 15-minute cache in web operations
+
+## Absolute Rules
+
+- DO NOT EVER DELETE INFORMATION FROM PROMPT UNLESS ASKED TO
+- No mock or test data ever - always use real database records
+- Simulated metrics must be clearly marked and based on real data patterns
+- All user-facing text must be in Russian
+- JSON schema compliance is mandatory for all chart outputs
+
+## Key Patterns
+
+- **Async Everything**: All database operations and API calls use async/await
+- **Type Safety**: Extensive use of Pydantic models and type hints
+- **Real Data Only**: Every calculation based on actual Huntflow cached data
+- **Russian UI**: All user-facing text in Russian, technical logs in English
+- **Clean Responses**: No detailed breakdown objects in responses, only totals
+
+## Recent Major Features
+
+### Universal Filtering System (✅ PRODUCTION READY)
+- Every entity filters by every other entity
+- Complex AND/OR logical operators
+- Performance: 0.0344s max response time
+
+### Unified Metrics Group By (✅ PRODUCTION READY)
+- All metrics grouped by single dimension
+- Independent chart grouping capabilities
+- Breakdown tables for entity performance
+
+### Centralized Metrics Filter (✅ PRODUCTION READY)
+- Single `metrics_filter` for all metrics
+- 48% performance improvement over previous system
+- Clean, simplified response structure
