@@ -1,13 +1,17 @@
 from typing import Dict, List, Any, Optional, Union
 from universal_filter import UniversalFilter, FilterSet, PeriodFilter, EntityType, FilterOperator, LogicalFilter
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UniversalFilterEngine:
     """Centralized engine for processing all filters"""
     
-    def __init__(self, db_client, log_analyzer):
+    def __init__(self, db_client, log_analyzer, calculator=None):
         self.db_client = db_client
         self.log_analyzer = log_analyzer
+        self.calculator = calculator  # Reference to parent calculator to avoid circular imports
         self.entity_relationships = self._build_entity_relationships()
     
     def _build_entity_relationships(self) -> Dict[str, Dict[str, str]]:
@@ -42,7 +46,7 @@ class UniversalFilterEngine:
         
         # Apply logical filters first (they might contain period/entity filters)
         if filters.logical_filters:
-            result = self._apply_logical_filters(result, filters.logical_filters, entity_type)
+            result = await self._apply_logical_filters(result, filters.logical_filters, entity_type)
         
         # Apply period filters
         if filters.period_filter:
@@ -50,7 +54,7 @@ class UniversalFilterEngine:
         
         # Apply cross-entity filters (relationships)
         if filters.cross_entity_filters:
-            result = self._apply_cross_entity_filters(result, filters.cross_entity_filters, entity_type)
+            result = await self._apply_cross_entity_filters(result, filters.cross_entity_filters, entity_type)
         
         # Apply direct entity filters
         if filters.entity_filters:
@@ -94,21 +98,79 @@ class UniversalFilterEngine:
         
         return filtered_data
     
-    def _apply_cross_entity_filters(self, data: List, filters: List[UniversalFilter], 
+    async def _apply_cross_entity_filters(self, data: List, filters: List[UniversalFilter], 
                                   target_entity: EntityType) -> List:
         """Apply filters based on entity relationships"""
         
         for filter_obj in filters:
-            relationship_key = self.entity_relationships.get(
-                target_entity.value, {}
-            ).get(filter_obj.entity_type.value)
-            
-            if not relationship_key:
-                continue  # Skip if no relationship defined
-            
-            data = self._apply_single_filter(data, filter_obj, relationship_key)
+            data = await self._apply_cross_entity_filter(data, filter_obj, target_entity)
         
         return data
+    
+    async def _apply_cross_entity_filter(self, data: List, filter_obj: UniversalFilter, 
+                                        target_entity: EntityType) -> List:
+        """Apply a single cross-entity filter with proper entity lookup"""
+        
+        logger.debug(f"Applying cross-entity filter: {target_entity.value} filtered by {filter_obj.entity_type.value}.{filter_obj.field} = {filter_obj.value}")
+        
+        # Get the relationship field (e.g., "vacancy_id" for applicants->vacancies)
+        relationship_key = self.entity_relationships.get(
+            target_entity.value, {}
+        ).get(filter_obj.entity_type.value)
+        
+        if not relationship_key:
+            logger.warning(f"No relationship defined between {target_entity.value} and {filter_obj.entity_type.value}")
+            return data  # No relationship defined, return unfiltered
+        
+        logger.debug(f"Using relationship key: {relationship_key}")
+        
+        # For vacancy state filtering, we need to look up vacancy IDs that match the criteria
+        if filter_obj.entity_type == EntityType.VACANCIES and filter_obj.field == "state":
+            # Get matching vacancy IDs based on the state filter
+            matching_vacancy_ids = await self._get_matching_vacancy_ids(filter_obj)
+            logger.info(f"Found {len(matching_vacancy_ids)} vacancies with state={filter_obj.value}")
+            
+            # Filter data by those vacancy IDs
+            filtered_data = []
+            for item in data:
+                vacancy_id = item.get(relationship_key)
+                if vacancy_id in matching_vacancy_ids:
+                    filtered_data.append(item)
+            
+            logger.info(f"Filtered {len(data)} items to {len(filtered_data)} items based on vacancy state")
+            return filtered_data
+        
+        # For other cross-entity filters, use the simple field matching approach
+        return self._apply_single_filter(data, filter_obj, relationship_key)
+    
+    async def _get_matching_vacancy_ids(self, filter_obj: UniversalFilter) -> set:
+        """Get vacancy IDs that match the given filter criteria"""
+        try:
+            # Use the parent calculator if available
+            if self.calculator:
+                calc = self.calculator
+            else:
+                # Fallback: create a temporary calculator if none provided
+                from enhanced_metrics_calculator import EnhancedMetricsCalculator
+                calc = EnhancedMetricsCalculator(self.db_client, self.log_analyzer)
+            
+            # Get all vacancies and filter by the criteria
+            all_vacancies = await calc.vacancies_all()
+            matching_vacancies = []
+            
+            for vacancy in all_vacancies:
+                field_value = vacancy.get(filter_obj.field)
+                if self._matches_filter(field_value, filter_obj):
+                    matching_vacancies.append(vacancy)
+            
+            # Return the set of matching vacancy IDs
+            return {v.get('id') for v in matching_vacancies if v.get('id')}
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting matching vacancy IDs: {e}")
+            return set()
     
     def _apply_entity_filters(self, data: List, filters: List[UniversalFilter]) -> List:
         """Apply direct entity filters"""
@@ -245,6 +307,37 @@ class UniversalFilterEngine:
         
         return LogicalFilter(operator=operator, filters=parsed_filters)
     
+    def _determine_filter_field(self, entity_key: str, filter_value: Any) -> str:
+        """Determine the appropriate field name based on entity type and filter value"""
+        
+        # For numeric IDs, always use 'id' field
+        if isinstance(filter_value, str) and filter_value.isdigit():
+            return "id"
+        
+        # Special cases for specific entity types
+        if entity_key == "vacancies":
+            # For vacancies, 'open' and 'closed' refer to the 'state' field
+            if isinstance(filter_value, str) and filter_value.lower() in ['open', 'closed']:
+                return "state"
+        
+        elif entity_key == "recruiters":
+            # For recruiters, non-digit strings would be names
+            if isinstance(filter_value, str) and not filter_value.isdigit():
+                return "name"
+        
+        elif entity_key == "sources":
+            # For sources, non-digit strings would be names
+            if isinstance(filter_value, str) and not filter_value.isdigit():
+                return "name"
+        
+        elif entity_key == "stages":
+            # For stages, non-digit strings would be names
+            if isinstance(filter_value, str) and not filter_value.isdigit():
+                return "name"
+        
+        # Default to 'id' for unrecognized patterns
+        return "id"
+    
     def _parse_entity_filter(self, entity_key: str, filter_value: Any) -> Optional[UniversalFilter]:
         """Parse entity filter with advanced operator syntax"""
         
@@ -277,9 +370,12 @@ class UniversalFilterEngine:
                 if "value" not in filter_value:
                     raise ValueError(f"Missing 'value' field for operator '{operator_str}'")
                 
+                # Determine the appropriate field based on entity type and filter value
+                field = self._determine_filter_field(entity_key, value)
+                
                 return UniversalFilter(
                     entity_type=EntityType(entity_key),
-                    field="id" if isinstance(value, str) and value.isdigit() else "state",
+                    field=field,
                     operator=operator,
                     value=value
                 )
@@ -292,23 +388,26 @@ class UniversalFilterEngine:
             else:
                 operator = FilterOperator.EQUALS
             
+            # Determine the appropriate field based on entity type and filter value
+            field = self._determine_filter_field(entity_key, filter_value)
+            
             return UniversalFilter(
                 entity_type=EntityType(entity_key),
-                field="id" if isinstance(filter_value, str) and filter_value.isdigit() else "state",
+                field=field,
                 operator=operator,
                 value=filter_value
             )
     
-    def _apply_logical_filters(self, data: List, logical_filters: List[LogicalFilter], 
+    async def _apply_logical_filters(self, data: List, logical_filters: List[LogicalFilter], 
                              entity_type: EntityType) -> List:
         """Apply logical filters (AND/OR combinations)"""
         
         for logical_filter in logical_filters:
-            data = self._apply_single_logical_filter(data, logical_filter, entity_type)
+            data = await self._apply_single_logical_filter(data, logical_filter, entity_type)
         
         return data
     
-    def _apply_single_logical_filter(self, data: List, logical_filter: LogicalFilter,
+    async def _apply_single_logical_filter(self, data: List, logical_filter: LogicalFilter,
                                    entity_type: EntityType) -> List:
         """Apply a single logical filter (AND or OR)"""
         
@@ -316,14 +415,14 @@ class UniversalFilterEngine:
             # AND: Apply all conditions, item must match ALL
             result = data
             for condition in logical_filter.filters:
-                result = self._apply_condition(result, condition, entity_type)
+                result = await self._apply_condition(result, condition, entity_type)
             return result
         
         elif logical_filter.operator == "or":
             # OR: Apply all conditions, item must match ANY
             all_results = set()
             for condition in logical_filter.filters:
-                condition_results = self._apply_condition(data, condition, entity_type)
+                condition_results = await self._apply_condition(data, condition, entity_type)
                 # Use item IDs or string representation for set operations
                 for item in condition_results:
                     item_key = item.get("id", str(item))
@@ -334,21 +433,21 @@ class UniversalFilterEngine:
         
         return data
     
-    def _apply_condition(self, data: List, condition: Union[LogicalFilter, Dict[str, Any]], 
+    async def _apply_condition(self, data: List, condition: Union[LogicalFilter, Dict[str, Any]], 
                         entity_type: EntityType) -> List:
         """Apply a single condition (can be logical or simple filter)"""
         
         if isinstance(condition, LogicalFilter):
-            return self._apply_single_logical_filter(data, condition, entity_type)
+            return await self._apply_single_logical_filter(data, condition, entity_type)
         
         elif isinstance(condition, dict):
             # Convert dict condition to FilterSet and apply
             temp_filter_set = self.parse_prompt_filters(condition)
-            return self._apply_filterset_to_data(data, temp_filter_set, entity_type)
+            return await self._apply_filterset_to_data(data, temp_filter_set, entity_type)
         
         return data
     
-    def _apply_filterset_to_data(self, data: List, filter_set: FilterSet, entity_type: EntityType) -> List:
+    async def _apply_filterset_to_data(self, data: List, filter_set: FilterSet, entity_type: EntityType) -> List:
         """Apply a FilterSet to data (helper method)"""
         result = data
         
@@ -356,7 +455,7 @@ class UniversalFilterEngine:
             result = self._apply_period_filter(result, filter_set.period_filter)
         
         if filter_set.cross_entity_filters:
-            result = self._apply_cross_entity_filters(result, filter_set.cross_entity_filters, entity_type)
+            result = await self._apply_cross_entity_filters(result, filter_set.cross_entity_filters, entity_type)
         
         if filter_set.entity_filters:
             result = self._apply_entity_filters(result, filter_set.entity_filters)

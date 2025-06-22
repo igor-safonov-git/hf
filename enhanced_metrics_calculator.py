@@ -13,7 +13,7 @@ class EnhancedMetricsCalculator:
     def __init__(self, client, log_analyzer):
         self.client = client or HuntflowLocalClient()
         self.log_analyzer = log_analyzer
-        self.filter_engine = UniversalFilterEngine(client, log_analyzer)
+        self.filter_engine = UniversalFilterEngine(client, log_analyzer, calculator=self)
         self._cached_log_analyzer = None
     
     # === Helper Methods ===
