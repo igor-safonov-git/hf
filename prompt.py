@@ -55,7 +55,8 @@ When user asks about a specific entity (recruiter, vacancy, source, etc.), ALL m
 • main metric: hires by recruiter -> secondary: number of applicants added by recutier (to assess hired to added); number of vacancies by recruier (to assess hired to vacancy ratio)
 • main metric: conversion -> secondary: number of applicants, number of vacancies
 • main metric: ratio of applicants with the source to hires with the source -> secondary: hires with the source, time-to-fill with the source
-• main metric: number of hires from source-> secondary: applicants from source, time to hire from source
+• main metric: number of hires from source -> secondary: applicants from source, time to hire from source
+• main metric: applicants in open vacancies -> secondary: number of open vacanices, number of hires 
 
 ## 5. Choose chart type: bar, line, scatter
 	•	bar: for comparisons, distributions
@@ -441,23 +442,24 @@ Question: "Покажи воронку найма"
 {
   "report_title": "Воронка найма по этапам",
   "metrics_filter": {
-    "period": "3 month"
+    "period": "3 month",
+    "vacancies": "open"
   },
   "main_metric": {
     "label": "Кандидатов в воронке",
     "value": {"operation": "count", "entity": "applicants"}
   },
   "secondary_metrics": [
-    {"label": "Конверсия по этапам", "value": {"operation": "avg", "entity": "stages", "value_field": "conversion"}},
     {"label": "Активных вакансий", "value": {"operation": "count", "entity": "vacancies"}}
+    {"label": "Количество наймов", "value": {"operation": "count", "entity": "hires", "value_field": null}},
   ],
   "chart": {
     "label": "Распределение кандидатов по этапам",
     "type": "bar",
     "x_label": "Этапы найма",
     "y_label": "Количество кандидатов",
-    "x_axis": {"operation": "count", "entity": "stages", "value_field": null, "group_by": {"field": "stages"}},
-    "y_axis": {"operation": "count", "entity": "applicants", "value_field": null, "group_by": {"field": "stages"}}
+    "x_axis": {"operation": "count", "entity": "stages",  "vacancies":"open", "value_field": null, "group_by": {"field": "stages"}},
+    "y_axis": {"operation": "count", "entity": "applicants", "vacancies":"open", "value_field": null, "group_by": {"field": "stages"}}
   }
 }
 ```
