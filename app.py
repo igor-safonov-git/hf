@@ -2,11 +2,12 @@ import os
 import json
 import asyncio
 import logging
+import tempfile
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from openai import AsyncOpenAI
@@ -34,6 +35,9 @@ def validate_environment():
     
     if not os.getenv("DEEPSEEK_API_KEY"):
         missing_vars.append("DEEPSEEK_API_KEY")
+    
+    if not os.getenv("OPENAI_API_KEY"):
+        logger.warning("OPENAI_API_KEY not found - voice transcription will be limited")
     
     if missing_vars:
         logger.warning(f"Missing environment variables: {', '.join(missing_vars)}")
@@ -76,6 +80,12 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     thread_id: str
+
+
+class TranscriptionResponse(BaseModel):
+    text: str
+    success: bool
+    error: Optional[str] = None
 
 
 def validate_json_response(response_content: str) -> tuple[bool, str]:
@@ -198,6 +208,73 @@ async def chat(request: ChatRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
+        )
+
+
+@app.post("/transcribe", response_model=TranscriptionResponse)
+async def transcribe_audio(audio: UploadFile = File(...)):
+    """Transcribe audio using OpenAI Whisper API"""
+    try:
+        # Check if OpenAI API key is available (using DeepSeek client key for now)
+        if not deepseek_client.api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="OpenAI API key not configured"
+            )
+        
+        # Validate file type
+        if not audio.content_type or not audio.content_type.startswith('audio/'):
+            return TranscriptionResponse(
+                text="",
+                success=False,
+                error="Invalid file type. Please upload an audio file."
+            )
+        
+        # Read audio file content
+        audio_content = await audio.read()
+        
+        # Create OpenAI client for transcription
+        openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+        
+        # If no OpenAI key, try using DeepSeek key (might not work)
+        if not openai_client.api_key:
+            logger.warning("No OPENAI_API_KEY found, attempting with DEEPSEEK_API_KEY")
+            openai_client = AsyncOpenAI(api_key=os.getenv("DEEPSEEK_API_KEY", ""))
+        
+        # Create a temporary file for the audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
+            temp_file.write(audio_content)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Call OpenAI Whisper API
+            with open(temp_file_path, "rb") as audio_file:
+                transcript = await openai_client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="ru"  # Russian language for better recognition
+                )
+            
+            logger.info(f"Transcription successful: {transcript.text[:100]}...")
+            
+            return TranscriptionResponse(
+                text=transcript.text,
+                success=True
+            )
+            
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file: {e}")
+        
+    except Exception as e:
+        logger.error(f"Transcription error: {e}")
+        return TranscriptionResponse(
+            text="",
+            success=False,
+            error=f"Transcription failed: {str(e)}"
         )
 
 
