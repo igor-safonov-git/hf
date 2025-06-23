@@ -209,6 +209,18 @@ class UniversalFilterEngine:
             logger.info(f"Filtered {len(data)} applicants to {len(filtered_data)} by recruiter {filter_obj.value}")
             return filtered_data
         
+        # 4. For filtering applicants by sources, extract source info from source field
+        elif target_entity == EntityType.APPLICANTS and filter_obj.entity_type == EntityType.SOURCES:
+            filtered_data = []
+            for item in data:
+                source_id = item.get('source')
+                # Check if source_id matches the filter
+                if self._matches_filter(source_id, filter_obj):
+                    filtered_data.append(item)
+            
+            logger.info(f"Filtered {len(data)} applicants to {len(filtered_data)} by source {filter_obj.value}")
+            return filtered_data
+        
         # For other cross-entity filters, use the simple field matching approach
         return self._apply_single_filter(data, filter_obj, relationship_key)
     

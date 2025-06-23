@@ -219,6 +219,10 @@ class EnhancedMetricsCalculator:
                 else:
                     applicant_record["recruiter_id"] = None
                     applicant_record["recruiter_name"] = None
+                
+                # Extract source information
+                applicant_record["source_id"] = log.get("source")
+                applicant_record["source"] = log.get("source")
                 applicant_records.append(applicant_record)
         
         # Remove duplicates by applicant_id
