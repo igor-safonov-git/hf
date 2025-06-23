@@ -846,3 +846,73 @@ class EnhancedMetricsCalculator:
             conversion_rates[recruiter_name] = conversion_rate
         
         return conversion_rates
+    
+    async def rejections(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Get all rejections (status changes to rejection status) with optional filtering"""
+        
+        # Get rejection reasons mapping from API
+        try:
+            rejection_reasons_data = await self.client._req('GET', f'/v2/accounts/{self.client.account_id}/rejection_reasons')
+            rejection_reasons_map = {}
+            if rejection_reasons_data.get('items'):
+                for reason in rejection_reasons_data['items']:
+                    rejection_reasons_map[reason.get('id')] = reason.get('name')
+        except Exception as e:
+            logger.warning(f"Failed to get rejection reasons: {e}")
+            rejection_reasons_map = {}
+        
+        # Get all logs from analyzer
+        analyzer = self.cached_log_analyzer
+        all_logs = analyzer.get_merged_logs()
+        
+        # Filter for rejection logs
+        rejection_logs = []
+        for log in all_logs:
+            # Check if this is a rejection (has rejection_reason or status indicates rejection)
+            if (log.get('rejection_reason') or 
+                (log.get('status_name') and 'отказ' in log.get('status_name', '').lower()) or
+                (log.get('status_type') and log.get('status_type') == 'trash')):
+                rejection_logs.append(log)
+        
+        # Convert logs to rejection records
+        rejection_records = []
+        for log in rejection_logs:
+            rejection_reason_id = log.get('rejection_reason')
+            rejection_reason_name = rejection_reasons_map.get(rejection_reason_id, 'Не указана причина') if rejection_reason_id else 'Не указана причина'
+            
+            rejection_record = {
+                'id': log.get('id'),
+                'applicant_id': log.get('applicant_id'),
+                'vacancy_id': log.get('vacancy_id'),
+                'status_id': log.get('status_id'),
+                'created': log.get('created'),
+                'rejection_reason': rejection_reason_name,  # Use readable name instead of ID
+                'rejection_reason_id': rejection_reason_id,  # Keep ID for reference
+                'status_name': log.get('status_name'),
+                'status_type': log.get('status_type'),
+                'vacancy_position': log.get('vacancy_position'),
+                'comment': log.get('comment')
+            }
+            
+            # Extract recruiter information from account_info
+            account_info = log.get("account_info", {})
+            if isinstance(account_info, dict):
+                rejection_record["recruiter_id"] = account_info.get("id")
+                rejection_record["recruiter_name"] = account_info.get("name")
+            else:
+                rejection_record["recruiter_id"] = None
+                rejection_record["recruiter_name"] = None
+            
+            # Extract source information
+            rejection_record["source_id"] = log.get("source")
+            rejection_record["source"] = log.get("source")
+            
+            rejection_records.append(rejection_record)
+        
+        # Apply Universal Filtering
+        if filters:
+            rejection_records = await self._apply_universal_filters(
+                rejection_records, EntityType.REJECTIONS, filters
+            )
+        
+        return rejection_records
