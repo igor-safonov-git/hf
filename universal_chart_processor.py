@@ -90,6 +90,16 @@ class UniversalChartProcessor:
             base_data = await self.calc.recruiters_all(filters)
         elif entity_type == EntityType.SOURCES:
             base_data = await self.calc.sources_all(filters)
+        elif entity_type == EntityType.ACTIONS:
+            base_data = await self.calc.actions(filters)
+        elif entity_type == EntityType.STAGES:
+            base_data = await self.calc.stages(filters)
+        elif entity_type == EntityType.REJECTIONS:
+            base_data = await self.calc.rejections(filters)
+        elif entity_type == EntityType.HIRING_MANAGERS:
+            base_data = await self.calc.hiring_managers(filters)
+        elif entity_type == EntityType.DIVISIONS:
+            base_data = await self.calc.divisions_all(filters)
         else:
             base_data = []
         
