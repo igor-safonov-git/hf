@@ -102,6 +102,9 @@
         .mention-icon {
             font-size: 1.25rem;
         }
+        .mention-icon:empty {
+            display: none;
+        }
         .mention-text {
             flex: 1;
         }
@@ -489,16 +492,16 @@
 
             // Entity definitions for mentions
             const entities = [
-                { name: 'applicants', icon: '👤', desc: 'Кандидаты и соискатели' },
-                { name: 'vacancies', icon: '💼', desc: 'Вакансии и позиции' },
-                { name: 'hires', icon: '✅', desc: 'Принятые на работу' },
-                { name: 'rejections', icon: '❌', desc: 'Отказы кандидатам' },
-                { name: 'recruiters', icon: '🎯', desc: 'Рекрутеры и HR' },
-                { name: 'sources', icon: '📊', desc: 'Источники кандидатов' },
-                { name: 'stages', icon: '📋', desc: 'Этапы найма' },
-                { name: 'actions', icon: '⚡', desc: 'Действия рекрутеров' },
-                { name: 'divisions', icon: '🏢', desc: 'Отделы и подразделения' },
-                { name: 'hiring_managers', icon: '👔', desc: 'Руководители найма' }
+                { name: 'applicants', icon: '', desc: 'Кандидаты и соискатели' },
+                { name: 'vacancies', icon: '', desc: 'Вакансии и позиции' },
+                { name: 'hires', icon: '', desc: 'Принятые на работу' },
+                { name: 'rejections', icon: '', desc: 'Отказы кандидатам' },
+                { name: 'recruiters', icon: '', desc: 'Рекрутеры и HR' },
+                { name: 'sources', icon: '', desc: 'Источники кандидатов' },
+                { name: 'stages', icon: '', desc: 'Этапы найма' },
+                { name: 'actions', icon: '', desc: 'Действия рекрутеров' },
+                { name: 'divisions', icon: '', desc: 'Отделы и подразделения' },
+                { name: 'hiring_managers', icon: '', desc: 'Руководители найма' }
             ];
 
             const scrollToBottom = () => {
