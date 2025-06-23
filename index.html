@@ -399,6 +399,22 @@
             background-color: #9ca3af;
             cursor: not-allowed;
         }
+        .undo-button {
+            padding: 0.5rem 1rem;
+            background-color: #f59e0b;
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .undo-button:hover {
+            background-color: #d97706;
+        }
+        .undo-button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
         .mic-button {
             padding: 0.5rem;
             background-color: #6b7280;
@@ -468,6 +484,7 @@
             const [input, setInput] = useState('');
             const [isLoading, setIsLoading] = useState(false);
             const [report, setReport] = useState(null);
+            const [previousReport, setPreviousReport] = useState(null);
             const [threadId, setThreadId] = useState(null);
             const [selectedModel, setSelectedModel] = useState('deepseek');
             const [temperature, setTemperature] = useState(0.1);
@@ -936,6 +953,8 @@
                                 })) || []
                             };
                             console.log('Setting report:', enrichedReport);
+                            // Save current report as previous before setting new one
+                            setPreviousReport(report);
                             setReport(enrichedReport);
                         } else {
                             console.log('Conditions not met for report generation');
@@ -960,6 +979,16 @@
 
             const toggleChatPanel = () => {
                 setIsChatVisible(!isChatVisible);
+            };
+
+            const handleUndo = () => {
+                if (messages.length >= 2) {
+                    // Remove last two messages (user question and AI response)
+                    setMessages(prev => prev.slice(0, -2));
+                    // Restore previous report
+                    setReport(previousReport);
+                    setPreviousReport(null);
+                }
             };
 
             // Handle input changes for mention detection
@@ -1327,6 +1356,13 @@
                             disabled: isLoading,
                             title: isRecording ? 'Stop recording' : 'Start voice input (OpenAI Whisper)'
                         }, isRecording ? '⏹️' : '🎤'),
+                        React.createElement('button', {
+                            key: 'undo',
+                            className: 'undo-button',
+                            onClick: handleUndo,
+                            disabled: isLoading || messages.length < 2,
+                            title: 'Undo last question and answer'
+                        }, '↶'),
                         React.createElement('button', {
                             key: 'send',
                             className: 'button',
