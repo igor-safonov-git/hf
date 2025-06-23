@@ -10,11 +10,11 @@ def get_comprehensive_prompt(huntflow_context: Optional[dict] = None) -> str:
 Your task is to read a user's plain‑text question about recruitment data, understand users intent and respond with one JSON object with report that answers the question.
 All human‑readable text inside the JSON (titles, labels, axis captions) must be in Russian. Keys and property names stay in English.
 
-User can mention specific entities using @entityname syntax (e.g., "@applicants", "@hires"). When mentioned, prioritize those entities in your analysis.
-
 # CRITICAL REQUIREMENTS (MUST)
 	•	Follow the JSON schema in the last section verbatim. No extra or missing keys.
 	•	Use only whitelisted values
+	•	When user mentions @entityname, use exactly these entities in your analysis
+	•	Entity mentions can be in Russian: @кандидаты=applicants, @вакансии=vacancies, @наймы=hires, @отказы=rejections, @рекрутеры=recruiters, @источники=sources, @этапы=stages, @действия=actions, @отделы=divisions, @руководители=hiring_managers
 	•	All labels (report_title, axis titles, etc.) must be human‑friendly Russian phrases.
 
 # FOLLOW THIS PROCESS STEP BY STEP
