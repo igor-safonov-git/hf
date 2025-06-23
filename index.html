@@ -116,6 +116,20 @@
             font-size: 0.875rem;
             color: #6b7280;
         }
+        .mentioned-entity {
+            background-color: #dbeafe;
+            color: #1e40af;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            font-weight: 500;
+            display: inline-block;
+            margin: 0 0.125rem;
+            cursor: pointer;
+            border: 1px solid #bfdbfe;
+        }
+        .mentioned-entity:hover {
+            background-color: #bfdbfe;
+        }
         .input-container {
             position: relative;
         }
@@ -382,6 +396,27 @@
             border: 1px solid #d1d5db;
             border-radius: 0.375rem;
             font-size: 1rem;
+        }
+        .input-wrapper {
+            position: relative;
+            flex: 1;
+        }
+        .input-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 0.5rem 1rem;
+            border: 1px solid transparent;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            pointer-events: none;
+            color: #374151;
+            z-index: 3;
+            white-space: pre;
+            overflow: hidden;
+            background: transparent;
         }
         .button {
             padding: 0.5rem 1rem;
@@ -1015,8 +1050,34 @@
                 setShowMentions(false);
             };
 
-            // Handle keyboard navigation in mentions
+            // Handle keyboard navigation in mentions and entity deletion
             const handleKeyDown = (e) => {
+                // Handle backspace for entity deletion
+                if (e.key === 'Backspace' && !showMentions) {
+                    const cursorPos = e.target.selectionStart;
+                    const value = input;
+                    
+                    // Check if cursor is right after a mentioned entity
+                    const textBeforeCursor = value.slice(0, cursorPos);
+                    const mentionMatch = textBeforeCursor.match(/@([а-яё]+)\s*$/i);
+                    
+                    if (mentionMatch) {
+                        e.preventDefault();
+                        // Delete the entire mention including the @
+                        const newValue = 
+                            value.slice(0, cursorPos - mentionMatch[0].length) + 
+                            value.slice(cursorPos);
+                        setInput(newValue);
+                        
+                        // Set cursor position
+                        setTimeout(() => {
+                            const newCursorPos = cursorPos - mentionMatch[0].length;
+                            e.target.setSelectionRange(newCursorPos, newCursorPos);
+                        }, 0);
+                        return;
+                    }
+                }
+                
                 if (!showMentions) return;
                 
                 const filteredEntities = entities.filter(entity => 
@@ -1069,6 +1130,30 @@
                         inputElement.focus();
                     }, 0);
                 }
+            };
+
+            // Render input with highlighted mentions
+            const renderInputWithMentions = () => {
+                const parts = input.split(/(@[а-яё]+)/gi);
+                const entityNames = entities.map(e => e.name);
+                
+                return React.createElement('div', {
+                    className: 'input-overlay',
+                    key: 'overlay'
+                }, parts.map((part, index) => {
+                    if (part.startsWith('@')) {
+                        const entityName = part.slice(1);
+                        if (entityNames.includes(entityName)) {
+                            return React.createElement('span', {
+                                key: index,
+                                className: 'mentioned-entity'
+                            }, part);
+                        }
+                    }
+                    return React.createElement('span', { 
+                        key: index
+                    }, part);
+                }));
             };
 
             const toggleAudioRecording = async () => {
@@ -1334,21 +1419,38 @@
                             )
                         ),
                         
-                        React.createElement('input', {
-                            key: 'input',
-                            type: 'text',
-                            className: 'input',
-                            value: input,
-                            onChange: handleInputChange,
-                            onKeyDown: handleKeyDown,
-                            onKeyPress: (e) => {
-                                if (e.key === 'Enter' && !showMentions) {
-                                    handleSend();
+                        // Input container with overlay for highlighted mentions
+                        React.createElement('div', {
+                            key: 'input-wrapper',
+                            style: {
+                                position: 'relative',
+                                flex: 1
+                            }
+                        }, [
+                            React.createElement('input', {
+                                key: 'input',
+                                type: 'text',
+                                className: 'input',
+                                value: input,
+                                onChange: handleInputChange,
+                                onKeyDown: handleKeyDown,
+                                onKeyPress: (e) => {
+                                    if (e.key === 'Enter' && !showMentions) {
+                                        handleSend();
+                                    }
+                                },
+                                placeholder: speechSupported ? 'Ask about Huntflow data... (🎤 voice or @ for entities)' : 'Ask about Huntflow data... (@ for entities)',
+                                disabled: isLoading,
+                                style: {
+                                    background: 'white',
+                                    position: 'relative',
+                                    zIndex: 2,
+                                    color: 'transparent',
+                                    caretColor: 'black'
                                 }
-                            },
-                            placeholder: speechSupported ? 'Ask about Huntflow data... (🎤 voice or @ for entities)' : 'Ask about Huntflow data... (@ for entities)',
-                            disabled: isLoading
-                        }),
+                            }),
+                            renderInputWithMentions()
+                        ]),
                         speechSupported && React.createElement('button', {
                             key: 'mic',
                             className: `mic-button ${isRecording ? 'recording' : ''}`,
