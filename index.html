@@ -492,16 +492,16 @@
 
             // Entity definitions for mentions
             const entities = [
-                { name: 'applicants', icon: '', desc: 'Кандидаты и соискатели' },
-                { name: 'vacancies', icon: '', desc: 'Вакансии и позиции' },
-                { name: 'hires', icon: '', desc: 'Принятые на работу' },
-                { name: 'rejections', icon: '', desc: 'Отказы кандидатам' },
-                { name: 'recruiters', icon: '', desc: 'Рекрутеры и HR' },
-                { name: 'sources', icon: '', desc: 'Источники кандидатов' },
-                { name: 'stages', icon: '', desc: 'Этапы найма' },
-                { name: 'actions', icon: '', desc: 'Действия рекрутеров' },
-                { name: 'divisions', icon: '', desc: 'Отделы и подразделения' },
-                { name: 'hiring_managers', icon: '', desc: 'Руководители найма' }
+                { name: 'кандидаты', englishName: 'applicants', icon: '', desc: 'Кандидаты и соискатели' },
+                { name: 'вакансии', englishName: 'vacancies', icon: '', desc: 'Вакансии и позиции' },
+                { name: 'наймы', englishName: 'hires', icon: '', desc: 'Принятые на работу' },
+                { name: 'отказы', englishName: 'rejections', icon: '', desc: 'Отказы кандидатам' },
+                { name: 'рекрутеры', englishName: 'recruiters', icon: '', desc: 'Рекрутеры и HR' },
+                { name: 'источники', englishName: 'sources', icon: '', desc: 'Источники кандидатов' },
+                { name: 'этапы', englishName: 'stages', icon: '', desc: 'Этапы найма' },
+                { name: 'действия', englishName: 'actions', icon: '', desc: 'Действия рекрутеров' },
+                { name: 'отделы', englishName: 'divisions', icon: '', desc: 'Отделы и подразделения' },
+                { name: 'руководители', englishName: 'hiring_managers', icon: '', desc: 'Руководители найма' }
             ];
 
             const scrollToBottom = () => {
@@ -1025,16 +1025,17 @@
                 const lastAtIndex = textBeforeCursor.lastIndexOf('@');
                 
                 if (lastAtIndex !== -1) {
+                    const entityToInsert = entity.name;  // Use Russian name
                     const newValue = 
                         textBeforeCursor.slice(0, lastAtIndex) + 
-                        '@' + entity.name + ' ' + 
+                        '@' + entityToInsert + ' ' + 
                         textAfterCursor;
                     setInput(newValue);
                     setShowMentions(false);
                     
                     // Set cursor position after mention
                     setTimeout(() => {
-                        const newCursorPos = lastAtIndex + entity.name.length + 2;
+                        const newCursorPos = lastAtIndex + entityToInsert.length + 2;
                         inputElement.setSelectionRange(newCursorPos, newCursorPos);
                         inputElement.focus();
                     }, 0);
