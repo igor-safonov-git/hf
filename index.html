@@ -68,14 +68,6 @@
             background: #e5e7eb;
             border-color: #9ca3af;
         }
-        .chat-toggle.chat-hidden {
-            background: #3b82f6;
-            border-color: #2563eb;
-            color: white;
-        }
-        .chat-toggle.chat-hidden:hover {
-            background: #2563eb;
-        }
         .title {
             font-size: 1.5rem;
             font-weight: bold;
@@ -1067,10 +1059,10 @@
                     // Chat toggle button
                     React.createElement('button', {
                         key: 'chat-toggle',
-                        className: `chat-toggle ${!isChatVisible ? 'chat-hidden' : ''}`,
+                        className: 'chat-toggle',
                         onClick: toggleChatPanel,
                         title: isChatVisible ? 'Hide chat panel' : 'Show chat panel'
-                    }, isChatVisible ? '💬' : '📊'),
+                    }, '💬'),
                     
                     report ? [
                         React.createElement('h1', { className: 'report-title', key: 'report-title' }, report.report_title),
