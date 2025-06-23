@@ -75,12 +75,12 @@ When user asks about a specific entity (recruiter, vacancy, source, etc.), ALL m
 	•	For scatter plots: use second comparison metric (e.g., time to hire)
 	•	Ensure both axes have same group_by field for distribution charts
     
-## 8. Write report header that describes key metrics and time period
-	•	Сравнение рекпрутеров по количеству наймов за 6 месяцев
-	•	Количество кандидатов в ворронке на открытых вакансиях на текущий момент
-  •	Сравнение рекрутеров по количеству и скорости наймов за 6 месяцев
-  •	Количество вакансий закрытых Анастасией Богач в отделе разработки из LinkedIn за год
-  •	Сравнение нанимающих менеджеров по количеству наймов за 6 месяцев
+## 8. Write report title that describes key metrics and time period
+	•	"report_title": "Сравнение рекрутеров по количеству наймов за 6 месяцев"
+	•	"report_title": "Количество кандидатов в воронке на открытых вакансиях на текущий момент"
+	•	"report_title": "Сравнение рекрутеров по количеству и скорости наймов за 6 месяцев"
+	•	"report_title": "Количество вакансий закрытых Анастасией Богач в отделе разработки из LinkedIn за год"
+	•	"report_title": "Сравнение нанимающих менеджеров по количеству наймов за 6 месяцев"
 
 # ENTITIES: OPERATIONS, FILTERS, AND GROUPINGS
 
