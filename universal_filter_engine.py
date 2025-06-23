@@ -195,6 +195,20 @@ class UniversalFilterEngine:
         elif target_entity in [EntityType.SOURCES, EntityType.RECRUITERS]:
             return await self._apply_reverse_entity_filter(data, filter_obj, target_entity)
         
+        # 3. For filtering applicants by recruiters, extract recruiter info from account_info
+        elif target_entity == EntityType.APPLICANTS and filter_obj.entity_type == EntityType.RECRUITERS:
+            filtered_data = []
+            for item in data:
+                account_info = item.get('account_info', {})
+                if isinstance(account_info, dict):
+                    recruiter_id = account_info.get('id')
+                    # Check if recruiter_id matches the filter
+                    if self._matches_filter(recruiter_id, filter_obj):
+                        filtered_data.append(item)
+            
+            logger.info(f"Filtered {len(data)} applicants to {len(filtered_data)} by recruiter {filter_obj.value}")
+            return filtered_data
+        
         # For other cross-entity filters, use the simple field matching approach
         return self._apply_single_filter(data, filter_obj, relationship_key)
     

@@ -210,6 +210,15 @@ class EnhancedMetricsCalculator:
                     'stage_id': log.get('status_id'),  # Current stage
                     'stage_name': log.get('status_name', 'Unknown')
                 }
+                
+                # Extract recruiter information from account_info field (already parsed)
+                account_info = log.get("account_info", {})
+                if isinstance(account_info, dict):
+                    applicant_record["recruiter_id"] = account_info.get("id")
+                    applicant_record["recruiter_name"] = account_info.get("name")
+                else:
+                    applicant_record["recruiter_id"] = None
+                    applicant_record["recruiter_name"] = None
                 applicant_records.append(applicant_record)
         
         # Remove duplicates by applicant_id
