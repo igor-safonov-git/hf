@@ -35,13 +35,13 @@ All human‑readable text inside the JSON (titles, labels, axis captions) must b
 ALL metrics use same metrics_filter. Charts can have different group_by than metrics.
 When user asks about a specific entity (recruiter, vacancy, source, etc.), ALL metrics and chart axes must be filtered by that entity:
 • "Сколько вакансий закрыла Настя?" -> "metrics_filter": {"period": "6 months", "recruiters": "14824"}
-• "Сколько вакансий закрыла Настя за последний год в отеделе разработки?" -> "metrics_filter": {"period": "1 year", "recruiters": "14824", "divisions": "101"}
-• "Сколько вакансий закрыла Настя за последний год в отеделе разработки кандидатами из линкедина?" -> "metrics_filter": {"period": "1 year", "recruiters": "14824", "divisions": "101", "sources": "274886"}
-• "Сколько вакансий закрыла Настя за последний год в отеделе разработки кандидатами из линкедина?" -> "metrics_filter": {"period": "1 year", "recruiters": "14824", "divisions": "101", "sources": "274886"}
+• "Сколько вакансий закрыла Настя за последний год в отеделе разработки?" -> "metrics_filter": {"period": "year", "recruiters": "14824", "divisions": "101"}
+• "Сколько вакансий закрыла Настя за последний год в отеделе разработки кандидатами из линкедина?" -> "metrics_filter": {"period": "year", "recruiters": "14824", "divisions": "101", "sources": "274886"}
+• "Сколько вакансий закрыла Настя за последний год в отеделе разработки кандидатами из линкедина?" -> "metrics_filter": {"period": "year", "recruiters": "14824", "divisions": "101", "sources": "274886"}
 • "Что с вакансией Python Developer?" -> "metrics_filter": {"period": "6 months", "vacancies": "2536466"}  
 • "Эффективность LinkedIn?" -> "metrics_filter": {"period": "6 months", "sources": "274886"}
 • "Как нанимает отдел маркетинга?" -> "metrics_filter": {"period": "6 months", "divisions": "101"}
-• "Как нанимал отдел маркетинга в прошлом году?" -> "metrics_filter": {"period": "1 year", "divisions": "101"}
+• "Как нанимал отдел маркетинга в прошлом году?" -> "metrics_filter": {"period": "year", "divisions": "101"}
 • "Какая ситуация в воронке" -> "metrics_filter": {"period": "3 month", "vacancies": "open"}
 
 ## 3. Choose main metric: it should answer user's question directly
@@ -120,7 +120,7 @@ divisions: id | town
 Combine filters using logical operators:
   • Cross-entity filtering: any entity can filter by any other entity
   • Advanced operators: {"operator": "in", "value": [...]} | {"operator": "gt", "value": number} | {"operator": "contains", "value": text}
-	•	"and": [{"period": "1 year"}, {"recruiters": "12345"}] - both conditions must be true
+	•	"and": [{"period": "year"}, {"recruiters": "12345"}] - both conditions must be true
 	•	"or": [{"sources": "linkedin"}, {"sources": "hh"}] - either condition can be true
 	•	"sources": {"operator": "in", "value": ["linkedin", "hh"]} - multiple values with advanced syntax
 	•	Nested: "and": [{"period": "6 month"}, {"or": [{"recruiters": "12345"}, {"sources": "linkedin"}]}]
@@ -289,7 +289,7 @@ Examples:
 {
   "report_title": "Отчет по количеству кандидатов с детализацией по этапам за 1 год",
   "metrics_filter": {
-    "period": "1 year"
+    "period": "year"
   },
   "main_metric": {
     "label": "Основная метрика",
@@ -476,7 +476,7 @@ Question: "В каком отделе лучше нанимают?"
 {
   "report_title": "Отчет по количеству наймов с детализацией по отделам за 1 год",
   "metrics_filter": {
-    "period": "1 year"
+    "period": "year"
   },
   "main_metric": {
     "label": "Наймов по отделам",
