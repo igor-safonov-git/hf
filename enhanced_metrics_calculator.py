@@ -801,3 +801,48 @@ class EnhancedMetricsCalculator:
             )
         
         return action_records
+    
+    async def recruiters_conversion_rate(self, filters: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+        """Calculate conversion rate (hires/applicants) for each recruiter"""
+        
+        # Get hires and applicants with filters
+        hires = await self.hires(filters or {})
+        applicants = await self.applicants_all(filters or {})
+        
+        # Group by recruiter
+        recruiter_hires = {}
+        recruiter_applicants = {}
+        recruiter_names = {}
+        
+        # Count hires by recruiter
+        for hire in hires:
+            recruiter_id = hire.get('recruiter_id')
+            recruiter_name = hire.get('recruiter_name', 'Unknown')
+            if recruiter_id:
+                recruiter_hires[recruiter_id] = recruiter_hires.get(recruiter_id, 0) + 1
+                recruiter_names[recruiter_id] = recruiter_name
+        
+        # Count applicants by recruiter
+        for applicant in applicants:
+            recruiter_id = applicant.get('recruiter_id')
+            recruiter_name = applicant.get('recruiter_name', 'Unknown')
+            if recruiter_id:
+                recruiter_applicants[recruiter_id] = recruiter_applicants.get(recruiter_id, 0) + 1
+                recruiter_names[recruiter_id] = recruiter_name
+        
+        # Calculate conversion rates
+        conversion_rates = {}
+        for recruiter_id in set(list(recruiter_hires.keys()) + list(recruiter_applicants.keys())):
+            hires_count = recruiter_hires.get(recruiter_id, 0)
+            applicants_count = recruiter_applicants.get(recruiter_id, 0)
+            recruiter_name = recruiter_names.get(recruiter_id, f'Recruiter {recruiter_id}')
+            
+            if applicants_count > 0:
+                conversion_rate = (hires_count / applicants_count) * 100
+            else:
+                # If no applicants but has hires, set a high conversion rate
+                conversion_rate = 100.0 if hires_count > 0 else 0.0
+            
+            conversion_rates[recruiter_name] = conversion_rate
+        
+        return conversion_rates
