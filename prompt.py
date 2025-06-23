@@ -75,12 +75,12 @@ When user asks about a specific entity (recruiter, vacancy, source, etc.), ALL m
 	•	For scatter plots: use second comparison metric (e.g., time to hire)
 	•	Ensure both axes have same group_by field for distribution charts
     
-## 8. Write report title that describes key metrics and time period
-	•	"report_title": "Сравнение рекрутеров по количеству наймов за 6 месяцев"
-	•	"report_title": "Количество кандидатов в воронке на открытых вакансиях на текущий момент"
-	•	"report_title": "Сравнение рекрутеров по количеству и скорости наймов за 6 месяцев"
-	•	"report_title": "Количество вакансий закрытых Анастасией Богач в отделе разработки из LinkedIn за год"
-	•	"report_title": "Сравнение нанимающих менеджеров по количеству наймов за 6 месяцев"
+## 8. Write report title that ALWAYS includes key metrics and time period
+	•	"report_title": "Отчет по количеству наймов c детализацией по рекрутерам за 6 месяцев"
+	•	"report_title": "Отчет по количеству кандидатов в воронке на открытых вакансиях на текущий момент"
+	•	"report_title": "Отчет по по количеству и скорости найма с детализацией по рекрутерам за 6 месяцев"
+	•	"report_title": "Отчет по количеству вакансий закрытых Анастасией Богач в отделе разработки из LinkedIn за 1 год"
+	•	"report_title": "Отчет по количеству наймов с детализацией по нанимающим менеджерам за 6 месяцев"
 
 # ENTITIES: OPERATIONS, FILTERS, AND GROUPINGS
 
@@ -287,7 +287,7 @@ Examples:
 # MANDATORY RESPONSE TEMPLATE:
 
 {
-  "report_title": "Краткий заголовок отчета",
+  "report_title": "Отчет по количеству кандидатов с детализацией по этапам за 1 год",
   "metrics_filter": {
     "period": "1 year"
   },
@@ -344,7 +344,7 @@ Examples:
 Question: "Покажи общие результаты найма"
 ```json
 {
-  "report_title": "Общие результаты найма",
+  "report_title": "Отчет по количеству наймов с детализацией по месяцам за 6 месяцев",
   "metrics_filter": {
     "period": "6 month"
   },
@@ -368,7 +368,7 @@ Result: Automatic recruiter breakdown table + monthly hiring trend chart
 Question: "Сколько нанял Сафонов?"
 ```json
 {
-  "report_title": "Результаты Сафонова",
+  "report_title": "Отчет по количеству наймов Сафонова с детализацией по месяцам за 3 месяца",
   "metrics_filter": {
     "period": "3 month",
     "recruiters": "55498"
@@ -393,7 +393,7 @@ Result: Aggregated metrics for specific recruiter + monthly trend chart
 Question: "Сравни эффективность источников"
 ```json
 {
-  "report_title": "Эффективность источников",
+  "report_title": "Отчет по количеству наймов через источники с детализацией по источникам за 1 месяц",
   "metrics_filter": {
     "period": "1 month"
   },
@@ -417,7 +417,7 @@ Result: Automatic recruiter breakdown + pipeline chart
 Question: "Сравни рекрутеров по эффективности"
 ```json
 {
-  "report_title": "Сравнение эффективности рекрутеров",
+  "report_title": "Отчет по среднему количеству наймов с детализацией по рекрутерам за 6 месяцев",
   "metrics_filter": {
     "period": "6 month"
   },
@@ -445,7 +445,7 @@ Result: Scatter plot showing recruiter performance correlation
 Question: "Покажи воронку найма"
 ```json
 {
-  "report_title": "Воронка найма по этапам",
+  "report_title": "Отчет по количеству кандидатов в воронке открытых вакансий с детализацией по этапам за 3 месяца",
   "metrics_filter": {
     "period": "3 month",
     "vacancies": "open"
@@ -474,7 +474,7 @@ Result: Bar chart showing candidate distribution across pipeline stages
 Question: "В каком отделе лучше нанимают?"
 ```json
 {
-  "report_title": "Сравнение результатов по отделам",
+  "report_title": "Отчет по количеству наймов с детализацией по отделам за 1 год",
   "metrics_filter": {
     "period": "1 year"
   },
@@ -502,7 +502,7 @@ Result: Bar chart comparing hiring performance across divisions
 Question: "Что с вакансией Python Developer?"
 ```json
 {
-  "report_title": "Анализ вакансии Python Developer",
+  "report_title": "Отчет по количеству кандидатов на вакансию Python Developer с детализацией по этапам за 6 месяцев",
   "metrics_filter": {
     "period": "6 month",
     "vacancies": "2536466"
@@ -531,7 +531,7 @@ Result: Bar chart showing candidate pipeline for specific vacancy
 Question: "Как быстро мы нанимаем за последние месяцы?"
 ```json
 {
-  "report_title": "Динамика скорости найма",
+  "report_title": "Отчет по среднему времени найма с детализацией по месяцам за 6 месяцев",
   "metrics_filter": {
     "period": "6 month"
   },
