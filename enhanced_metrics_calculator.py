@@ -757,3 +757,43 @@ class EnhancedMetricsCalculator:
                 recruiter_averages[recruiter] = 0
         
         return recruiter_averages
+    
+    async def actions(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Get all recruiter actions (log entries) with optional filtering"""
+        
+        # Get all logs from analyzer
+        analyzer = self.cached_log_analyzer
+        all_logs = analyzer.get_merged_logs()
+        
+        # Convert logs to action records
+        action_records = []
+        for log in all_logs:
+            # Each log entry represents an action
+            action_record = {
+                'id': log.get('id'),
+                'type': log.get('type', 'UNKNOWN'),
+                'created': log.get('created'),
+                'applicant_id': log.get('applicant_id'),
+                'vacancy_id': log.get('vacancy_id'),
+                'status_id': log.get('status_id'),
+                'raw_data': log.get('raw_data')
+            }
+            
+            # Extract recruiter information from account_info
+            account_info = log.get("account_info", {})
+            if isinstance(account_info, dict):
+                action_record["recruiter_id"] = account_info.get("id")
+                action_record["recruiter_name"] = account_info.get("name")
+            else:
+                action_record["recruiter_id"] = None
+                action_record["recruiter_name"] = None
+            
+            action_records.append(action_record)
+        
+        # Apply Universal Filtering
+        if filters:
+            action_records = await self._apply_universal_filters(
+                action_records, EntityType.ACTIONS, filters
+            )
+        
+        return action_records
