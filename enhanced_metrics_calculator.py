@@ -51,6 +51,60 @@ class EnhancedMetricsCalculator:
             logger.warning(f"Failed to parse date: {date_str}")
             return datetime.min
     
+    async def _get_vacancy_division_info(self, vacancy_id: int) -> Dict[str, Any]:
+        """Get division and hiring manager info from vacancy"""
+        import json
+        import sqlite3
+        
+        try:
+            conn = sqlite3.connect(self.client.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Get vacancy raw data
+            cursor.execute("SELECT raw_data FROM vacancies WHERE id = ?", (vacancy_id,))
+            row = cursor.fetchone()
+            
+            if not row or not row['raw_data']:
+                conn.close()
+                return {}
+            
+            vacancy_data = json.loads(row['raw_data'])
+            division_id = vacancy_data.get('account_division')
+            
+            result = {
+                'division_id': division_id,
+                'division_name': None,
+                'hiring_manager_id': None,
+                'hiring_manager_name': None
+            }
+            
+            # Get division name
+            if division_id:
+                cursor.execute("SELECT name FROM divisions WHERE id = ?", (division_id,))
+                div_row = cursor.fetchone()
+                if div_row:
+                    result['division_name'] = div_row['name']
+            
+            # Get hiring manager from coworkers
+            coworkers = vacancy_data.get('coworkers', [])
+            if coworkers and isinstance(coworkers, list) and len(coworkers) > 0:
+                hiring_manager_id = coworkers[0]
+                result['hiring_manager_id'] = hiring_manager_id
+                
+                # Get manager name
+                cursor.execute("SELECT name FROM coworkers WHERE id = ?", (hiring_manager_id,))
+                mgr_row = cursor.fetchone()
+                if mgr_row:
+                    result['hiring_manager_name'] = mgr_row['name']
+            
+            conn.close()
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Failed to get vacancy division info: {e}")
+            return {}
+    
     
     @property
     def cached_log_analyzer(self):
@@ -142,6 +196,7 @@ class EnhancedMetricsCalculator:
             applicant_id = log.get('applicant_id')
             if applicant_id in active_applicants:
                 # Create applicant record from log data
+                vacancy_id = log.get('vacancy_id', log.get('vacancy'))
                 applicant_record = {
                     'id': applicant_id,
                     'first_name': log.get('first_name', ''),
@@ -150,8 +205,10 @@ class EnhancedMetricsCalculator:
                     'phone': log.get('phone', ''),
                     'created': log.get('created', ''),
                     'status': {'name': log.get('status_name', 'Unknown')},
-                    'vacancy_id': log.get('vacancy_id', log.get('vacancy')),
-                    'vacancy_position': log.get('vacancy_position', '')
+                    'vacancy_id': vacancy_id,
+                    'vacancy_position': log.get('vacancy_position', ''),
+                    'stage_id': log.get('status_id'),  # Current stage
+                    'stage_name': log.get('status_name', 'Unknown')
                 }
                 applicant_records.append(applicant_record)
         
@@ -162,6 +219,27 @@ class EnhancedMetricsCalculator:
             if record['id'] not in seen_applicants:
                 seen_applicants.add(record['id'])
                 unique_applicants.append(record)
+        
+        # Add division and hiring manager info from vacancies
+        vacancy_info_cache = {}
+        for applicant in unique_applicants:
+            vacancy_id = applicant.get('vacancy_id')
+            if vacancy_id and vacancy_id not in vacancy_info_cache:
+                # Query vacancy for division/hiring manager info
+                vacancy_info = await self._get_vacancy_division_info(vacancy_id)
+                vacancy_info_cache[vacancy_id] = vacancy_info
+            
+            if vacancy_id and vacancy_id in vacancy_info_cache:
+                info = vacancy_info_cache[vacancy_id]
+                applicant['division_id'] = info.get('division_id')
+                applicant['division_name'] = info.get('division_name')
+                applicant['hiring_manager_id'] = info.get('hiring_manager_id')
+                applicant['hiring_manager_name'] = info.get('hiring_manager_name')
+            else:
+                applicant['division_id'] = None
+                applicant['division_name'] = None
+                applicant['hiring_manager_id'] = None
+                applicant['hiring_manager_name'] = None
         
         return unique_applicants
     

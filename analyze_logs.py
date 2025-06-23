@@ -139,6 +139,34 @@ class LogAnalyzer:
         
         return recruiter_stats
     
+    def get_applicant_source_mapping(self) -> Dict[int, Dict[str, Any]]:
+        """Get comprehensive applicant-source mapping from ADD logs."""
+        sql = """
+        SELECT 
+            al.applicant_id,
+            json_extract(al.raw_data, '$.source') as source_id,
+            json_extract(al.raw_data, '$.type') as log_type,
+            s.name as source_name
+        FROM applicant_logs al
+        LEFT JOIN applicant_sources s ON json_extract(al.raw_data, '$.source') = s.id
+        WHERE json_extract(al.raw_data, '$.type') = 'ADD'
+        """
+        
+        add_logs = self._query(sql)
+        applicant_source_map = {}
+        
+        for log in add_logs:
+            applicant_id = log['applicant_id']
+            source_id = log.get('source_id')
+            
+            if applicant_id and source_id:
+                applicant_source_map[applicant_id] = {
+                    'source_id': source_id,
+                    'source_name': log.get('source_name', f'Source {source_id}')
+                }
+        
+        return applicant_source_map
+    
     def get_applicant_sources(self) -> Dict[str, int]:
         """Get real applicant source distribution from logs with proper source mapping."""
         # Get source mapping first
@@ -196,6 +224,7 @@ class LogAnalyzer:
             a.phone,
             vs.name as hired_status,
             al.created as hired_date,
+            al.vacancy_id,
             v.position as vacancy_position,
             al.raw_data
         FROM applicant_logs al
@@ -224,6 +253,119 @@ class LogAnalyzer:
             else:
                 applicant["recruiter_id"] = None
                 applicant["recruiter_name"] = None
+        
+        # Get applicant-source mapping once for all hired applicants
+        applicant_source_map = self.get_applicant_source_mapping()
+        
+        # Add source information to each hired applicant
+        for applicant in hired_applicants:
+            applicant_id = applicant['applicant_id']
+            
+            if applicant_id in applicant_source_map:
+                source_info = applicant_source_map[applicant_id]
+                applicant["source_id"] = source_info['source_id']
+                applicant["source_name"] = source_info['source_name']
+                
+                # Also add source as dict for compatibility
+                applicant["source"] = {
+                    "id": source_info['source_id'],
+                    "name": source_info['source_name']
+                }
+            else:
+                applicant["source_id"] = None
+                applicant["source_name"] = None
+                applicant["source"] = None
+        
+        # Add stage information from the hire status
+        for applicant in hired_applicants:
+            # The hired status ID is the stage they were hired at
+            if applicant.get('raw_data'):
+                try:
+                    parsed_data = json.loads(applicant['raw_data'])
+                    status_id = parsed_data.get('status')
+                    if status_id:
+                        applicant["stage_id"] = status_id
+                        
+                        # Get stage name from vacancy_statuses
+                        stage_sql = "SELECT name FROM vacancy_statuses WHERE id = ?"
+                        stage_result = self._query(stage_sql, (status_id,))
+                        if stage_result:
+                            applicant["stage_name"] = stage_result[0].get('name', f'Stage {status_id}')
+                        else:
+                            applicant["stage_name"] = f'Stage {status_id}'
+                    else:
+                        applicant["stage_id"] = None
+                        applicant["stage_name"] = None
+                except:
+                    applicant["stage_id"] = None
+                    applicant["stage_name"] = None
+            else:
+                applicant["stage_id"] = None
+                applicant["stage_name"] = None
+        
+        # Add division and hiring manager info from vacancy
+        vacancy_division_map = {}
+        for applicant in hired_applicants:
+            vacancy_id = applicant.get('vacancy_id')
+            
+            if vacancy_id and vacancy_id not in vacancy_division_map:
+                # Get vacancy details
+                vacancy_sql = """
+                SELECT raw_data FROM vacancies WHERE id = ?
+                """
+                vacancy_result = self._query(vacancy_sql, (vacancy_id,))
+                
+                if vacancy_result and vacancy_result[0].get('raw_data'):
+                    try:
+                        vacancy_data = json.loads(vacancy_result[0]['raw_data'])
+                        division_id = vacancy_data.get('account_division')
+                        
+                        vacancy_info = {
+                            'division_id': division_id,
+                            'division_name': None,
+                            'hiring_manager_id': None,
+                            'hiring_manager_name': None
+                        }
+                        
+                        # Get division name
+                        if division_id:
+                            div_sql = "SELECT name FROM divisions WHERE id = ?"
+                            div_result = self._query(div_sql, (division_id,))
+                            if div_result:
+                                vacancy_info['division_name'] = div_result[0].get('name')
+                        
+                        # Get hiring manager from coworkers
+                        coworkers = vacancy_data.get('coworkers', [])
+                        if coworkers and isinstance(coworkers, list):
+                            # First coworker is usually the hiring manager
+                            hiring_manager_id = coworkers[0] if coworkers else None
+                            if hiring_manager_id:
+                                vacancy_info['hiring_manager_id'] = hiring_manager_id
+                                
+                                # Get manager name
+                                mgr_sql = "SELECT name FROM coworkers WHERE id = ?"
+                                mgr_result = self._query(mgr_sql, (hiring_manager_id,))
+                                if mgr_result:
+                                    vacancy_info['hiring_manager_name'] = mgr_result[0].get('name')
+                        
+                        vacancy_division_map[vacancy_id] = vacancy_info
+                    except:
+                        vacancy_division_map[vacancy_id] = None
+                else:
+                    vacancy_division_map[vacancy_id] = None
+            
+            # Apply division and hiring manager info to applicant
+            if vacancy_id and vacancy_id in vacancy_division_map and vacancy_division_map[vacancy_id]:
+                info = vacancy_division_map[vacancy_id]
+                applicant["division_id"] = info['division_id']
+                applicant["division_name"] = info['division_name']
+                applicant["hiring_manager_id"] = info['hiring_manager_id']
+                applicant["hiring_manager_name"] = info['hiring_manager_name']
+            else:
+                applicant["division_id"] = None
+                applicant["division_name"] = None
+                applicant["hiring_manager_id"] = None
+                applicant["hiring_manager_name"] = None
         
         # Calculate time_to_hire for each hired applicant
         for applicant in hired_applicants:

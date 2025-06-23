@@ -21,17 +21,67 @@ class UniversalFilterEngine:
                 "recruiters": "recruiter_id",
                 "vacancies": "vacancy_id",
                 "sources": "source_id",
-                "stages": "stage_id"
+                "stages": "stage_id",
+                "divisions": "division_id",
+                "hiring_managers": "hiring_manager_id"
             },
             "vacancies": {
                 "recruiters": "recruiter_id",
                 "hiring_managers": "hiring_manager_id",
-                "divisions": "division_id"
+                "divisions": "division_id",
+                "sources": "source_id",
+                "stages": "stage_id",
+                "vacancies": "state"  # Special case for vacancy state filtering
             },
             "hires": {
                 "recruiters": "recruiter_id",
                 "sources": "source_id",
-                "vacancies": "vacancy_id"
+                "vacancies": "vacancy_id",
+                "stages": "stage_id",
+                "divisions": "division_id",
+                "hiring_managers": "hiring_manager_id"
+            },
+            "sources": {
+                # Sources can be filtered by entities that use them
+                "recruiters": "recruiter_id",  # Sources used by specific recruiters
+                "vacancies": "vacancy_id",     # Sources for specific vacancies
+                "stages": "stage_id",          # Sources at specific stages
+                "divisions": "division_id",    # Sources used in divisions
+                "hiring_managers": "hiring_manager_id",
+                "sources": "id"  # Self-reference for source filtering
+            },
+            "recruiters": {
+                # Recruiters can be filtered by their activity
+                "vacancies": "vacancy_id",     # Recruiters working on specific vacancies
+                "sources": "source_id",        # Recruiters using specific sources
+                "divisions": "division_id",    # Recruiters in specific divisions
+                "stages": "stage_id",          # Recruiters with applicants at stages
+                "hiring_managers": "hiring_manager_id",
+                "recruiters": "id"  # Self-reference for recruiter filtering
+            },
+            "stages": {
+                "vacancies": "vacancy_id",
+                "recruiters": "recruiter_id",
+                "sources": "source_id",
+                "divisions": "division_id",
+                "hiring_managers": "hiring_manager_id",
+                "stages": "id"  # Self-reference
+            },
+            "divisions": {
+                "vacancies": "vacancy_id",
+                "recruiters": "recruiter_id",
+                "sources": "source_id",
+                "stages": "stage_id",
+                "hiring_managers": "hiring_manager_id",
+                "divisions": "id"  # Self-reference
+            },
+            "hiring_managers": {
+                "vacancies": "vacancy_id",
+                "recruiters": "recruiter_id",
+                "sources": "source_id",
+                "stages": "stage_id",
+                "divisions": "division_id",
+                "hiring_managers": "id"  # Self-reference
             }
         }
     
@@ -124,9 +174,10 @@ class UniversalFilterEngine:
         
         logger.debug(f"Using relationship key: {relationship_key}")
         
-        # For vacancy state filtering, we need to look up vacancy IDs that match the criteria
+        # Special handling for complex cross-entity relationships
+        
+        # 1. For vacancy state filtering, we need to look up vacancy IDs that match the criteria
         if filter_obj.entity_type == EntityType.VACANCIES and filter_obj.field == "state":
-            # Get matching vacancy IDs based on the state filter
             matching_vacancy_ids = await self._get_matching_vacancy_ids(filter_obj)
             logger.info(f"Found {len(matching_vacancy_ids)} vacancies with state={filter_obj.value}")
             
@@ -140,8 +191,99 @@ class UniversalFilterEngine:
             logger.info(f"Filtered {len(data)} items to {len(filtered_data)} items based on vacancy state")
             return filtered_data
         
+        # 2. For sources/recruiters filtering, we need reverse lookup through logs
+        elif target_entity in [EntityType.SOURCES, EntityType.RECRUITERS]:
+            return await self._apply_reverse_entity_filter(data, filter_obj, target_entity)
+        
         # For other cross-entity filters, use the simple field matching approach
         return self._apply_single_filter(data, filter_obj, relationship_key)
+    
+    async def _apply_reverse_entity_filter(self, data: List, filter_obj: UniversalFilter,
+                                           target_entity: EntityType) -> List:
+        """Apply filtering for sources/recruiters through reverse lookup in logs"""
+        
+        if not self.log_analyzer:
+            logger.warning("No log analyzer available for reverse entity filtering")
+            return data
+        
+        # Get all logs to find relationships
+        all_logs = self.log_analyzer.get_merged_logs()
+        
+        # Build a mapping of entity IDs that match the filter
+        matching_entity_ids = set()
+        
+        if target_entity == EntityType.SOURCES:
+            # Find sources that match the filter criteria
+            if filter_obj.entity_type == EntityType.VACANCIES:
+                # Find sources used for specific vacancies
+                target_vacancy_id = filter_obj.value
+                for log in all_logs:
+                    if (log.get('vacancy_id') == target_vacancy_id or 
+                        str(log.get('vacancy_id')) == str(target_vacancy_id)):
+                        source_id = log.get('source_id')
+                        if source_id:
+                            matching_entity_ids.add(source_id)
+            
+            elif filter_obj.entity_type == EntityType.RECRUITERS:
+                # Find sources used by specific recruiters
+                target_recruiter_id = filter_obj.value
+                for log in all_logs:
+                    account_info = log.get('account_info', {})
+                    if isinstance(account_info, dict):
+                        recruiter_id = account_info.get('id')
+                        if (recruiter_id == target_recruiter_id or 
+                            str(recruiter_id) == str(target_recruiter_id)):
+                            source_id = log.get('source_id')
+                            if source_id:
+                                matching_entity_ids.add(source_id)
+        
+        elif target_entity == EntityType.RECRUITERS:
+            # Find recruiters that match the filter criteria
+            if filter_obj.entity_type == EntityType.VACANCIES:
+                # Find recruiters working on specific vacancies
+                if filter_obj.field == "state":
+                    # Get vacancies with the specified state
+                    matching_vacancy_ids = await self._get_matching_vacancy_ids(filter_obj)
+                    for log in all_logs:
+                        if log.get('vacancy_id') in matching_vacancy_ids:
+                            account_info = log.get('account_info', {})
+                            if isinstance(account_info, dict):
+                                recruiter_id = account_info.get('id')
+                                if recruiter_id:
+                                    matching_entity_ids.add(recruiter_id)
+                else:
+                    # Direct vacancy ID filter
+                    target_vacancy_id = filter_obj.value
+                    for log in all_logs:
+                        if (log.get('vacancy_id') == target_vacancy_id or 
+                            str(log.get('vacancy_id')) == str(target_vacancy_id)):
+                            account_info = log.get('account_info', {})
+                            if isinstance(account_info, dict):
+                                recruiter_id = account_info.get('id')
+                                if recruiter_id:
+                                    matching_entity_ids.add(recruiter_id)
+            
+            elif filter_obj.entity_type == EntityType.SOURCES:
+                # Find recruiters using specific sources
+                target_source_id = filter_obj.value
+                for log in all_logs:
+                    if (log.get('source_id') == target_source_id or 
+                        str(log.get('source_id')) == str(target_source_id)):
+                        account_info = log.get('account_info', {})
+                        if isinstance(account_info, dict):
+                            recruiter_id = account_info.get('id')
+                            if recruiter_id:
+                                matching_entity_ids.add(recruiter_id)
+        
+        # Filter the data based on matching entity IDs
+        filtered_data = []
+        for item in data:
+            item_id = item.get('id')
+            if item_id in matching_entity_ids or str(item_id) in {str(id) for id in matching_entity_ids}:
+                filtered_data.append(item)
+        
+        logger.info(f"Reverse filtered {len(data)} {target_entity.value} to {len(filtered_data)} items")
+        return filtered_data
     
     async def _get_matching_vacancy_ids(self, filter_obj: UniversalFilter) -> set:
         """Get vacancy IDs that match the given filter criteria"""
