@@ -21,14 +21,17 @@ python app.py
 
 ### Testing
 ```bash
-# Run all tests with coverage
+# Run all tests with coverage (configured in pytest.ini)
 pytest
 
-# Run specific test categories
-pytest tests/unit/                    # Unit tests only
-pytest tests/integration/             # Integration tests only
-pytest -v                            # Verbose output
-pytest tests/unit/test_universal_filter.py  # Single test file
+# Run specific test files
+pytest test_comprehensive_e2e.py           # End-to-end tests
+pytest test_reports_with_questions.py      # Report generation tests
+pytest test_universal_filter.py            # Filter system tests
+pytest test_performance_restructured.py    # Performance tests
+
+# Run with verbose output and coverage
+pytest -v --cov=. --cov-report=html
 ```
 
 ### Environment Requirements
@@ -44,7 +47,7 @@ export DEBUG_MODE=true
 
 ### Core Data Flow
 1. **User Input** → Frontend sends Russian question to `/chat` endpoint
-2. **AI Processing** → `prompt.py` (1500+ lines) converts natural language to structured JSON
+2. **AI Processing** → `prompt.py` (~600 lines) converts natural language to structured JSON via DeepSeek API
 3. **Data Filtering** → `EnhancedMetricsCalculator` → `UniversalFilterEngine` applies complex filters
 4. **Data Enrichment** → `chart_data_processor.py` adds real data from SQLite cache
 5. **Response Generation** → AI creates Russian analytics response with visualizations
@@ -52,9 +55,9 @@ export DEBUG_MODE=true
 ### Key Architectural Components
 
 **AI Layer:**
-- `prompt.py` - Massive prompt engineering system defining all entities, operations, and patterns
+- `prompt.py` - Comprehensive prompt engineering system with 8-step process for JSON generation
 - `context_data_injector.py` - Injects dynamic context (recruiters, sources, etc.) into prompts
-- Uses DeepSeek API for LLM processing
+- Uses DeepSeek API for LLM processing with structured JSON schema validation
 
 **Data Processing Layer:**
 - `enhanced_metrics_calculator.py` - Integrates universal filtering with metrics calculation
@@ -76,9 +79,9 @@ export DEBUG_MODE=true
 
 The codebase implements a sophisticated filtering system where **every entity can filter by every other entity**:
 
-- **Entities**: applicants, vacancies, hires, recruiters, sources, divisions, hiring_managers, stages
-- **Logical Operators**: AND/OR with nesting, complex operators (in, gt, gte, lt, lte, between)
-- **Time Filtering**: period-based (1 month, 3 month, 6 month, 1 year, all)
+- **Entities**: applicants, vacancies, hires, recruiters, sources, divisions, hiring_managers, stages, rejections, actions
+- **Logical Operators**: AND/OR with nesting, complex operators (in, gt, gte, lt, lte, contains)
+- **Time Filtering**: period-based (today, this week, 2 weeks, 1 month, 3 month, 6 month, year)
 
 Example:
 ```python
@@ -107,13 +110,14 @@ The project uses a **centralized metrics_filter** approach:
 - All operations are async for optimal performance
 - Response caching via 15-minute cache in web operations
 
-## Absolute Rules
+## Critical Development Rules
 
-- DO NOT EVER DELETE INFORMATION FROM PROMPT UNLESS ASKED TO
-- No mock or test data ever - always use real database records
-- Simulated metrics must be clearly marked and based on real data patterns
-- All user-facing text must be in Russian
-- JSON schema compliance is mandatory for all chart outputs
+- **DO NOT EVER DELETE INFORMATION FROM PROMPT UNLESS ASKED TO** - `prompt.py` contains carefully engineered examples and patterns
+- **Real Data Only**: Never use mock data - all calculations must use actual Huntflow cached data
+- **Russian UI**: All user-facing text (report titles, labels, axis captions) must be in Russian
+- **JSON Schema Compliance**: All chart outputs must follow the mandatory schema with proper validation
+- **Report Title Format**: Must always include key metrics and time period following Step 8 rules
+- **Entity Grouping**: Never group an entity by itself (e.g., hires by "hires" is INVALID)
 
 ## Key Patterns
 
@@ -139,3 +143,22 @@ The project uses a **centralized metrics_filter** approach:
 - Single `metrics_filter` for all metrics
 - 48% performance improvement over previous system
 - Clean, simplified response structure
+
+## Prompt Engineering System
+
+The `prompt.py` file implements an 8-step structured process for converting natural language to analytics JSON:
+
+1. **Determine user intent** - Maps questions to analysis types (pipeline, recruiter effectiveness, etc.)
+2. **Choose metric-level filtering** - Applies entity-specific filters consistently across all metrics
+3. **Choose main metric** - Selects primary measurement that answers the user's question
+4. **Choose secondary metrics** - Adds 2 contextual metrics for comprehensive analysis
+5. **Choose chart type** - Selects bar/line/scatter based on analysis pattern
+6. **Choose X-axis metric** - Defines horizontal dimension for visualization
+7. **Choose Y-axis metric** - Defines vertical measurement for charts
+8. **Write report title** - Generates descriptive titles with metrics and time periods
+
+Key features:
+- 10 entity types with cross-entity filtering capabilities
+- JSON schema validation with mandatory response template
+- 8 comprehensive examples covering all major analysis patterns
+- Dynamic context injection with real entity names and IDs
