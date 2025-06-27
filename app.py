@@ -368,8 +368,6 @@ async def database_info():
 
 if __name__ == "__main__":
     import uvicorn
-    import threading
-    import time
     
     logger.info("Starting Huntflow Analytics Bot with LOCAL CACHE...")
     logger.info(f"Using database: {hf_client.db_path}")
@@ -380,30 +378,19 @@ if __name__ == "__main__":
     ssl_certfile = "cert.pem"
     
     if os.path.exists(ssl_keyfile) and os.path.exists(ssl_certfile):
-        logger.info("Starting dual HTTP/HTTPS servers...")
-        logger.info("🌐 HTTP URL: http://safonov.live:8000 (no speech-to-text)")
-        logger.info("🔒 HTTPS URL: https://safonov.live:8443 (with speech-to-text)")
+        logger.info("Starting HTTPS server on port 443...")
+        logger.info("🔒 HTTPS URL: https://safonov.live (with speech-to-text)")
         
-        # Start HTTP server in a thread
-        def run_http():
-            uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
-        
-        http_thread = threading.Thread(target=run_http, daemon=True)
-        http_thread.start()
-        
-        # Give HTTP server time to start
-        time.sleep(2)
-        
-        # Start HTTPS server on main thread
+        # Start HTTPS server on port 443
         uvicorn.run(
             app, 
             host="0.0.0.0", 
-            port=8443,
+            port=443,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             log_level="info"
         )
     else:
-        logger.info("No SSL certificates found - starting HTTP server on port 8000")
+        logger.info("No SSL certificates found - starting HTTP server on port 80")
         logger.info("⚠️  Speech-to-text requires HTTPS")
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=80)
