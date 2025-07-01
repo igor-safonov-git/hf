@@ -120,121 +120,41 @@ async def generate_hr_analytics_report(question: str) -> dict:
     
     return enriched_data
 
-# Assistant class with proper LangGraph memory usage
-class Assistant:
-    def __init__(self, llm):
-        self.llm = llm
-        
-    async def __call__(self, state: State, config):
-        # Log current state
-        logger.info(f"=== Assistant called with {len(state['messages'])} messages ===")
-        for i, msg in enumerate(state['messages']):
-            msg_type = type(msg).__name__
-            content_preview = str(msg.content)[:100] + "..." if len(str(msg.content)) > 100 else str(msg.content)
-            logger.info(f"Message {i}: {msg_type} - {content_preview}")
-        
-        # System prompt that helps the LLM understand the conversation context
-        system_message = SystemMessage(content="""Ты - ассистент HR-аналитики для системы Huntflow. 
-Ты анализируешь историю сообщений и понимаешь контекст разговора.
-Если пользователь задает уточняющий вопрос (например, "а что с отделом разработки?"), 
-ты должен учесть предыдущий контекст и сформулировать полный вопрос для системы аналитики.
-
-Примеры:
-- Пользователь: "Покажи воронку найма"
-- Ты формулируешь: "Покажи воронку найма"
-
-- Пользователь: "А что с отделом разработки?"
-- Ты формулируешь: "Покажи воронку найма для отдела разработки"
-
-- Пользователь: "Покажи только новых кандидатов"
-- Ты формулируешь: "Покажи только новых кандидатов в воронке найма для отдела разработки"
-
-Всегда отвечай на русском языке.""")
-        
-        # Add system message to state messages, but filter out ToolMessages for LLM
-        # DeepSeek doesn't accept ToolMessages without preceding tool_calls
-        filtered_messages = []
-        for msg in state["messages"]:
-            if isinstance(msg, ToolMessage):
-                # Convert tool message to AIMessage to preserve context
-                try:
-                    tool_content = json.loads(msg.content)
-                    summary = f"[Результат анализа: {tool_content.get('report_title', 'Отчет создан')}]"
-                    filtered_messages.append(AIMessage(content=summary))
-                except:
-                    pass
-            else:
-                filtered_messages.append(msg)
-        
-        messages = [system_message] + filtered_messages
-        
-        # Use LLM to understand context and reformulate the question
-        context_prompt = """Проанализируй историю разговора и последний вопрос пользователя.
-Если это уточняющий вопрос, сформулируй полный вопрос с учетом контекста.
-Если это новый вопрос, просто повтори его.
-
-Ответь ТОЛЬКО переформулированным вопросом, без объяснений."""
-        
-        messages_for_llm = messages + [HumanMessage(content=context_prompt)]
-        
-        # Get LLM to understand context and reformulate question
-        llm_response = await self.llm.ainvoke(messages_for_llm)
-        enhanced_question = llm_response.content.strip()
-        logger.info(f"LLM reformulated question: {enhanced_question}")
-        
-        # Provide immediate feedback before tool execution
-        initial_response = "Понял ваш запрос! Анализирую данные и создаю отчет..."
-        
-        # Call the analytics tool with the enhanced question
-        result = await generate_hr_analytics_report.ainvoke({"question": enhanced_question})
-        
-        # Create conversational response based on the report
-        report_title = result.get("report_title", "")
-        main_metric = result.get("main_metric", {})
-        chart_type = result.get("chart", {}).get("type", "chart")
-        
-        # Generate engaging conversational response
-        if main_metric and "real_value" in main_metric:
-            metric_value = main_metric["real_value"]
-            metric_label = main_metric.get("label", "показатель")
-            
-            # Format the value nicely
-            if isinstance(metric_value, (int, float)):
-                formatted_value = f"{metric_value:,}".replace(",", " ")
-            else:
-                formatted_value = str(metric_value)
-            
-            # Create conversational response based on chart type
-            if "воронка" in enhanced_question.lower() or "funnel" in chart_type.lower():
-                response_text = f"Анализирую воронку найма... Готово! Основной показатель: {metric_label} = {formatted_value}. Создал визуализацию с детальной разбивкой по этапам."
-            elif "таблица" in enhanced_question.lower() or chart_type == "table":
-                response_text = f"Создаю таблицу с данными... Готово! {metric_label}: {formatted_value}. Таблица отображает детальную информацию с возможностью сортировки."
-            elif "график" in enhanced_question.lower() or chart_type in ["line", "bar"]:
-                response_text = f"Строю график для анализа... Завершено! {metric_label}: {formatted_value}. График показывает динамику и тренды в данных."
-            else:
-                response_text = f"Анализирую ваш запрос... Готово! {metric_label}: {formatted_value}. Создал {chart_type} для наглядного представления данных."
-                
-            # Add helpful follow-up suggestion
-            response_text += " Могу показать разбивку по отделам или за другой период времени."
-        else:
-            # Fallback response
-            response_text = f"Создал отчет «{report_title}». Визуализация готова! Хотите посмотреть данные за другой период или по конкретному отделу?"
-        
-        # Return conversational response and tool result
-        return {
-            "messages": [
-                AIMessage(content=response_text),
-                ToolMessage(content=json.dumps(result, ensure_ascii=False), tool_call_id="report_generation")
-            ]
-        }
-
-# Build the graph
-def build_graph():
-    builder = StateGraph(State)
+# Assistant function using proper LangGraph tool calling pattern
+async def assistant(state: State, config):
+    """Assistant that uses tools to generate HR analytics reports."""
     
-    # Initialize LLM - use DeepSeek via OpenAI compatible interface
+    # Log current state
+    logger.info(f"=== Assistant called with {len(state['messages'])} messages ===")
+    for i, msg in enumerate(state['messages']):
+        msg_type = type(msg).__name__
+        content_preview = str(msg.content)[:100] + "..." if len(str(msg.content)) > 100 else str(msg.content)
+        logger.info(f"Message {i}: {msg_type} - {content_preview}")
+    
+    # System prompt for the assistant
+    system_prompt = """Ты - разговорный ассистент HR-аналитики для системы Huntflow.
+
+ДЛЯ ЗАПРОСОВ НА АНАЛИЗ:
+1. Сначала дай КОРОТКИЙ ответ (1 предложение): "Анализирую [что] и создаю [график/таблицу]..."
+2. Используй инструмент generate_hr_analytics_report
+3. После инструмента дай КОРОТКИЙ итог: "Готово! [главная цифра]. [Что создал]. Хотите [варианты]?"
+
+ПРИМЕРЫ КОРОТКИХ ОТВЕТОВ:
+- "Анализирую воронку найма и создаю график..."
+- "Строю отчет по рекрутерам..."  
+- "Создаю таблицу по источникам..."
+
+ПОСЛЕ ИНСТРУМЕНТА - ТОЛЬКО КОРОТКИЙ ИТОГ:
+- "Готово! Кандидатов: 14. Создал график воронки. Хотите по отделам?"
+- "Завершено! Лучший рекрутер: Иван. График эффективности готов."
+
+НЕ СОЗДАВАЙ markdown отчеты, НЕ пиши много текста. Будь кратким и разговорным."""
+
+    # Prepare messages for LLM
+    messages = [SystemMessage(content=system_prompt)] + state["messages"]
+    
+    # Create LLM with tools
     from langchain_openai import ChatOpenAI
-    
     llm = ChatOpenAI(
         model="deepseek-chat",
         temperature=0,
@@ -242,12 +162,31 @@ def build_graph():
         base_url="https://api.deepseek.com"
     )
     
-    # Add single node - our assistant handles everything
-    builder.add_node("assistant", Assistant(llm))
+    # Bind the analytics tool to the LLM
+    llm_with_tools = llm.bind_tools([generate_hr_analytics_report])
     
-    # Simple flow: START -> assistant -> END
+    # Get response from LLM (may include tool calls)
+    response = await llm_with_tools.ainvoke(messages)
+    
+    return {"messages": [response]}
+
+# Build the graph
+def build_graph():
+    from langgraph.prebuilt import ToolNode, tools_condition
+    
+    builder = StateGraph(State)
+    
+    # Add nodes
+    builder.add_node("assistant", assistant)
+    builder.add_node("tools", ToolNode([generate_hr_analytics_report]))
+    
+    # Add edges
     builder.add_edge(START, "assistant")
-    builder.add_edge("assistant", END)
+    builder.add_conditional_edges(
+        "assistant",
+        tools_condition,
+    )
+    builder.add_edge("tools", "assistant")
     
     # Compile with memory
     memory = MemorySaver()
