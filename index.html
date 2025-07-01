@@ -966,12 +966,10 @@
                         setThreadId(data.thread_id);
                     }
                     
-                    setMessages(prev => [...prev, { 
-                        role: 'assistant', 
-                        content: data.response 
-                    }]);
-
                     // Try to parse JSON response for report generation
+                    let conversationalText = data.response;
+                    let reportData = null;
+                    
                     try {
                         console.log('Trying to parse response:', data.response.substring(0, 200));
                         
@@ -983,13 +981,24 @@
                             console.log('Extracted JSON from code blocks:', jsonString.substring(0, 100));
                         }
                         
-                        const reportData = JSON.parse(jsonString);
-                        console.log('Parsed JSON successfully:', reportData);
-                        console.log('Has report_title:', !!reportData.report_title);
-                        console.log('Has main_metric:', !!reportData.main_metric);
-                        console.log('Has chart:', !!reportData.chart);
+                        const parsedResponse = JSON.parse(jsonString);
+                        console.log('Parsed JSON successfully:', parsedResponse);
                         
-                        if (reportData.report_title && reportData.main_metric && reportData.chart) {
+                        // Check if it's the new conversational format
+                        if (parsedResponse.conversational_text && parsedResponse.chart_data) {
+                            console.log('New conversational format detected');
+                            conversationalText = parsedResponse.conversational_text;
+                            reportData = parsedResponse.chart_data;
+                        } else if (parsedResponse.report_title && parsedResponse.main_metric && parsedResponse.chart) {
+                            // Legacy format - direct report data
+                            console.log('Legacy format detected');
+                            reportData = parsedResponse;
+                        }
+                        
+                        console.log('Report data:', !!reportData);
+                        console.log('Conversational text:', conversationalText.substring(0, 100));
+                        
+                        if (reportData && reportData.report_title && reportData.main_metric && reportData.chart) {
                             console.log('All conditions met, generating report');
                             // Use real data only - no demo fallbacks
                             const enrichedReport = {
@@ -1014,6 +1023,12 @@
                         // Not a JSON response, no report to generate
                         console.log('Response is not JSON, skipping report generation. Error:', jsonError);
                     }
+                    
+                    // Add the conversational message to chat (either parsed text or original response)
+                    setMessages(prev => [...prev, { 
+                        role: 'assistant', 
+                        content: conversationalText 
+                    }]);
                 } catch (error) {
                     let errorMessage;
                     if (error.name === 'AbortError') {

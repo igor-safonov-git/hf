@@ -182,30 +182,45 @@ class Assistant:
         enhanced_question = llm_response.content.strip()
         logger.info(f"LLM reformulated question: {enhanced_question}")
         
+        # Provide immediate feedback before tool execution
+        initial_response = "Понял ваш запрос! Анализирую данные и создаю отчет..."
+        
         # Call the analytics tool with the enhanced question
         result = await generate_hr_analytics_report.ainvoke({"question": enhanced_question})
         
-        # Create summary based on the report
-        summary_parts = []
+        # Create conversational response based on the report
+        report_title = result.get("report_title", "")
+        main_metric = result.get("main_metric", {})
+        chart_type = result.get("chart", {}).get("type", "chart")
         
-        # Extract key metrics
-        if "main_metric" in result:
-            metric = result["main_metric"]
-            if "real_value" in metric:
-                summary_parts.append(f"{metric['label']}: {metric['real_value']}")
-        
-        # Add report title
-        if "report_title" in result:
-            summary_parts.append(result["report_title"])
-        
-        # Create response
-        if summary_parts:
-            summary = ". ".join(summary_parts[:2])  # Keep it short
-            response_text = f"{summary}. Хотите узнать более детальную информацию?"
+        # Generate engaging conversational response
+        if main_metric and "real_value" in main_metric:
+            metric_value = main_metric["real_value"]
+            metric_label = main_metric.get("label", "показатель")
+            
+            # Format the value nicely
+            if isinstance(metric_value, (int, float)):
+                formatted_value = f"{metric_value:,}".replace(",", " ")
+            else:
+                formatted_value = str(metric_value)
+            
+            # Create conversational response based on chart type
+            if "воронка" in enhanced_question.lower() or "funnel" in chart_type.lower():
+                response_text = f"Анализирую воронку найма... Готово! Основной показатель: {metric_label} = {formatted_value}. Создал визуализацию с детальной разбивкой по этапам."
+            elif "таблица" in enhanced_question.lower() or chart_type == "table":
+                response_text = f"Создаю таблицу с данными... Готово! {metric_label}: {formatted_value}. Таблица отображает детальную информацию с возможностью сортировки."
+            elif "график" in enhanced_question.lower() or chart_type in ["line", "bar"]:
+                response_text = f"Строю график для анализа... Завершено! {metric_label}: {formatted_value}. График показывает динамику и тренды в данных."
+            else:
+                response_text = f"Анализирую ваш запрос... Готово! {metric_label}: {formatted_value}. Создал {chart_type} для наглядного представления данных."
+                
+            # Add helpful follow-up suggestion
+            response_text += " Могу показать разбивку по отделам или за другой период времени."
         else:
-            response_text = "Отчет создан. Хотите посмотреть данные по конкретному отделу или периоду?"
+            # Fallback response
+            response_text = f"Создал отчет «{report_title}». Визуализация готова! Хотите посмотреть данные за другой период или по конкретному отделу?"
         
-        # Return both the response and the tool result
+        # Return conversational response and tool result
         return {
             "messages": [
                 AIMessage(content=response_text),
@@ -345,15 +360,26 @@ async def chat(request: ChatRequest):
                 except:
                     pass
         
-        # Format response to match existing frontend expectations
-        if report:
-            # Return the report JSON as the response
+        # Format response for conversational interaction with chart data
+        if report and summary:
+            # Create a conversational response that includes both the chat message and chart data
+            # The frontend will parse JSON if present, otherwise show the conversational text
+            conversational_response = {
+                "conversational_text": summary,
+                "chart_data": report
+            }
+            return ChatResponse(
+                response=json.dumps(conversational_response, ensure_ascii=False),
+                thread_id=config["configurable"]["thread_id"]
+            )
+        elif report:
+            # Fallback: just return the report JSON
             return ChatResponse(
                 response=json.dumps(report, ensure_ascii=False),
                 thread_id=config["configurable"]["thread_id"]
             )
         else:
-            # Direct response without tool call
+            # Direct conversational response without tool call
             return ChatResponse(
                 response=summary,
                 thread_id=config["configurable"]["thread_id"]
