@@ -18,6 +18,17 @@ from huntflow_local_client import HuntflowLocalClient
 from chart_data_processor import process_chart_data
 from enhanced_metrics_calculator import EnhancedMetricsCalculator
 
+# LangGraph imports
+from typing import Annotated, TypedDict
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.prebuilt import ToolNode, tools_condition
+from langchain_anthropic import ChatAnthropic
+from langchain_core.tools import tool
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
+from langgraph.graph.message import AnyMessage, add_messages
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -69,6 +80,176 @@ deepseek_client = AsyncOpenAI(
 hf_client = HuntflowLocalClient()
 metrics_calc = EnhancedMetricsCalculator(hf_client, None)
 
+# ==================== LangGraph Components ====================
+
+# State definition
+class State(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
+    context: dict  # Huntflow context
+    current_report: Optional[dict]
+
+# Single powerful tool wrapping existing logic
+@tool
+async def generate_hr_analytics_report(question: str) -> dict:
+    """Generate comprehensive HR analytics report from natural language question.
+    Understands Russian and returns structured data with charts and metrics."""
+    
+    # Get fresh context
+    context = await get_dynamic_context(hf_client)
+    
+    # Use existing prompt
+    system_prompt = get_comprehensive_prompt(huntflow_context=context)
+    
+    # Call DeepSeek (existing logic)
+    response = await deepseek_client.chat.completions.create(
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": "Return only valid JSON. No markdown formatting or explanations."},
+            {"role": "user", "content": question}
+        ],
+        model="deepseek-chat",
+        temperature=0.1,
+        response_format={'type': 'json_object'},
+        max_tokens=4000
+    )
+    
+    # Parse and enrich with real data
+    ai_response = response.choices[0].message.content
+    response_data = json.loads(ai_response)
+    enriched_data = await process_chart_data(response_data, hf_client)
+    
+    return enriched_data
+
+# Assistant class with proper LangGraph memory usage
+class Assistant:
+    def __init__(self, llm):
+        self.llm = llm
+        
+    async def __call__(self, state: State, config):
+        # Log current state
+        logger.info(f"=== Assistant called with {len(state['messages'])} messages ===")
+        for i, msg in enumerate(state['messages']):
+            msg_type = type(msg).__name__
+            content_preview = str(msg.content)[:100] + "..." if len(str(msg.content)) > 100 else str(msg.content)
+            logger.info(f"Message {i}: {msg_type} - {content_preview}")
+        
+        # System prompt that helps the LLM understand the conversation context
+        system_message = SystemMessage(content="""Ты - ассистент HR-аналитики для системы Huntflow. 
+Ты анализируешь историю сообщений и понимаешь контекст разговора.
+Если пользователь задает уточняющий вопрос (например, "а что с отделом разработки?"), 
+ты должен учесть предыдущий контекст и сформулировать полный вопрос для системы аналитики.
+
+Примеры:
+- Пользователь: "Покажи воронку найма"
+- Ты формулируешь: "Покажи воронку найма"
+
+- Пользователь: "А что с отделом разработки?"
+- Ты формулируешь: "Покажи воронку найма для отдела разработки"
+
+- Пользователь: "Покажи только новых кандидатов"
+- Ты формулируешь: "Покажи только новых кандидатов в воронке найма для отдела разработки"
+
+Всегда отвечай на русском языке.""")
+        
+        # Add system message to state messages, but filter out ToolMessages for LLM
+        # DeepSeek doesn't accept ToolMessages without preceding tool_calls
+        filtered_messages = []
+        for msg in state["messages"]:
+            if isinstance(msg, ToolMessage):
+                # Convert tool message to AIMessage to preserve context
+                try:
+                    tool_content = json.loads(msg.content)
+                    summary = f"[Результат анализа: {tool_content.get('report_title', 'Отчет создан')}]"
+                    filtered_messages.append(AIMessage(content=summary))
+                except:
+                    pass
+            else:
+                filtered_messages.append(msg)
+        
+        messages = [system_message] + filtered_messages
+        
+        # Use LLM to understand context and reformulate the question
+        context_prompt = """Проанализируй историю разговора и последний вопрос пользователя.
+Если это уточняющий вопрос, сформулируй полный вопрос с учетом контекста.
+Если это новый вопрос, просто повтори его.
+
+Ответь ТОЛЬКО переформулированным вопросом, без объяснений."""
+        
+        messages_for_llm = messages + [HumanMessage(content=context_prompt)]
+        
+        # Get LLM to understand context and reformulate question
+        llm_response = await self.llm.ainvoke(messages_for_llm)
+        enhanced_question = llm_response.content.strip()
+        logger.info(f"LLM reformulated question: {enhanced_question}")
+        
+        # Call the analytics tool with the enhanced question
+        result = await generate_hr_analytics_report.ainvoke({"question": enhanced_question})
+        
+        # Create summary based on the report
+        summary_parts = []
+        
+        # Extract key metrics
+        if "main_metric" in result:
+            metric = result["main_metric"]
+            if "real_value" in metric:
+                summary_parts.append(f"{metric['label']}: {metric['real_value']}")
+        
+        # Add report title
+        if "report_title" in result:
+            summary_parts.append(result["report_title"])
+        
+        # Create response
+        if summary_parts:
+            summary = ". ".join(summary_parts[:2])  # Keep it short
+            response_text = f"{summary}. Хотите узнать более детальную информацию?"
+        else:
+            response_text = "Отчет создан. Хотите посмотреть данные по конкретному отделу или периоду?"
+        
+        # Return both the response and the tool result
+        return {
+            "messages": [
+                AIMessage(content=response_text),
+                ToolMessage(content=json.dumps(result, ensure_ascii=False), tool_call_id="report_generation")
+            ]
+        }
+
+# Build the graph
+def build_graph():
+    builder = StateGraph(State)
+    
+    # Initialize LLM - use DeepSeek via OpenAI compatible interface
+    from langchain_openai import ChatOpenAI
+    
+    llm = ChatOpenAI(
+        model="deepseek-chat",
+        temperature=0,
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url="https://api.deepseek.com"
+    )
+    
+    # Add single node - our assistant handles everything
+    builder.add_node("assistant", Assistant(llm))
+    
+    # Simple flow: START -> assistant -> END
+    builder.add_edge(START, "assistant")
+    builder.add_edge("assistant", END)
+    
+    # Compile with memory
+    memory = MemorySaver()
+    return builder.compile(checkpointer=memory)
+
+# Initialize graph lazily
+graph = None
+
+def get_graph():
+    """Get or create the graph instance."""
+    global graph
+    if graph is None and os.getenv("DEEPSEEK_API_KEY"):
+        graph = build_graph()
+    return graph
+
+# ==================== End LangGraph Components ====================
+
 class ChatRequest(BaseModel):
     message: str
     thread_id: Optional[str] = None
@@ -109,106 +290,84 @@ def validate_json_response(response_content: str) -> tuple[bool, str]:
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Chat endpoint with DeepSeek that generates JSON reports"""
+    """Chat endpoint powered by LangGraph"""
+    import time
+    
     try:
-        # Check if DeepSeek API key is available
-        if not deepseek_client.api_key:
+        # Always use LangGraph
+        
+        config = {
+            "configurable": {
+                "thread_id": request.thread_id or f"chat_{int(time.time())}"
+            }
+        }
+        
+        # Create initial state
+        initial_state = {
+            "messages": [HumanMessage(content=request.message)],
+            "context": {},
+            "current_report": None
+        }
+        
+        # Get and run the graph
+        graph_instance = get_graph()
+        if not graph_instance:
             raise HTTPException(
                 status_code=503,
-                detail="DeepSeek API key not configured"
+                detail="LangGraph not initialized - DeepSeek API key required"
             )
-        
-        # Build dynamic context from local cache
-        huntflow_context = await get_dynamic_context(hf_client)
-        
-        # Build messages with system prompt for local cache
-        system_prompt = get_comprehensive_prompt(huntflow_context=huntflow_context)
-        
-        # Save system prompt to file for debugging (async)
-        if os.getenv("DEBUG_MODE"):
-            try:
-                prompt_file_path = os.path.join(os.getcwd(), "current_system_prompt.txt")
-                logger.debug(f"Saving system prompt to: {prompt_file_path}")
-                
-                content = (
-                    "=== SYSTEM PROMPT ===\n"
-                    f"Generated at: {datetime.now().isoformat()}\n"
-                    f"User message: {request.message}\n"
-                    f"Working directory: {os.getcwd()}\n"
-                    + "="*50 + "\n\n"
-                    + system_prompt
-                    + "\n\n" + "="*50 + "\n"
-                    + "Additional system message: Return only valid JSON. No markdown formatting or explanations.\n"
-                )
-                
-                async with aiofiles.open(prompt_file_path, "w", encoding="utf-8") as f:
-                    await f.write(content)
-                
-                logger.info(f"System prompt saved successfully to {prompt_file_path}")
-            except Exception as e:
-                logger.error(f"Error saving system prompt: {e}")
-        
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "system", "content": "Return only valid JSON. No markdown formatting or explanations."}
-        ]
-        
-        # Add conversation history if provided
-        if request.messages:
-            messages.extend(request.messages)
-        
-        # Add current user message
-        messages.append({"role": "user", "content": request.message})
-        
-        # Call DeepSeek API
-        response = await deepseek_client.chat.completions.create(
-            messages=messages,
-            model="deepseek-chat",
-            temperature=request.temperature,
-            response_format={'type': 'json_object'},
-            max_tokens=4000
-        )
-        
-        ai_response = response.choices[0].message.content
-        
-        # Basic JSON validation
-        is_valid, validation_msg = validate_json_response(ai_response)
-        
-        if not is_valid:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Invalid JSON response from AI: {validation_msg}"
-            )
-        
-        # Parse and enrich JSON response with real data
-        try:
-            response_data = json.loads(ai_response)
             
-            # If it's a report with a chart, enrich with real data
-            if response_data.get("chart") or response_data.get("main_metric"):
-                response_data = await process_chart_data(response_data, hf_client)
-                ai_response = json.dumps(response_data, ensure_ascii=False, indent=2)
+        final_state = await graph_instance.ainvoke(initial_state, config)
         
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing failed: {e}")
-            # Continue with original response if parsing fails
-        except Exception as e:
-            logger.warning(f"Real data enrichment failed: {e}")
-            # Continue with original response if enrichment fails
+        # Extract the last AI message
+        last_message = None
+        for msg in reversed(final_state["messages"]):
+            if isinstance(msg, AIMessage):
+                last_message = msg
+                break
         
-        return ChatResponse(
-            response=ai_response,
-            thread_id=request.thread_id or f"chat_{int(asyncio.get_event_loop().time())}"
-        )
+        if not last_message:
+            raise HTTPException(
+                status_code=500,
+                detail="No response from assistant"
+            )
+        
+        # Check if there was a tool call and get the report
+        report = None
+        summary = last_message.content
+        
+        # Find tool response
+        for msg in final_state["messages"]:
+            if isinstance(msg, ToolMessage):
+                try:
+                    report = json.loads(msg.content)
+                    break
+                except:
+                    pass
+        
+        # Format response to match existing frontend expectations
+        if report:
+            # Return the report JSON as the response
+            return ChatResponse(
+                response=json.dumps(report, ensure_ascii=False),
+                thread_id=config["configurable"]["thread_id"]
+            )
+        else:
+            # Direct response without tool call
+            return ChatResponse(
+                response=summary,
+                thread_id=config["configurable"]["thread_id"]
+            )
         
     except HTTPException:
-        raise  # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Unexpected error in chat endpoint: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error: {str(e)}"
+            detail=f"Chat processing failed: {str(e)}"
         )
+
 
 
 @app.post("/transcribe", response_model=TranscriptionResponse)
