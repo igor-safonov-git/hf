@@ -937,6 +937,10 @@
                 setIsLoading(true);
 
                 try {
+                    // Create AbortController for 90-second timeout (LangGraph processing can be slow)
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 seconds
+                    
                     const response = await fetch(`${apiUrl}/chat`, {
                         method: 'POST',
                         headers: {
@@ -950,7 +954,10 @@
                             messages: messages,
                             temperature: temperature
                         }),
+                        signal: controller.signal
                     });
+                    
+                    clearTimeout(timeoutId);
 
                     const data = await response.json();
                     
@@ -1008,9 +1015,18 @@
                         console.log('Response is not JSON, skipping report generation. Error:', jsonError);
                     }
                 } catch (error) {
+                    let errorMessage;
+                    if (error.name === 'AbortError') {
+                        errorMessage = '⏱️ Request timeout after 90 seconds. LangGraph processing took too long. Please try a simpler question or check the server status.';
+                    } else if (error.message.includes('fetch')) {
+                        errorMessage = '⚠️ Network error. Please check if the backend is running and try again.';
+                    } else {
+                        errorMessage = `⚠️ Error: ${error.message || 'Something went wrong. Please try again.'}`;
+                    }
+                    
                     setMessages(prev => [...prev, { 
                         role: 'assistant', 
-                        content: '⚠️ Error connecting to the server. Please check if the backend is running.' 
+                        content: errorMessage
                     }]);
                 } finally {
                     setIsLoading(false);
@@ -1388,7 +1404,7 @@
                         isLoading && React.createElement('div', {
                             key: 'loading',
                             className: 'message assistant-message'
-                        }, 'Thinking...'),
+                        }, '🤖 Analyzing with LangGraph... (may take up to 90 seconds)'),
                         React.createElement('div', { ref: messagesEndRef, key: 'scroll-anchor' })
                     ]),
                     React.createElement('div', { className: 'input-container', key: 'input-container' }, [
