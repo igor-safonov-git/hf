@@ -24,11 +24,14 @@ python app.py
 # Run all tests with coverage (configured in pytest.ini)
 pytest
 
-# Run specific test files
-pytest test_comprehensive_e2e.py           # End-to-end tests
-pytest test_reports_with_questions.py      # Report generation tests
-pytest test_universal_filter.py            # Filter system tests
-pytest test_performance_restructured.py    # Performance tests
+# Run specific test files from tmp/ directory
+pytest tmp/test_comprehensive_e2e.py           # End-to-end tests
+pytest tmp/test_reports_with_questions.py      # Report generation tests
+pytest tmp/test_performance_restructured.py    # Performance tests
+
+# Run integration and unit tests
+pytest tests/integration/                      # Integration tests
+pytest tests/unit/                             # Unit tests
 
 # Run with verbose output and coverage
 pytest -v --cov=. --cov-report=html
@@ -41,6 +44,9 @@ export DEEPSEEK_API_KEY="your-api-key"
 
 # Optional for debugging
 export DEBUG_MODE=true
+
+# Optional for voice transcription
+export OPENAI_API_KEY="your-openai-key"
 ```
 
 ## High-Level Architecture
@@ -118,6 +124,7 @@ The project uses a **centralized metrics_filter** approach:
 - **JSON Schema Compliance**: All chart outputs must follow the mandatory schema with proper validation
 - **Report Title Format**: Must always include key metrics and time period following Step 8 rules
 - **Entity Grouping**: Never group an entity by itself (e.g., hires by "hires" is INVALID)
+- **File Structure**: Tests are located in both `tmp/` directory and `tests/` directory - check both locations
 
 ## Key Patterns
 
@@ -162,3 +169,25 @@ Key features:
 - JSON schema validation with mandatory response template
 - 8 comprehensive examples covering all major analysis patterns
 - Dynamic context injection with real entity names and IDs
+
+## File Structure Notes
+
+### Test Organization
+- `tmp/test_*.py` - Legacy test files and experimental tests
+- `tests/integration/` - Integration tests for complete workflows
+- `tests/unit/` - Unit tests for individual components
+- `tests/fixtures/` - Shared test data and fixtures
+- `pytest.ini` - Test configuration with coverage settings
+
+### Data Flow Components
+- `huntflow_local_client.py` - SQLite database interface
+- `huntflow_cache.db` - Local recruitment data cache
+- `universal_filter_engine.py` + `universal_filter.py` - Core filtering logic
+- `enhanced_metrics_calculator.py` - Metrics computation with filtering
+- `chart_data_processor.py` - Data preparation for visualization
+- `universal_chart_processor.py` - Chart generation utilities
+
+### SSL Configuration
+- `cert.pem` and `key.pem` - HTTPS certificates
+- `update_ssl_certs.sh` - Certificate update script
+- HTTPS available at https://localhost:8443 when certificates present

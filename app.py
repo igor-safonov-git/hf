@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.responses import Response
 from openai import AsyncOpenAI
+from langchain_groq import ChatGroq
 import aiofiles
 from prompt import get_comprehensive_prompt
 from context_data_injector import get_dynamic_context
@@ -30,10 +31,16 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
 from langgraph.graph.message import AnyMessage, add_messages
 
-# Configure logging
+# Configure logging with file output
+from datetime import datetime
+log_filename = f"server_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_filename),
+        logging.StreamHandler()  # Also log to console
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -45,8 +52,8 @@ def validate_environment():
     """Validate that required environment variables are present"""
     missing_vars = []
     
-    if not os.getenv("DEEPSEEK_API_KEY"):
-        missing_vars.append("DEEPSEEK_API_KEY")
+    if not os.getenv("GROQ_API_KEY"):
+        missing_vars.append("GROQ_API_KEY")
     
     if not os.getenv("OPENAI_API_KEY"):
         logger.warning("OPENAI_API_KEY not found - voice transcription will be limited")
@@ -71,10 +78,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize DeepSeek client
-deepseek_client = AsyncOpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY", ""), 
-    base_url="https://api.deepseek.com"
+# Initialize Groq client for tool function
+groq_client = ChatGroq(
+    model="deepseek-r1-distill-llama-70b",
+    temperature=0.1,
+    max_tokens=4000,
+    api_key=os.getenv("GROQ_API_KEY")
 )
 
 # Initialize local Huntflow client and metrics calculator
@@ -95,31 +104,68 @@ async def generate_hr_analytics_report(question: str) -> dict:
     """Generate comprehensive HR analytics report from natural language question.
     Understands Russian and returns structured data with charts and metrics."""
     
-    # Get fresh context
-    context = await get_dynamic_context(hf_client)
+    logger.info(f"🔧 TOOL CALLED: generate_hr_analytics_report with question: {question}")
     
-    # Use existing prompt
-    system_prompt = get_comprehensive_prompt(huntflow_context=context)
-    
-    # Call DeepSeek (existing logic)
-    response = await deepseek_client.chat.completions.create(
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "system", "content": "Return only valid JSON. No markdown formatting or explanations."},
-            {"role": "user", "content": question}
-        ],
-        model="deepseek-chat",
-        temperature=0.1,
-        response_format={'type': 'json_object'},
-        max_tokens=4000
-    )
-    
-    # Parse and enrich with real data
-    ai_response = response.choices[0].message.content
-    response_data = json.loads(ai_response)
-    enriched_data = await process_chart_data(response_data, hf_client)
-    
-    return enriched_data
+    try:
+        # Get fresh context
+        logger.info("🔧 Getting dynamic context...")
+        context = await get_dynamic_context(hf_client)
+        logger.info(f"🔧 Context retrieved: {len(str(context))} chars")
+        
+        # Use existing prompt
+        logger.info("🔧 Getting comprehensive prompt...")
+        system_prompt = get_comprehensive_prompt(huntflow_context=context)
+        logger.info(f"🔧 System prompt length: {len(system_prompt)} chars")
+        
+        # Call Groq API
+        logger.info("🔧 Calling Groq API...")
+        from langchain_core.messages import SystemMessage, HumanMessage
+        
+        messages = [
+            SystemMessage(content=system_prompt),
+            SystemMessage(content="Return only valid JSON. No markdown formatting or explanations."),
+            HumanMessage(content=question)
+        ]
+        
+        response = await groq_client.ainvoke(messages)
+        logger.info(f"🔧 Groq response received: {len(response.content)} chars")
+        logger.info(f"🔧 Groq response preview: {response.content[:200]}")
+        
+        # Parse and enrich with real data
+        logger.info("🔧 Parsing JSON response...")
+        ai_response = response.content
+        
+        # Handle DeepSeek R1 reasoning format - extract JSON from <think> tags or find JSON blocks
+        json_content = ai_response
+        if ai_response.startswith('<think>'):
+            # Extract content after </think> tag
+            think_end = ai_response.find('</think>')
+            if think_end != -1:
+                json_content = ai_response[think_end + 8:].strip()
+            logger.info(f"🔧 Extracted JSON from reasoning: {json_content[:200]}")
+        
+        # Try to find JSON block in response
+        if not json_content.startswith('{'):
+            import re
+            json_match = re.search(r'\{.*\}', json_content, re.DOTALL)
+            if json_match:
+                json_content = json_match.group(0)
+                logger.info(f"🔧 Found JSON block: {json_content[:200]}")
+        
+        response_data = json.loads(json_content)
+        logger.info(f"🔧 JSON parsed successfully: {list(response_data.keys())}")
+        
+        logger.info("🔧 Processing chart data...")
+        enriched_data = await process_chart_data(response_data, hf_client)
+        logger.info(f"🔧 Chart data processed: {list(enriched_data.keys())}")
+        
+        logger.info("🔧 TOOL COMPLETED SUCCESSFULLY")
+        return enriched_data
+        
+    except Exception as e:
+        logger.error(f"🔧 TOOL ERROR: {type(e).__name__}: {str(e)}")
+        logger.error(f"🔧 TOOL ERROR TRACEBACK:", exc_info=True)
+        raise e
 
 # Assistant function using proper LangGraph tool calling pattern
 # Assistant class following the LangGraph tutorial pattern
@@ -173,9 +219,13 @@ def create_assistant_runnable():
 - "Статистика по источникам" → используй generate_hr_analytics_report
 - "Отчет по вакансиям" → используй generate_hr_analytics_report
 
-ЕСЛИ НЕ ВЫЗОВЕШЬ ИНСТРУМЕНТ - ЭТО ОШИБКА!
+ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙ ИНСТРУМЕНТ generate_hr_analytics_report ДЛЯ ВСЕХ ВОПРОСОВ ПРО ДАННЫЕ!
 
-ТОЛЬКО для приветствий/общих вопросов отвечай без инструментов.
+ДЛЯ ВОПРОСА "Кто наш лучший рекрутер?" - ОБЯЗАТЕЛЬНО вызови generate_hr_analytics_report!
+
+ВАЖНО: ВЫЗЫВАЙ ИНСТРУМЕНТ ТОЛЬКО ОДИН РАЗ! Не делай повторных вызовов для одного вопроса.
+
+ТОЛЬКО для "привет", "спасибо" отвечай без инструментов.
 
 ПЕРВЫЙ ОТВЕТ + ВЫЗОВ ИНСТРУМЕНТА:
 - Текст: "Анализирую воронку найма и создаю график..."
@@ -188,14 +238,15 @@ def create_assistant_runnable():
         ("placeholder", "{messages}"),
     ])
     
-    llm = ChatOpenAI(
-        model="deepseek-chat",
-        temperature=0,
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        base_url="https://api.deepseek.com"
+    llm = ChatGroq(
+        model="deepseek-r1-distill-llama-70b",
+        temperature=0.2,
+        max_tokens=2048,
+        streaming=True,
+        api_key=os.getenv("GROQ_API_KEY")
     )
     
-    # Bind tools to LLM
+    # Bind tools to LLM 
     llm_with_tools = llm.bind_tools([generate_hr_analytics_report])
     
     return system_prompt | llm_with_tools
@@ -232,7 +283,7 @@ graph = None
 def get_graph():
     """Get or create the graph instance."""
     global graph
-    if graph is None and os.getenv("DEEPSEEK_API_KEY"):
+    if graph is None and os.getenv("GROQ_API_KEY"):
         graph = build_graph()
     return graph
 
@@ -448,16 +499,22 @@ async def chat_stream(
             
             # Stream events to see the sequential flow
             async for event in graph_instance.astream(initial_state, config, stream_mode="values"):
+                logger.info(f"📡 SSE Event received: {list(event.keys())}")
                 if "messages" in event:
                     current_messages = event["messages"]
+                    logger.info(f"📡 Total messages in event: {len(current_messages)}")
                     
                     # Process only new messages
                     new_messages = current_messages[processed_count:]
+                    logger.info(f"📡 New messages to process: {len(new_messages)}")
                     
-                    for msg in new_messages:
+                    for i, msg in enumerate(new_messages):
+                        logger.info(f"📡 Processing message {i}: {type(msg).__name__}, tool_calls: {getattr(msg, 'tool_calls', None)}")
+                        logger.info(f"📡 Message content preview: {getattr(msg, 'content', '')[:100]}")
                         if isinstance(msg, AIMessage):
                             if msg.tool_calls:
                                 # AI message with tool calls - send the content
+                                logger.info(f"Sending ai_message with tool calls: {msg.content[:100]}")
                                 stream_data = {
                                     "type": "ai_message",
                                     "content": msg.content,
@@ -466,6 +523,7 @@ async def chat_stream(
                                 yield f"data: {json.dumps(stream_data, ensure_ascii=False)}\n\n"
                             else:
                                 # Final AI message without tool calls
+                                logger.info(f"Sending ai_message_final: {msg.content[:100]}")
                                 stream_data = {
                                     "type": "ai_message_final", 
                                     "content": msg.content,
@@ -475,15 +533,33 @@ async def chat_stream(
                         
                         elif isinstance(msg, ToolMessage):
                             # Tool result - send chart data
+                            logger.info(f"🔍 DEBUGGING: Received ToolMessage")
+                            logger.info(f"🔍 Tool content length: {len(msg.content)}")
+                            logger.info(f"🔍 Tool content preview: {msg.content[:300]}")
+                            logger.info(f"🔍 Tool content type: {type(msg.content)}")
+                            
+                            if "Error:" in msg.content:
+                                logger.error(f"🔍 Tool execution failed: {msg.content}")
+                                continue
+                                
                             try:
                                 tool_result = json.loads(msg.content)
+                                logger.info(f"🔍 JSON parsing SUCCESS")
+                                logger.info(f"🔍 Tool result keys: {list(tool_result.keys()) if isinstance(tool_result, dict) else 'Not a dict'}")
+                                
                                 stream_data = {
                                     "type": "tool_result",
                                     "chart_data": tool_result
                                 }
+                                logger.info("🔍 Sending tool_result via SSE")
                                 yield f"data: {json.dumps(stream_data, ensure_ascii=False)}\n\n"
-                            except:
-                                logger.warning("Failed to parse tool result as JSON")
+                                
+                            except json.JSONDecodeError as e:
+                                logger.error(f"🔍 JSON parsing FAILED: {e}")
+                                logger.error(f"🔍 Raw tool content: {repr(msg.content[:500])}")
+                            except Exception as e:
+                                logger.error(f"🔍 Other error processing tool result: {e}")
+                                logger.error(f"🔍 Tool content: {msg.content[:500]}")
                     
                     processed_count = len(current_messages)
             
@@ -596,6 +672,19 @@ async def health_check():
         raise HTTPException(status_code=503, detail="Service unhealthy")
 
 
+@app.get("/debug/logs")
+async def get_debug_logs():
+    """Get recent debug logs"""
+    try:
+        with open(log_filename, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            # Return last 50 lines
+            recent_logs = lines[-50:] if len(lines) > 50 else lines
+            return {"logs": recent_logs, "total_lines": len(lines), "log_file": log_filename}
+    except FileNotFoundError:
+        return {"logs": [], "total_lines": 0, "log_file": log_filename}
+
+
 # Serve the frontend
 @app.get("/")
 async def read_index():
@@ -678,6 +767,20 @@ if __name__ == "__main__":
     ssl_keyfile = "key.pem"
     ssl_certfile = "cert.pem"
     
-    # Development mode - use port 8000
-    logger.info("Starting development server on port 8000...")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    if os.path.exists(ssl_keyfile) and os.path.exists(ssl_certfile):
+        logger.info("Starting HTTPS server on port 443...")
+        logger.info("🔒 HTTPS URL: https://safonov.live (with speech-to-text)")
+        
+        # Start HTTPS server on port 443
+        uvicorn.run(
+            app, 
+            host="0.0.0.0", 
+            port=443,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            log_level="info"
+        )
+    else:
+        logger.info("No SSL certificates found - starting HTTP server on port 80")
+        logger.info("⚠️  Speech-to-text requires HTTPS")
+        uvicorn.run(app, host="0.0.0.0", port=80)

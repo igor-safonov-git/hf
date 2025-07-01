@@ -1439,10 +1439,6 @@
                                 className: `message ${msg.role}-message`
                             }, renderMessage(msg))
                         ),
-                        isLoading && React.createElement('div', {
-                            key: 'loading',
-                            className: 'message assistant-message'
-                        }, '🤖 Analyzing with LangGraph... (may take up to 90 seconds)'),
                         React.createElement('div', { ref: messagesEndRef, key: 'scroll-anchor' })
                     ]),
                     React.createElement('div', { className: 'input-container', key: 'input-container' }, [
