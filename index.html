@@ -932,109 +932,133 @@
                 if (!input.trim() || isLoading) return;
 
                 const userMessage = { role: 'user', content: input };
+                const currentInput = input; // Store input before clearing
                 setMessages(prev => [...prev, userMessage]);
                 setInput('');
                 setIsLoading(true);
 
+                let currentAssistantMessage = { role: 'assistant', content: '' };
+                let reportData = null;
+                let eventSource = null;
+                let timeoutId = null;
+
                 try {
-                    // Create AbortController for 90-second timeout (LangGraph processing can be slow)
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 seconds
+                    // Add initial empty assistant message for streaming
+                    setMessages(prev => [...prev, currentAssistantMessage]);
+                    const messageIndex = messages.length + 1; // +1 for user message
                     
-                    const response = await fetch(`${apiUrl}/chat`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ 
-                            message: input,
-                            thread_id: threadId,
-                            model: selectedModel,
-                            use_real_data: true,
-                            messages: messages,
-                            temperature: temperature
-                        }),
-                        signal: controller.signal
+                    // Create EventSource for SSE streaming
+                    const params = new URLSearchParams({
+                        message: currentInput,
+                        thread_id: threadId || '',
+                        model: selectedModel,
+                        temperature: temperature.toString()
                     });
                     
-                    clearTimeout(timeoutId);
-
-                    const data = await response.json();
+                    const eventSourceUrl = `${apiUrl}/chat-stream?${params}`;
+                    console.log('Creating EventSource:', eventSourceUrl);
                     
-                    // Store thread_id for future requests
-                    if (data.thread_id && !threadId) {
-                        setThreadId(data.thread_id);
-                    }
+                    eventSource = new EventSource(eventSourceUrl);
                     
-                    // Try to parse JSON response for report generation
-                    let conversationalText = data.response;
-                    let reportData = null;
-                    
-                    try {
-                        console.log('Trying to parse response:', data.response.substring(0, 200));
-                        
-                        // Extract JSON from markdown code blocks if present
-                        let jsonString = data.response;
-                        const jsonMatch = data.response.match(/```json\s*([\s\S]*?)\s*```/);
-                        if (jsonMatch) {
-                            jsonString = jsonMatch[1];
-                            console.log('Extracted JSON from code blocks:', jsonString.substring(0, 100));
+                    // 90-second timeout for SSE connection
+                    timeoutId = setTimeout(() => {
+                        if (eventSource) {
+                            eventSource.close();
+                            throw new Error('SSE timeout after 90 seconds');
                         }
-                        
-                        const parsedResponse = JSON.parse(jsonString);
-                        console.log('Parsed JSON successfully:', parsedResponse);
-                        
-                        // Check if it's the new conversational format
-                        if (parsedResponse.conversational_text && parsedResponse.chart_data) {
-                            console.log('New conversational format detected');
-                            conversationalText = parsedResponse.conversational_text;
-                            reportData = parsedResponse.chart_data;
-                        } else if (parsedResponse.report_title && parsedResponse.main_metric && parsedResponse.chart) {
-                            // Legacy format - direct report data
-                            console.log('Legacy format detected');
-                            reportData = parsedResponse;
+                    }, 90000);
+                    
+                    eventSource.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            console.log('SSE message received:', data.type, data);
+                            
+                            switch (data.type) {
+                                case 'ai_message':
+                                    // First AI response with tool calls
+                                    currentAssistantMessage.content = data.content;
+                                    setMessages(prev => {
+                                        const updated = [...prev];
+                                        updated[messageIndex] = { ...currentAssistantMessage };
+                                        return updated;
+                                    });
+                                    break;
+                                    
+                                case 'tool_result':
+                                    // Tool execution result with chart data
+                                    reportData = data.chart_data;
+                                    if (reportData && reportData.report_title && reportData.main_metric && reportData.chart) {
+                                        console.log('Processing tool result for chart generation');
+                                        const enrichedReport = {
+                                            ...reportData,
+                                            main_metric: {
+                                                ...reportData.main_metric,
+                                                value: reportData.main_metric.real_value ?? 0
+                                            },
+                                            secondary_metrics: reportData.secondary_metrics?.map(metric => ({
+                                                ...metric,
+                                                value: metric.real_value ?? 0
+                                            })) || []
+                                        };
+                                        console.log('Setting report from SSE:', enrichedReport);
+                                        setPreviousReport(report);
+                                        setReport(enrichedReport);
+                                    }
+                                    break;
+                                    
+                                case 'ai_message_final':
+                                    // Final AI response without tool calls
+                                    currentAssistantMessage.content = data.content;
+                                    setMessages(prev => {
+                                        const updated = [...prev];
+                                        updated[messageIndex] = { ...currentAssistantMessage };
+                                        return updated;
+                                    });
+                                    break;
+                                    
+                                case 'complete':
+                                    // Streaming complete
+                                    console.log('SSE streaming complete');
+                                    if (data.thread_id && !threadId) {
+                                        setThreadId(data.thread_id);
+                                    }
+                                    eventSource.close();
+                                    if (timeoutId) clearTimeout(timeoutId);
+                                    setIsLoading(false);
+                                    break;
+                                    
+                                case 'error':
+                                    // Error from server
+                                    throw new Error(data.message || 'Server error during streaming');
+                            }
+                        } catch (parseError) {
+                            console.error('Error parsing SSE data:', parseError, event.data);
                         }
+                    };
+                    
+                    eventSource.onerror = (error) => {
+                        console.error('SSE error:', error);
+                        eventSource.close();
+                        if (timeoutId) clearTimeout(timeoutId);
                         
-                        console.log('Report data:', !!reportData);
-                        console.log('Conversational text:', conversationalText.substring(0, 100));
-                        
-                        if (reportData && reportData.report_title && reportData.main_metric && reportData.chart) {
-                            console.log('All conditions met, generating report');
-                            // Use real data only - no demo fallbacks
-                            const enrichedReport = {
-                                ...reportData,
-                                main_metric: {
-                                    ...reportData.main_metric,
-                                    value: reportData.main_metric.real_value ?? 0
-                                },
-                                secondary_metrics: reportData.secondary_metrics?.map(metric => ({
-                                    ...metric,
-                                    value: metric.real_value ?? 0
-                                })) || []
+                        setMessages(prev => {
+                            const updated = [...prev];
+                            updated[messageIndex] = { 
+                                role: 'assistant', 
+                                content: '⚠️ Connection error during streaming. Please try again.' 
                             };
-                            console.log('Setting report:', enrichedReport);
-                            // Save current report as previous before setting new one
-                            setPreviousReport(report);
-                            setReport(enrichedReport);
-                        } else {
-                            console.log('Conditions not met for report generation');
-                        }
-                    } catch (jsonError) {
-                        // Not a JSON response, no report to generate
-                        console.log('Response is not JSON, skipping report generation. Error:', jsonError);
-                    }
+                            return updated;
+                        });
+                        setIsLoading(false);
+                    };
                     
-                    // Add the conversational message to chat (either parsed text or original response)
-                    setMessages(prev => [...prev, { 
-                        role: 'assistant', 
-                        content: conversationalText 
-                    }]);
                 } catch (error) {
+                    if (eventSource) eventSource.close();
+                    if (timeoutId) clearTimeout(timeoutId);
+                    
                     let errorMessage;
-                    if (error.name === 'AbortError') {
+                    if (error.message.includes('timeout')) {
                         errorMessage = '⏱️ Request timeout after 90 seconds. LangGraph processing took too long. Please try a simpler question or check the server status.';
-                    } else if (error.message.includes('fetch')) {
-                        errorMessage = '⚠️ Network error. Please check if the backend is running and try again.';
                     } else {
                         errorMessage = `⚠️ Error: ${error.message || 'Something went wrong. Please try again.'}`;
                     }
@@ -1043,7 +1067,6 @@
                         role: 'assistant', 
                         content: errorMessage
                     }]);
-                } finally {
                     setIsLoading(false);
                 }
             };

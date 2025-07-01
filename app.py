@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import Response
 from openai import AsyncOpenAI
 import aiofiles
 from prompt import get_comprehensive_prompt
@@ -121,40 +122,72 @@ async def generate_hr_analytics_report(question: str) -> dict:
     return enriched_data
 
 # Assistant function using proper LangGraph tool calling pattern
-async def assistant(state: State, config):
-    """Assistant that uses tools to generate HR analytics reports."""
-    
-    # Log current state
-    logger.info(f"=== Assistant called with {len(state['messages'])} messages ===")
-    for i, msg in enumerate(state['messages']):
-        msg_type = type(msg).__name__
-        content_preview = str(msg.content)[:100] + "..." if len(str(msg.content)) > 100 else str(msg.content)
-        logger.info(f"Message {i}: {msg_type} - {content_preview}")
-    
-    # System prompt for the assistant
-    system_prompt = """Ты - разговорный ассистент HR-аналитики для системы Huntflow.
+# Assistant class following the LangGraph tutorial pattern
+class Assistant:
+    def __init__(self, runnable):
+        self.runnable = runnable
 
-ДЛЯ ЗАПРОСОВ НА АНАЛИЗ:
-1. Сначала дай КОРОТКИЙ ответ (1 предложение): "Анализирую [что] и создаю [график/таблицу]..."
-2. Используй инструмент generate_hr_analytics_report
-3. После инструмента дай КОРОТКИЙ итог: "Готово! [главная цифра]. [Что создал]. Хотите [варианты]?"
+    async def __call__(self, state: State, config):
+        """Assistant that follows proper LangGraph pattern for tool usage."""
+        
+        # Log current state for debugging
+        logger.info(f"=== Assistant called with {len(state['messages'])} messages ===")
+        for i, msg in enumerate(state['messages']):
+            msg_type = type(msg).__name__
+            content_preview = str(msg.content)[:100] + "..." if len(str(msg.content)) > 100 else str(msg.content)
+            logger.info(f"Message {i}: {msg_type} - {content_preview}")
+        
+        while True:
+            # Call the LLM runnable
+            result = await self.runnable.ainvoke(state)
+            
+            # If empty response, re-prompt (following tutorial pattern)
+            if not result.tool_calls and (
+                not result.content
+                or isinstance(result.content, list)
+                and not result.content[0].get("text")
+            ):
+                messages = state["messages"] + [HumanMessage(content="Respond with a real output.")]
+                state = {**state, "messages": messages}
+            else:
+                break
+        
+        return {"messages": [result]}
 
-ПРИМЕРЫ КОРОТКИХ ОТВЕТОВ:
-- "Анализирую воронку найма и создаю график..."
-- "Строю отчет по рекрутерам..."  
-- "Создаю таблицу по источникам..."
-
-ПОСЛЕ ИНСТРУМЕНТА - ТОЛЬКО КОРОТКИЙ ИТОГ:
-- "Готово! Кандидатов: 14. Создал график воронки. Хотите по отделам?"
-- "Завершено! Лучший рекрутер: Иван. График эффективности готов."
-
-НЕ СОЗДАВАЙ markdown отчеты, НЕ пиши много текста. Будь кратким и разговорным."""
-
-    # Prepare messages for LLM
-    messages = [SystemMessage(content=system_prompt)] + state["messages"]
-    
-    # Create LLM with tools
+# Create the assistant runnable with proper system prompt
+def create_assistant_runnable():
     from langchain_openai import ChatOpenAI
+    from langchain_core.prompts import ChatPromptTemplate
+    
+    # Single system prompt that handles both scenarios
+    system_prompt = ChatPromptTemplate.from_messages([
+        ("system", """Ты - разговорный ассистент HR-аналитики для системы Huntflow.
+
+КРИТИЧЕСКИ ВАЖНО: Для ЛЮБОГО вопроса об аналитике (воронка, рекрутеры, источники, статистика, отчеты) ты ОБЯЗАН:
+1. Дать короткий ответ "Анализирую [что]..."
+2. НЕМЕДЛЕННО вызвать generate_hr_analytics_report с точным вопросом пользователя
+
+ПРИМЕРЫ АНАЛИТИЧЕСКИХ ВОПРОСОВ:
+- "Покажи воронку найма" → используй generate_hr_analytics_report
+- "Кто лучший рекрутер" → используй generate_hr_analytics_report  
+- "Статистика по источникам" → используй generate_hr_analytics_report
+- "Отчет по вакансиям" → используй generate_hr_analytics_report
+
+ЕСЛИ НЕ ВЫЗОВЕШЬ ИНСТРУМЕНТ - ЭТО ОШИБКА!
+
+ТОЛЬКО для приветствий/общих вопросов отвечай без инструментов.
+
+ПЕРВЫЙ ОТВЕТ + ВЫЗОВ ИНСТРУМЕНТА:
+- Текст: "Анализирую воронку найма и создаю график..."
+- Инструмент: generate_hr_analytics_report с question="Покажи воронку найма"
+
+ФИНАЛЬНЫЙ ОТВЕТ (когда уже есть результат инструмента):
+- "Готово! Кандидатов в воронке: 14. Создал график по этапам. Хотите по отделам?"
+
+Отвечай на русском языке, будь кратким."""),
+        ("placeholder", "{messages}"),
+    ])
+    
     llm = ChatOpenAI(
         model="deepseek-chat",
         temperature=0,
@@ -162,31 +195,32 @@ async def assistant(state: State, config):
         base_url="https://api.deepseek.com"
     )
     
-    # Bind the analytics tool to the LLM
+    # Bind tools to LLM
     llm_with_tools = llm.bind_tools([generate_hr_analytics_report])
     
-    # Get response from LLM (may include tool calls)
-    response = await llm_with_tools.ainvoke(messages)
-    
-    return {"messages": [response]}
+    return system_prompt | llm_with_tools
 
-# Build the graph
+# Build the graph following the tutorial pattern
 def build_graph():
     from langgraph.prebuilt import ToolNode, tools_condition
     
     builder = StateGraph(State)
     
+    # Create assistant instance with the runnable
+    assistant_runnable = create_assistant_runnable()
+    assistant_instance = Assistant(assistant_runnable)
+    
     # Add nodes
-    builder.add_node("assistant", assistant)
+    builder.add_node("assistant", assistant_instance)
     builder.add_node("tools", ToolNode([generate_hr_analytics_report]))
     
-    # Add edges
+    # Add edges following tutorial pattern
     builder.add_edge(START, "assistant")
     builder.add_conditional_edges(
         "assistant",
-        tools_condition,
+        tools_condition,  # This checks if the AI message has tool_calls
     )
-    builder.add_edge("tools", "assistant")
+    builder.add_edge("tools", "assistant")  # After tools, go back to assistant
     
     # Compile with memory
     memory = MemorySaver()
@@ -271,56 +305,80 @@ async def chat(request: ChatRequest):
                 detail="LangGraph not initialized - DeepSeek API key required"
             )
             
-        final_state = await graph_instance.ainvoke(initial_state, config)
+        # Use streaming to capture sequential messages (like the tutorial)
+        all_messages = []
+        tool_result = None
         
-        # Extract the last AI message
-        last_message = None
-        for msg in reversed(final_state["messages"]):
+        logger.info("=== Starting LangGraph streaming ===")
+        
+        # Stream events to see the sequential flow  
+        async for event in graph_instance.astream(initial_state, config, stream_mode="values"):
+            logger.info(f"Stream event: {len(event.get('messages', []))} messages")
+            
+            # Get the latest messages from this event
+            if "messages" in event:
+                current_messages = event["messages"]
+                
+                # Log new messages
+                for i, msg in enumerate(current_messages[len(all_messages):]):
+                    msg_type = type(msg).__name__
+                    content_preview = str(msg.content)[:100] + "..." if len(str(msg.content)) > 100 else str(msg.content)
+                    
+                    # Show tool calls more clearly
+                    if isinstance(msg, AIMessage) and msg.tool_calls:
+                        logger.info(f"  New message {len(all_messages) + i}: {msg_type} with tool_calls - {content_preview}")
+                        logger.info(f"    Tool calls: {[tc.get('name', 'unknown') for tc in msg.tool_calls]}")
+                    else:
+                        logger.info(f"  New message {len(all_messages) + i}: {msg_type} - {content_preview}")
+                
+                all_messages = current_messages
+        
+        logger.info(f"=== Streaming complete: {len(all_messages)} total messages ===")
+        
+        # Extract the final AI message and any tool results
+        final_ai_message = None
+        
+        for msg in reversed(all_messages):
             if isinstance(msg, AIMessage):
-                last_message = msg
+                final_ai_message = msg
                 break
         
-        if not last_message:
-            raise HTTPException(
-                status_code=500,
-                detail="No response from assistant"
-            )
-        
-        # Check if there was a tool call and get the report
-        report = None
-        summary = last_message.content
-        
-        # Find tool response
-        for msg in final_state["messages"]:
+        # Find any tool result
+        for msg in all_messages:
             if isinstance(msg, ToolMessage):
                 try:
-                    report = json.loads(msg.content)
+                    tool_result = json.loads(msg.content)
                     break
                 except:
                     pass
         
-        # Format response for conversational interaction with chart data
-        if report and summary:
-            # Create a conversational response that includes both the chat message and chart data
-            # The frontend will parse JSON if present, otherwise show the conversational text
+        if not final_ai_message:
+            raise HTTPException(
+                status_code=500,
+                detail="No final response from assistant"
+            )
+        
+        # Format response based on what we have
+        if tool_result and final_ai_message:
+            # We have both conversational summary and chart data
             conversational_response = {
-                "conversational_text": summary,
-                "chart_data": report
+                "conversational_text": final_ai_message.content,
+                "chart_data": tool_result
             }
             return ChatResponse(
                 response=json.dumps(conversational_response, ensure_ascii=False),
                 thread_id=config["configurable"]["thread_id"]
             )
-        elif report:
-            # Fallback: just return the report JSON
+        elif tool_result:
+            # Only tool result, no conversational summary (shouldn't happen with new flow)
             return ChatResponse(
-                response=json.dumps(report, ensure_ascii=False),
+                response=json.dumps(tool_result, ensure_ascii=False),
                 thread_id=config["configurable"]["thread_id"]
             )
         else:
-            # Direct conversational response without tool call
+            # Only conversational response, no chart data
             return ChatResponse(
-                response=summary,
+                response=final_ai_message.content,
                 thread_id=config["configurable"]["thread_id"]
             )
         
@@ -333,6 +391,125 @@ async def chat(request: ChatRequest):
             detail=f"Chat processing failed: {str(e)}"
         )
 
+
+@app.get("/test-stream")
+async def test_stream():
+    """Simple test SSE endpoint"""
+    async def generate():
+        for i in range(3):
+            yield f"data: {{\"message\": \"Test {i}\"}}\n\n"
+            await asyncio.sleep(1)
+        yield f"data: {{\"complete\": true}}\n\n"
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
+
+@app.get("/chat-stream")
+async def chat_stream(
+    message: str,
+    thread_id: Optional[str] = None,
+    model: Optional[str] = "deepseek",
+    temperature: Optional[float] = 0.1
+):
+    """SSE streaming chat endpoint powered by LangGraph"""
+    import time
+    
+    async def generate_stream():
+        try:
+            config = {
+                "configurable": {
+                    "thread_id": thread_id or f"chat_{int(time.time())}"
+                }
+            }
+            
+            # Create initial state
+            initial_state = {
+                "messages": [HumanMessage(content=message)],
+                "context": {},
+                "current_report": None
+            }
+            
+            # Get and run the graph
+            graph_instance = get_graph()
+            if not graph_instance:
+                yield f"data: {json.dumps({'error': 'LangGraph not initialized'})}\n\n"
+                return
+                
+            logger.info("=== Starting LangGraph SSE streaming ===")
+            
+            # Track processed messages to avoid duplicates
+            processed_count = 0
+            
+            # Stream events to see the sequential flow
+            async for event in graph_instance.astream(initial_state, config, stream_mode="values"):
+                if "messages" in event:
+                    current_messages = event["messages"]
+                    
+                    # Process only new messages
+                    new_messages = current_messages[processed_count:]
+                    
+                    for msg in new_messages:
+                        if isinstance(msg, AIMessage):
+                            if msg.tool_calls:
+                                # AI message with tool calls - send the content
+                                stream_data = {
+                                    "type": "ai_message",
+                                    "content": msg.content,
+                                    "has_tool_calls": True
+                                }
+                                yield f"data: {json.dumps(stream_data, ensure_ascii=False)}\n\n"
+                            else:
+                                # Final AI message without tool calls
+                                stream_data = {
+                                    "type": "ai_message_final", 
+                                    "content": msg.content,
+                                    "has_tool_calls": False
+                                }
+                                yield f"data: {json.dumps(stream_data, ensure_ascii=False)}\n\n"
+                        
+                        elif isinstance(msg, ToolMessage):
+                            # Tool result - send chart data
+                            try:
+                                tool_result = json.loads(msg.content)
+                                stream_data = {
+                                    "type": "tool_result",
+                                    "chart_data": tool_result
+                                }
+                                yield f"data: {json.dumps(stream_data, ensure_ascii=False)}\n\n"
+                            except:
+                                logger.warning("Failed to parse tool result as JSON")
+                    
+                    processed_count = len(current_messages)
+            
+            # Send completion signal
+            completion_data = {
+                "type": "complete",
+                "thread_id": config["configurable"]["thread_id"]
+            }
+            yield f"data: {json.dumps(completion_data, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            logger.error(f"SSE streaming error: {e}")
+            error_data = {"type": "error", "message": str(e)}
+            yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
+    )
 
 
 @app.post("/transcribe", response_model=TranscriptionResponse)
@@ -501,20 +678,6 @@ if __name__ == "__main__":
     ssl_keyfile = "key.pem"
     ssl_certfile = "cert.pem"
     
-    if os.path.exists(ssl_keyfile) and os.path.exists(ssl_certfile):
-        logger.info("Starting HTTPS server on port 443...")
-        logger.info("🔒 HTTPS URL: https://safonov.live (with speech-to-text)")
-        
-        # Start HTTPS server on port 443
-        uvicorn.run(
-            app, 
-            host="0.0.0.0", 
-            port=443,
-            ssl_keyfile=ssl_keyfile,
-            ssl_certfile=ssl_certfile,
-            log_level="info"
-        )
-    else:
-        logger.info("No SSL certificates found - starting HTTP server on port 80")
-        logger.info("⚠️  Speech-to-text requires HTTPS")
-        uvicorn.run(app, host="0.0.0.0", port=80)
+    # Development mode - use port 8000
+    logger.info("Starting development server on port 8000...")
+    uvicorn.run(app, host="127.0.0.1", port=8000)
