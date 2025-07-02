@@ -80,7 +80,7 @@ app.add_middleware(
 
 # Initialize Groq client for tool function
 groq_client = ChatGroq(
-    model="deepseek-r1-distill-llama-70b",
+    model="llama-3.3-70b-versatile",
     temperature=0.1,
     max_tokens=4000,
     api_key=os.getenv("GROQ_API_KEY")
@@ -239,7 +239,7 @@ def create_assistant_runnable():
     ])
     
     llm = ChatGroq(
-        model="deepseek-r1-distill-llama-70b",
+        model="llama-3.3-70b-versatile",
         temperature=0.2,
         max_tokens=2048,
         streaming=True,

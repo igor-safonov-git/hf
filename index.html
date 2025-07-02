@@ -1,23 +1,291 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Huntflow Demo Bot</title>
+    <title>Huntflow Демо Бот</title>
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Inter font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --spacing: 0.25rem;
+            --container-xs: 20rem;
+            --container-sm: 24rem;
+            --container-md: 28rem;
+            --container-lg: 32rem;
+            --container-xl: 36rem;
+            --container-2xl: 42rem;
+            --container-3xl: 48rem;
+            --container-4xl: 56rem;
+            --container-5xl: 64rem;
+            --container-6xl: 72rem;
+            --text-xs: 0.75rem;
+            --text-xs--line-height: 1.33333;
+            --text-sm: 0.875rem;
+            --text-sm--line-height: 1.42857;
+            --text-base: 1rem;
+            --text-base--line-height: 1.5;
+            --text-lg: 1.125rem;
+            --text-lg--line-height: 1.55556;
+            --text-xl: 1.25rem;
+            --text-xl--line-height: 1.4;
+            --text-2xl: 1.5rem;
+            --text-2xl--line-height: 1.33333;
+            --text-3xl: 1.875rem;
+            --text-3xl--line-height: 1.2;
+            --text-4xl: 2.25rem;
+            --text-4xl--line-height: 1.11111;
+            --text-5xl: 3rem;
+            --text-5xl--line-height: 1;
+            --text-6xl: 3.75rem;
+            --text-6xl--line-height: 1;
+            --text-7xl: 4.5rem;
+            --text-7xl--line-height: 1;
+            --font-weight-extralight: 200;
+            --font-weight-light: 300;
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-semibold: 600;
+            --font-weight-bold: 700;
+            --font-weight-extrabold: 800;
+            --font-weight-black: 900;
+            --tracking-tighter: -0.05em;
+            --tracking-tight: -0.025em;
+            --tracking-normal: 0em;
+            --tracking-wide: 0.025em;
+            --tracking-widest: 0.1em;
+            --leading-tight: 1.25;
+            --leading-snug: 1.375;
+            --leading-normal: 1.5;
+            --leading-relaxed: 1.625;
+            --radius-xs: 0.125rem;
+            --radius-sm: 0.25rem;
+            --radius-md: 0.375rem;
+            --radius-lg: 0.5rem;
+            --radius-xl: 0.75rem;
+            --radius-2xl: 1rem;
+            --radius-3xl: 1.5rem;
+            --drop-shadow-xs: 0 1px 1px #0000000d;
+            --drop-shadow-md: 0 3px 3px #0000001f;
+            --drop-shadow-lg: 0 4px 4px #00000026;
+            --ease-in: cubic-bezier(0.4, 0, 1, 1);
+            --ease-out: cubic-bezier(0, 0, 0.2, 1);
+            --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+            --animate-spin: spin 1s linear infinite;
+            --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            --animate-bounce: bounce 1s infinite;
+            --blur-xs: 4px;
+            --blur-sm: 8px;
+            --blur-md: 12px;
+            --blur-lg: 16px;
+            --blur-xl: 24px;
+            --blur-2xl: 40px;
+            --blur-3xl: 64px;
+            --aspect-video: 16/9;
+            --default-transition-duration: 0.15s;
+            --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            --text-heading-2: 1.5rem;
+            --text-heading-2--line-height: 1.75rem;
+            --text-heading-2--letter-spacing: -0.015625rem;
+            --text-heading-2--font-weight: 600;
+            --text-heading-3: 1.125rem;
+            --text-heading-3--line-height: 1.625rem;
+            --text-heading-3--letter-spacing: -0.028125rem;
+            --text-heading-3--font-weight: 600;
+            --text-body-small-regular: 0.875rem;
+            --text-body-small-regular--line-height: 1.125rem;
+            --text-body-small-regular--letter-spacing: -0.01875rem;
+            --text-body-small-regular--font-weight: 400;
+            --text-caption-regular: 0.75rem;
+            --text-caption-regular--line-height: 1rem;
+            --text-caption-regular--letter-spacing: -0.00625rem;
+            --text-caption-regular--font-weight: 400;
+            --user-chat-width: 70%;
+            --white: #fff;
+            --black: #000;
+            --gray-50: #f9f9f9;
+            --gray-100: #ececec;
+            --gray-200: #e3e3e3;
+            --gray-300: #cdcdcd;
+            --gray-400: #b4b4b4;
+            --gray-500: #9b9b9b;
+            --gray-600: #676767;
+            --gray-700: #424242;
+            --gray-750: #2f2f2f;
+            --gray-800: #212121;
+            --gray-900: #171717;
+            --gray-950: #0d0d0d;
+            --red-500: #e02e2a;
+            --red-700: #911e1b;
+            --brand-purple: #ab68ff;
+            --yellow-900: #4d3b00;
+            --message-surface: #e9e9e980;
+            --text-primary: #0d0d0d;
+            --text-secondary: #5d5d5d;
+            --text-tertiary: #8f8f8f;
+            --text-inverted: #fff;
+            --text-accent: #66b5ff;
+            --text-error: #e02e2a;
+            --bg-primary: #fff;
+            --bg-secondary: #e8e8e8;
+            --bg-tertiary: #f3f3f3;
+            --border-default: #0d0d0d1a;
+            --border-heavy: #0d0d0d26;
+            --border-light: #0d0d0d0d;
+            --border-xlight: #0000000d;
+            --border-medium: #00000026;
+            --border-xheavy: #00000040;
+            --border-sharp: #0000000d;
+            --interactive-border-focus: #0d0d0d;
+            --interactive-border-secondary-default: #0d0d0d1a;
+            --interactive-bg-tertiary-default: #fff;
+            --interactive-bg-tertiary-hover: #f9f9f9;
+            --shadow-color-1: #0000000a;
+            --shadow-color-2: #0000009e;
+            --breakpoint-md: 48rem;
+            --breakpoint-lg: 64rem;
+            --breakpoint-xl: 80rem;
+            --breakpoint-2xl: 96rem;
+            --main-surface-background: #fffffff2;
+            --composer-surface: var(--message-surface);
+            --composer-blue-bg: #daeeff;
+            --composer-blue-hover: #bddcf4;
+            --composer-blue-hover-tint: #0084ff24;
+            --composer-surface-primary: var(--main-surface-primary);
+            --dot-color: var(--black);
+            --icon-surface: 13 13 13;
+            --text-primary-inverse: var(--gray-100);
+            --content-primary: #01172b;
+            --content-secondary: #44505b;
+            --text-quaternary: var(--gray-300);
+            --text-placeholder: #000000b3;
+            --tag-blue: #08f;
+            --tag-blue-light: #0af;
+            --surface-error: 249 58 55;
+            --hint-text: #08f;
+            --hint-bg: #b3dbff;
+            --main-surface-primary: var(--white);
+            --main-surface-primary-inverse: var(--gray-800);
+            --main-surface-secondary: var(--gray-50);
+            --main-surface-secondary-selected: #0000001a;
+            --main-surface-tertiary: var(--gray-100);
+            --sidebar-width: 260px;
+            --sidebar-section-margin-top: 1.25rem;
+            --sidebar-section-first-margin-top: 0.5rem;
+            --sidebar-rail-width: calc(var(--spacing) * 13);
+            --header-height: calc(var(--spacing) * 13);
+            --sidebar-surface-primary: var(--gray-50);
+            --sidebar-surface-secondary: var(--gray-100);
+            --sidebar-surface-tertiary: var(--gray-200);
+            --sidebar-title-primary: #28282880;
+            --sidebar-surface: #fcfcfc;
+            --sidebar-body-primary: #0d0d0d;
+            --sidebar-icon: #7d7d7d;
+            --surface-hover: #00000012;
+            --link: #2964aa;
+            --link-hover: #749ac8;
+            --selection: #007aff;
+            --sidebar-surface-floating-lightness: 1;
+            --sidebar-surface-floating-alpha: 1;
+            --sidebar-surface-pinned-lightness: 0.99;
+            --sidebar-surface-pinned-alpha: 1;
+            --cqh-full: 100cqh;
+            --cqw-full: 100cqw;
+            --spring-fast-duration: 667ms;
+            --spring-common-duration: 667ms;
+            --spring-standard: var(--spring-common);
+            --spring-slow-bounce-duration: 1167ms;
+            --spring-bounce-duration: 833ms;
+            --spring-fast-bounce-duration: 1s;
+            --composer-footer_height: var(--composer-bar_footer-current-height, 32px);
+            --composer-bar_height: var(--composer-bar_current-height, 52px);
+            --composer-bar_width: var(--composer-bar_current-width, 768px);
+            --mask-fill: linear-gradient(180deg, #fff 0%, #fff);
+            --mask-erase: linear-gradient(180deg, #000 0%, #000);
+            --thread-content-margin: calc(var(--spacing) * 6);
+            --thread-content-max-width: 40rem;
+            --utility-scrollbar: #0000000a;
+            --sharp-edge-top-shadow: 0 1px 0 var(--border-sharp);
+            --sharp-edge-top-shadow-placeholder: 0 1px 0 transparent;
+            --sharp-edge-bottom-shadow: 0 -1px 0 var(--border-sharp);
+            --sharp-edge-bottom-shadow-placeholder: 0 -1px 0 transparent;
+            --tw-inset-shadow-alpha: 100%;
+            --tw-inset-ring-shadow: 0 0 #0000;
+            --tw-inset-shadow: 0 0 #0000;
+            --tw-shadow-alpha: 100%;
+            --tw-ring-shadow: 0 0 #0000;
+            --tw-drop-shadow-alpha: 100%;
+            --tw-ring-offset-shadow: 0 0 #0000;
+            --tw-shadow: 0 0 #0000;
+        }
+        
+        /* Animations for report elements */
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        html {
+            height: 100%;
+        }
         body {
             margin: 0;
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             background-color: #f9fafb;
             height: 100vh;
+        }
+        h1 {
+            margin: 0;
+            padding: 0 0 1rem 0;
+            letter-spacing: -0.025rem;
+            font-size: 2.2rem;
         }
         #root {
             height: 100%;
         }
+        .header {
+            height: 60px;
+            width: 100%;
+            background-color: #000;
+            position: sticky;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+        }
         .container {
             margin: 0;
             padding: 0;
-            height: 100%;
+            height: calc(100vh - 60px);
             display: flex;
             flex-direction: row;
         }
@@ -25,7 +293,7 @@
             width: 65%;
             background: white;
             border-right: 1px solid #e5e7eb;
-            padding: 2rem;
+            padding: 3rem 5rem;
             overflow-y: auto;
             transition: width 0.3s ease;
             position: relative;
@@ -36,11 +304,13 @@
         }
         .chat-panel {
             width: 35%;
+            height: 100%;
             background: #f9fafb;
             display: flex;
             flex-direction: column;
             padding: 0;
             transition: all 0.3s ease;
+            box-shadow: 0px 4px 4px 0px var(--shadow-color-1), 0px 0px 1px 0px var(--shadow-color-2);
         }
         .chat-panel.hidden {
             width: 0;
@@ -147,38 +417,111 @@
             padding: 1rem;
             display: flex;
             flex-direction: column;
-            height: 1vh;
+            height: 100%;
         }
         .report-title {
-            font-size: 1.75rem;
+            font-size: 2.2rem;
             font-weight: bold;
             color: #1f2937;
-            margin-bottom: 2rem;
-            text-align: center;
+            margin: 0;
+            text-align: left;
+            padding: 0 0 1rem 0;
+            letter-spacing: -0.025rem;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: slideInUp 0.4s ease-out forwards;
         }
         .metrics-container {
             display: flex;
-            justify-content: space-around;
-            margin-bottom: 2rem;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 1.5em 0 0 0;
         }
         .metric {
-            text-align: center;
+            text-align: left;
+            background-color: #f8f9fa;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            width: 33%;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: slideInUp 0.3s ease-out forwards;
+        }
+        
+        .metric:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+        
+        .metric:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .metric:nth-child(3) {
+            animation-delay: 0.3s;
         }
         .metric-value {
             font-size: 2.5rem;
             font-weight: bold;
-            color: #3b82f6;
+            color: #222;
             margin-bottom: 0.5rem;
         }
         .metric-label {
-            font-size: 0.875rem;
+            font-size: 1rem;
+            color: #222;
+            font-weight: 500;
+            text-transform: none;
+        }
+        .chart-filters {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            padding: 0px 0 0 0;
+            background: none;
+            border-radius: 0;
+            border: 0;
+        }
+        
+        .filters-grid {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .filter-item {
+            display: inline-block;
+        }
+        
+        .filter-item.active {
+            background: #222;
+            color: #f1f1f1;
+        }
+        
+        .filter-label {
+            font-size: 0.75rem;
+            font-weight: 500;
             color: #6b7280;
+            margin-bottom: 0.25rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+        
+        .filter-value {
+            padding: 0.3rem 0.5rem 0.2rem 0.5rem;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            color: #374151;
+            min-height: 1.25rem;
+        }
+        
+        .filter-value.empty {
+            color: #9ca3af;
+            font-style: normal;
+        }
+        
         .chart-container {
-            margin-top: 2rem;
+            margin-top: 1rem;
             height: 400px;
+            padding: 1.5em 0 0 0;
         }
         
         /* Table styles */
@@ -268,9 +611,44 @@
             }
         }
         
+        /* Chart filters animation */
+        .chart-filters {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: slideInUp 0.3s ease-out forwards;
+            animation-delay: 0.05s;
+        }
+        
+        /* Chart title */
+        .chart-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 2rem 0 0 0;
+            text-align: left;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: slideInUp 0.3s ease-out forwards;
+            animation-delay: 0.35s;
+        }
+        
+        /* Chart container animation */
+        .chart-container {
+            margin: 0;
+            padding: 1em 0 0 0;
+            opacity: 0;
+            transform: scale(0.95);
+            animation: fadeInScale 0.4s ease-out forwards;
+            animation-delay: 0.4s;
+        }
+        
         /* Grouped Metrics Styles */
         .grouped-metrics {
             margin-bottom: 2rem;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: slideInUp 0.3s ease-out forwards;
+            animation-delay: 0.05s;
         }
         
         .grouped-metrics h3 {
@@ -369,27 +747,45 @@
             padding: 0.75rem;
             border-radius: 0.375rem;
             font-size: 0.875rem;
+            display: block;
         }
         .user-message {
-            background-color: #3b82f6;
-            color: white;
-            margin-left: 2rem;
+            background-color: var(--message-surface, #e9e9e980);
+            color: var(--text-primary, #0d0d0d);
+            margin-left: auto;
+            margin-right: 0;
+            width: fit-content;
+            max-width: 70%;
+            border-radius: var(--radius-3xl, 1.5rem);
+            padding-inline: calc(var(--spacing, 0.25rem) * 5);
+            padding-block: calc(var(--spacing, 0.25rem) * 2.5);
+            font-size: var(--text-base, 1rem);
+            line-height: var(--text-base--line-height, 1.5);
+            border: 0 solid;
+            box-sizing: border-box;
         }
         .assistant-message {
-            background-color: #f3f4f6;
-            color: #1f2937;
-            margin-right: 2rem;
+            color: var(--text-primary);
+            width: 100%;
+            font-size: var(--text-base);
+            line-height: var(--text-base--line-height);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing);
+            margin-bottom: calc(var(--spacing) * 2);
+            overflow-wrap: break-word;
+            border: 0 solid var(--border-light);
+            box-sizing: border-box;
         }
         .assistant-message img {
             max-width: 100%;
             margin-top: 0.5rem;
         }
         .input-container {
+            position: relative;
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
             padding: 1rem;
-            border-top: 1px solid #e5e7eb;
         }
         .button-row {
             display: flex;
@@ -398,50 +794,76 @@
         }
         .input {
             width: 100%;
-            padding: 0.5rem 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.375rem;
-            font-size: 1rem;
-            min-height: 80px;
+            display: flex;
+            cursor: text;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: clip;
+            border-radius: 28px;
+            background-color: var(--bg-primary);
+            background-clip: padding-box;
+            padding-inline: 1.2rem;
+            padding-block: 1.2rem;
+            border: 0 solid var(--border-light);
+            font-size: var(--text-base);
+            line-height: var(--text-base--line-height);
+            color: var(--text-primary);
+            min-height: 120px;
             resize: vertical;
-            font-family: inherit;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             box-sizing: border-box;
+            --tw-shadow: 0px 4px 4px 0px var(--tw-shadow-color, var(--shadow-color-1, #0000000a)), 0px 0px 1px 0px var(--tw-shadow-color, var(--shadow-color-2, #0000009e));
+            box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+            transition: all var(--default-transition-duration) var(--default-transition-timing-function);
         }
-        .input-wrapper {
-            position: relative;
-            width: 100%;
-        }
-        .input-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            padding: 0.5rem 1rem;
-            border: 1px solid transparent;
-            border-radius: 0.375rem;
-            font-size: 1rem;
-            pointer-events: none;
-            color: #374151;
-            z-index: 3;
-            white-space: pre;
-            overflow: hidden;
-            background: transparent;
+        
+        .input:focus {
+            outline: none;
+            border-color: var(--interactive-border-focus);
+            --tw-shadow: 0px 4px 8px 0px var(--tw-shadow-color, var(--shadow-color-1, #0000000a)), 0px 0px 2px 0px var(--tw-shadow-color, var(--shadow-color-2, #0000009e));
+            box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
         }
         .button {
-            padding: 0.5rem 1rem;
-            background-color: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 0.375rem;
-            font-size: 1rem;
+            font: inherit;
+            font-variation-settings: inherit;
+            letter-spacing: inherit;
+            opacity: 1;
+            appearance: button;
             cursor: pointer;
+            display: flex;
+            height: auto;
+            width: auto;
+            padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+            align-items: center;
+            justify-content: center;
+            border-radius: 3.40282e+38px;
+            background-color: var(--black);
+            color: #f1f1f1;
+            border: 0 solid var(--border-light);
+            box-sizing: border-box;
+            margin: 0;
+            position: absolute;
+            bottom: calc(var(--spacing) * 8);
+            right: calc(var(--spacing) * 6);
+            transition-duration: var(--default-transition-duration);
+            transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke;
+            transition-timing-function: var(--default-transition-timing-function);
+            -webkit-tap-highlight-color: transparent;
+            -webkit-font-smoothing: antialiased;
         }
         .button:hover {
-            background-color: #2563eb;
+            background-color: #464646;
+            color: var(--interactive-label-primary-hover);
+        }
+        .button:active {
+            background-color: var(--interactive-bg-primary-press);
+            color: var(--interactive-label-primary-press);
         }
         .button:disabled {
-            background-color: #9ca3af;
+            background-color: var(--interactive-bg-primary-inactive);
+            color: var(--interactive-label-primary-inactive);
+            opacity: 0.5;
             cursor: not-allowed;
         }
         .undo-button {
@@ -485,6 +907,40 @@
             50% { opacity: 0.7; }
             100% { opacity: 1; }
         }
+        
+        /* Loading indicator */
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            color: #6b7280;
+            font-style: italic;
+        }
+        
+        .loading-dots {
+            display: flex;
+            gap: 0.25rem;
+        }
+        
+        .loading-dot {
+            width: 13.5px;
+            height: 13.5px;
+            background-color: #222;
+            border-radius: 50%;
+            animation: loadingBounce 2s ease-in-out infinite both;
+        }
+        
+        @keyframes loadingBounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
         .welcome {
             text-align: center;
             color: #6b7280;
@@ -498,12 +954,17 @@
             margin-top: 1rem;
         }
         .suggestion {
-            padding: 0.5rem 1rem;
-            background-color: #f3f4f6;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.375rem;
+            background-color: var(--message-surface, #e9e9e980);
+            color: var(--text-primary, #0d0d0d);
+            width: fit-content;
+            border-radius: var(--radius-3xl, 1.5rem);
+            padding-inline: calc(var(--spacing, 0.25rem) * 5);
+            padding-block: calc(var(--spacing, 0.25rem) * 2.5);
+            font-size: var(--text-base, 1rem);
+            line-height: var(--text-base--line-height, 1.5);
+            border: 0 solid;
+            box-sizing: border-box;
             cursor: pointer;
-            font-size: 0.875rem;
         }
         .suggestion:hover {
             background-color: #e5e7eb;
@@ -511,6 +972,126 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        
+        /* JSON display styles */
+        .json-container {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .json-content {
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #495057;
+        }
+        
+        .json-toggle {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+        }
+        
+        .json-toggle:hover {
+            background: #5a6268;
+        }
+        
+        /* Markdown content styles */
+        .markdown-content {
+            line-height: 1.6;
+        }
+        
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            color: #1f2937;
+        }
+        
+        .markdown-content h1 {
+            font-size: 1.5em;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.3em;
+        }
+        
+        .markdown-content h2 {
+            font-size: 1.3em;
+        }
+        
+        .markdown-content h3 {
+            font-size: 1.1em;
+        }
+        
+        .markdown-content p {
+            margin: 0px !important;
+        }
+        
+        
+        .markdown-content ul, .markdown-content ol {
+            margin: 0.8em 0;
+            padding-left: 2em;
+        }
+        
+        .markdown-content li {
+            margin: 0.4em 0;
+        }
+        
+        .markdown-content blockquote {
+            border-left: 4px solid #e5e7eb;
+            margin: 1em 0;
+            padding-left: 1em;
+            color: #6b7280;
+            font-style: italic;
+        }
+        
+        .markdown-content code {
+            background: #f3f4f6;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        .markdown-content pre {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 1em;
+            overflow-x: auto;
+            margin: 1em 0;
+        }
+        
+        .markdown-content pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .markdown-content strong {
+            font-weight: 600;
+        }
+        
+        .markdown-content em {
+            font-style: italic;
+        }
+        
+        .markdown-content a {
+            color: #222;
+            text-decoration: none;
+        }
+        
+        .markdown-content a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -539,9 +1120,7 @@
             const [isRecording, setIsRecording] = useState(false);
             const [speechSupported, setSpeechSupported] = useState(false);
             const [isChatVisible, setIsChatVisible] = useState(true);
-            const [showMentions, setShowMentions] = useState(false);
-            const [mentionFilter, setMentionFilter] = useState('');
-            const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+            const [expandedJsonMessages, setExpandedJsonMessages] = useState({});
             const messagesEndRef = useRef(null);
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
@@ -551,26 +1130,33 @@
             // Auto-detect API URL based on current protocol (standard ports)
             const apiUrl = window.location.protocol + "//" + window.location.hostname;
 
-            // Entity definitions for mentions
-            const entities = [
-                { name: 'кандидаты', englishName: 'applicants', icon: '', desc: 'Кандидаты и соискатели' },
-                { name: 'вакансии', englishName: 'vacancies', icon: '', desc: 'Вакансии и позиции' },
-                { name: 'наймы', englishName: 'hires', icon: '', desc: 'Принятые на работу' },
-                { name: 'отказы', englishName: 'rejections', icon: '', desc: 'Отказы кандидатам' },
-                { name: 'рекрутеры', englishName: 'recruiters', icon: '', desc: 'Рекрутеры и HR' },
-                { name: 'источники', englishName: 'sources', icon: '', desc: 'Источники кандидатов' },
-                { name: 'этапы', englishName: 'stages', icon: '', desc: 'Этапы найма' },
-                { name: 'действия', englishName: 'actions', icon: '', desc: 'Действия рекрутеров' },
-                { name: 'отделы', englishName: 'divisions', icon: '', desc: 'Отделы и подразделения' },
-                { name: 'руководители', englishName: 'hiring_managers', icon: '', desc: 'Руководители найма' }
-            ];
-
             const scrollToBottom = () => {
                 messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
             };
 
+            const scrollToLastAssistantMessage = () => {
+                // Find the last assistant message element
+                const messagesContainer = document.querySelector('.messages');
+                const assistantMessages = messagesContainer?.querySelectorAll('.assistant-message');
+                if (assistantMessages && assistantMessages.length > 0) {
+                    const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
+                    lastAssistantMessage.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+            };
+
             useEffect(() => {
-                scrollToBottom();
+                // Check if the last message is from assistant
+                if (messages.length > 0) {
+                    const lastMessage = messages[messages.length - 1];
+                    if (lastMessage.role === 'assistant') {
+                        // Small delay to ensure DOM is updated
+                        setTimeout(() => {
+                            scrollToLastAssistantMessage();
+                        }, 100);
+                    } else {
+                        scrollToBottom();
+                    }
+                }
             }, [messages]);
 
             // Initialize audio recording and prefetch data on page load
@@ -647,9 +1233,9 @@
                         
                         data = {
                             datasets: [{
-                                label: chartConfig.y_label || chartConfig.y_axis_name || 'Data Points',
+                                label: chartConfig.y_label || chartConfig.y_axis_name || '',
                                 data: scatterData,
-                                backgroundColor: 'rgba(59, 130, 246, 0.8)'
+                                backgroundColor: 'rgba(248, 179, 0, 0.8)'
                             }]
                         };
                     } else {
@@ -658,10 +1244,10 @@
                             data = {
                                 labels: chartDataSource.labels,
                                 datasets: [{
-                                    label: chartConfig.y_label || chartConfig.y_axis_name || 'Count',
+                                    label: '',
                                     data: chartDataSource.values,
-                                    backgroundColor: chartConfig.type === 'line' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.8)',
-                                    borderColor: 'rgba(59, 130, 246, 1)',
+                                    backgroundColor: chartConfig.type === 'line' ? 'rgba(248, 179, 0, 0.2)' : 'rgba(248, 179, 0, 0.8)',
+                                    borderColor: 'rgba(248, 179, 0, 1)',
                                     borderWidth: 1,
                                     tension: chartConfig.type === 'line' ? 0.1 : undefined
                                 }]
@@ -678,7 +1264,7 @@
                     data = {
                         labels: ['No Data'],
                         datasets: [{
-                            label: chartConfig.y_label || chartConfig.y_axis_name || 'Count',
+                            label: '',
                             data: [0],
                             backgroundColor: 'rgba(156, 163, 175, 0.8)',
                             borderColor: 'rgba(156, 163, 175, 1)',
@@ -878,12 +1464,22 @@
                         maintainAspectRatio: false,
                         plugins: {
                             title: {
-                                display: true,
-                                text: reportData.chart.label || reportData.chart.graph_description || 'Chart'
+                                display: false
                             },
                             legend: {
-                                display: chartType !== 'scatter'
-                            }
+                                display: false
+                            },
+                            tooltip: chartType === 'scatter' ? {
+                                callbacks: {
+                                    label: function(context) {
+                                        const point = context.raw;
+                                        const recruiterName = point.label || 'Unknown';
+                                        const xLabel = reportData.chart.x_label || 'X';
+                                        const yLabel = reportData.chart.y_label || 'Y';
+                                        return `${recruiterName}: ${xLabel}: ${point.x}, ${yLabel}: ${point.y}`;
+                                    }
+                                }
+                            } : {}
                         },
                         scales: chartType !== 'scatter' ? {
                             x: {
@@ -937,17 +1533,13 @@
                 setInput('');
                 setIsLoading(true);
 
-                let currentAssistantMessage = { role: 'assistant', content: '' };
                 let reportData = null;
                 let eventSource = null;
                 let timeoutId = null;
+                let lastAiMessage = null; // Track the last AI message in this conversation
 
                 try {
-                    // Add initial empty assistant message for streaming
-                    setMessages(prev => [...prev, currentAssistantMessage]);
-                    const messageIndex = messages.length + 1; // +1 for user message
-                    
-                    // Create EventSource for SSE streaming
+                    // Try SSE streaming first, fallback to regular POST
                     const params = new URLSearchParams({
                         message: currentInput,
                         thread_id: threadId || '',
@@ -975,18 +1567,56 @@
                             
                             switch (data.type) {
                                 case 'ai_message':
-                                    // First AI response with tool calls
-                                    currentAssistantMessage.content = data.content;
-                                    setMessages(prev => {
-                                        const updated = [...prev];
-                                        updated[messageIndex] = { ...currentAssistantMessage };
-                                        return updated;
-                                    });
+                                    // First AI response with tool calls - add as new message bubble
+                                    if (data.content && data.content.trim() && data.content !== lastAiMessage) {
+                                        lastAiMessage = data.content;
+                                        console.log('Adding new AI message:', data.content);
+                                        setMessages(prev => [...prev, { 
+                                            role: 'assistant', 
+                                            content: data.content 
+                                        }]);
+                                    }
+                                    break;
+                                    
+                                case 'ai_message_chunk':
+                                    // Streaming chunk - update the last assistant message
+                                    if (data.content) {
+                                        setMessages(prev => {
+                                            const newMessages = [...prev];
+                                            const lastMessage = newMessages[newMessages.length - 1];
+                                            
+                                            if (lastMessage && lastMessage.role === 'assistant') {
+                                                // Append chunk to existing assistant message
+                                                lastMessage.content += data.content;
+                                            } else {
+                                                // Create new assistant message if none exists
+                                                newMessages.push({
+                                                    role: 'assistant',
+                                                    content: data.content
+                                                });
+                                            }
+                                            
+                                            return newMessages;
+                                        });
+                                    }
                                     break;
                                     
                                 case 'tool_result':
                                     // Tool execution result with chart data
                                     reportData = data.chart_data;
+                                    
+                                    // Add JSON as a chat message (only if not already added)
+                                    const jsonContent = JSON.stringify(reportData, null, 2);
+                                    const lastMessage = messages[messages.length - 1];
+                                    if (!lastMessage || !lastMessage.isJson || lastMessage.content !== jsonContent) {
+                                        console.log('Adding JSON tool result to chat');
+                                        setMessages(prev => [...prev, { 
+                                            role: 'assistant', 
+                                            content: jsonContent,
+                                            isJson: true
+                                        }]);
+                                    }
+                                    
                                     if (reportData && reportData.report_title && reportData.main_metric && reportData.chart) {
                                         console.log('Processing tool result for chart generation');
                                         const enrichedReport = {
@@ -1007,13 +1637,15 @@
                                     break;
                                     
                                 case 'ai_message_final':
-                                    // Final AI response without tool calls
-                                    currentAssistantMessage.content = data.content;
-                                    setMessages(prev => {
-                                        const updated = [...prev];
-                                        updated[messageIndex] = { ...currentAssistantMessage };
-                                        return updated;
-                                    });
+                                    // Final AI response without tool calls - add as new message bubble
+                                    if (data.content && data.content.trim() && data.content !== lastAiMessage) {
+                                        lastAiMessage = data.content;
+                                        console.log('Adding final AI message:', data.content);
+                                        setMessages(prev => [...prev, { 
+                                            role: 'assistant', 
+                                            content: data.content 
+                                        }]);
+                                    }
                                     break;
                                     
                                 case 'complete':
@@ -1029,7 +1661,7 @@
                                     
                                 case 'error':
                                     // Error from server
-                                    throw new Error(data.message || 'Server error during streaming');
+                                    throw new Error(data.message || 'Ошибка сервера во время передачи данных');
                             }
                         } catch (parseError) {
                             console.error('Error parsing SSE data:', parseError, event.data);
@@ -1041,14 +1673,10 @@
                         eventSource.close();
                         if (timeoutId) clearTimeout(timeoutId);
                         
-                        setMessages(prev => {
-                            const updated = [...prev];
-                            updated[messageIndex] = { 
-                                role: 'assistant', 
-                                content: '⚠️ Connection error during streaming. Please try again.' 
-                            };
-                            return updated;
-                        });
+                        setMessages(prev => [...prev, { 
+                            role: 'assistant', 
+                            content: '⚠️ Ошибка соединения во время передачи данных. Попробуйте снова.' 
+                        }]);
                         setIsLoading(false);
                     };
                     
@@ -1058,9 +1686,9 @@
                     
                     let errorMessage;
                     if (error.message.includes('timeout')) {
-                        errorMessage = '⏱️ Request timeout after 90 seconds. LangGraph processing took too long. Please try a simpler question or check the server status.';
+                        errorMessage = '⏱️ Тайм-аут запроса через 90 секунд. Обработка LangGraph заняла слишком много времени. Попробуйте более простой вопрос или проверьте статус сервера.';
                     } else {
-                        errorMessage = `⚠️ Error: ${error.message || 'Something went wrong. Please try again.'}`;
+                        errorMessage = `⚠️ Ошибка: ${error.message || 'Что-то пошло не так. Попробуйте снова.'}`;
                     }
                     
                     setMessages(prev => [...prev, { 
@@ -1073,6 +1701,160 @@
 
             const handleSuggestion = (text) => {
                 setInput(text);
+                // Send the message immediately with the text
+                if (!isLoading && text.trim()) {
+                    setMessages(prev => [...prev, { role: 'user', content: text }]);
+                    setInput('');
+                    setIsLoading(true);
+                    
+                    // Same logic as handleSend but with the suggestion text
+                    const params = new URLSearchParams({
+                        message: text,
+                        thread_id: threadId || '',
+                        model: selectedModel,
+                        temperature: temperature.toString()
+                    });
+                    
+                    const eventSourceUrl = `${apiUrl}/chat-stream?${params}`;
+                    console.log('Creating EventSource for suggestion:', eventSourceUrl);
+                    
+                    const eventSource = new EventSource(eventSourceUrl);
+                    let reportData = null;
+                    let lastAiMessage = '';
+                    
+                    const timeoutId = setTimeout(() => {
+                        eventSource.close();
+                        setMessages(prev => [...prev, { 
+                            role: 'assistant', 
+                            content: '⚠️ Тайм-аут запроса. Попробуйте снова.' 
+                        }]);
+                        setIsLoading(false);
+                    }, 300000);
+
+                    eventSource.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            console.log('SSE message received:', data.type, data);
+                            
+                            switch (data.type) {
+                                case 'ai_message':
+                                    if (data.content && data.content.trim() && data.content !== lastAiMessage) {
+                                        lastAiMessage = data.content;
+                                        console.log('Adding new AI message:', data.content);
+                                        setMessages(prev => [...prev, { 
+                                            role: 'assistant', 
+                                            content: data.content 
+                                        }]);
+                                    }
+                                    break;
+                                    
+                                case 'ai_message_chunk':
+                                    if (data.content) {
+                                        setMessages(prev => {
+                                            const newMessages = [...prev];
+                                            const lastMessage = newMessages[newMessages.length - 1];
+                                            
+                                            if (lastMessage && lastMessage.role === 'assistant') {
+                                                lastMessage.content += data.content;
+                                            } else {
+                                                newMessages.push({
+                                                    role: 'assistant',
+                                                    content: data.content
+                                                });
+                                            }
+                                            
+                                            return newMessages;
+                                        });
+                                    }
+                                    break;
+                                    
+                                case 'tool_result':
+                                    reportData = data.chart_data;
+                                    
+                                    // Add JSON as a chat message (only if not already added)
+                                    const jsonContent = JSON.stringify(reportData, null, 2);
+                                    const lastMessage = messages[messages.length - 1];
+                                    if (!lastMessage || !lastMessage.isJson || lastMessage.content !== jsonContent) {
+                                        console.log('Adding JSON tool result to chat');
+                                        setMessages(prev => [...prev, { 
+                                            role: 'assistant', 
+                                            content: jsonContent,
+                                            isJson: true
+                                        }]);
+                                    }
+                                    
+                                    if (reportData && reportData.report_title && reportData.main_metric && reportData.chart) {
+                                        console.log('Processing tool result for chart generation');
+                                        const enrichedReport = {
+                                            ...reportData,
+                                            main_metric: {
+                                                ...reportData.main_metric,
+                                                value: reportData.main_metric.real_value ?? 0
+                                            },
+                                            secondary_metrics: reportData.secondary_metrics?.map(metric => ({
+                                                ...metric,
+                                                value: metric.real_value ?? 0
+                                            })) || []
+                                        };
+                                        console.log('Setting report from SSE:', enrichedReport);
+                                        setPreviousReport(report);
+                                        setReport(enrichedReport);
+                                    }
+                                    break;
+                                    
+                                case 'chart_data':
+                                    if (data.chart_data) {
+                                        const enrichedReport = {
+                                            ...data.chart_data,
+                                            previous_report: previousReport
+                                        };
+                                        console.log('Setting report from SSE:', enrichedReport);
+                                        setPreviousReport(report);
+                                        setReport(enrichedReport);
+                                    }
+                                    break;
+                                    
+                                case 'ai_message_final':
+                                    if (data.content && data.content.trim() && data.content !== lastAiMessage) {
+                                        lastAiMessage = data.content;
+                                        console.log('Adding final AI message:', data.content);
+                                        setMessages(prev => [...prev, { 
+                                            role: 'assistant', 
+                                            content: data.content 
+                                        }]);
+                                    }
+                                    break;
+                                    
+                                case 'complete':
+                                    console.log('SSE streaming complete');
+                                    if (data.thread_id && !threadId) {
+                                        setThreadId(data.thread_id);
+                                    }
+                                    eventSource.close();
+                                    if (timeoutId) clearTimeout(timeoutId);
+                                    setIsLoading(false);
+                                    break;
+                                    
+                                case 'error':
+                                    throw new Error(data.message || 'Ошибка сервера во время передачи данных');
+                            }
+                        } catch (parseError) {
+                            console.error('Error parsing SSE data:', parseError, event.data);
+                        }
+                    };
+                    
+                    eventSource.onerror = (error) => {
+                        console.error('SSE error:', error);
+                        eventSource.close();
+                        if (timeoutId) clearTimeout(timeoutId);
+                        
+                        setMessages(prev => [...prev, { 
+                            role: 'assistant', 
+                            content: '⚠️ Ошибка соединения во время передачи данных. Попробуйте снова.' 
+                        }]);
+                        setIsLoading(false);
+                    };
+                }
             };
 
             const toggleChatPanel = () => {
@@ -1089,135 +1871,6 @@
                 }
             };
 
-            // Handle input changes for mention detection
-            const handleInputChange = (e) => {
-                const value = e.target.value;
-                setInput(value);
-                
-                // Check for @ mentions
-                const cursorPos = e.target.selectionStart;
-                const textBeforeCursor = value.slice(0, cursorPos);
-                const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-                
-                if (lastAtIndex !== -1) {
-                    const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
-                    if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
-                        // Still typing after @
-                        setMentionFilter(textAfterAt);
-                        setShowMentions(true);
-                        setSelectedMentionIndex(0);
-                        return;
-                    }
-                }
-                
-                setShowMentions(false);
-            };
-
-            // Handle keyboard navigation in mentions and entity deletion
-            const handleKeyDown = (e) => {
-                // Handle backspace for entity deletion
-                if (e.key === 'Backspace' && !showMentions) {
-                    const cursorPos = e.target.selectionStart;
-                    const value = input;
-                    
-                    // Check if cursor is right after a mentioned entity
-                    const textBeforeCursor = value.slice(0, cursorPos);
-                    const mentionMatch = textBeforeCursor.match(/@([а-яё]+)\s*$/i);
-                    
-                    if (mentionMatch) {
-                        e.preventDefault();
-                        // Delete the entire mention including the @
-                        const newValue = 
-                            value.slice(0, cursorPos - mentionMatch[0].length) + 
-                            value.slice(cursorPos);
-                        setInput(newValue);
-                        
-                        // Set cursor position
-                        setTimeout(() => {
-                            const newCursorPos = cursorPos - mentionMatch[0].length;
-                            e.target.setSelectionRange(newCursorPos, newCursorPos);
-                        }, 0);
-                        return;
-                    }
-                }
-                
-                if (!showMentions) return;
-                
-                const filteredEntities = entities.filter(entity => 
-                    entity.name.toLowerCase().includes(mentionFilter.toLowerCase()) ||
-                    entity.desc.toLowerCase().includes(mentionFilter.toLowerCase())
-                );
-                
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setSelectedMentionIndex(prev => 
-                        prev < filteredEntities.length - 1 ? prev + 1 : 0
-                    );
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setSelectedMentionIndex(prev => 
-                        prev > 0 ? prev - 1 : filteredEntities.length - 1
-                    );
-                } else if (e.key === 'Enter' && filteredEntities.length > 0) {
-                    e.preventDefault();
-                    insertMention(filteredEntities[selectedMentionIndex]);
-                } else if (e.key === 'Escape') {
-                    setShowMentions(false);
-                }
-            };
-
-            // Insert selected mention into input
-            const insertMention = (entity) => {
-                const inputElement = document.querySelector('textarea.input');
-                if (!inputElement) return;
-                
-                const cursorPos = inputElement.selectionStart;
-                const value = input;
-                const textBeforeCursor = value.slice(0, cursorPos);
-                const textAfterCursor = value.slice(cursorPos);
-                const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-                
-                if (lastAtIndex !== -1) {
-                    const entityToInsert = entity.name;  // Use Russian name
-                    const newValue = 
-                        textBeforeCursor.slice(0, lastAtIndex) + 
-                        '@' + entityToInsert + ' ' + 
-                        textAfterCursor;
-                    setInput(newValue);
-                    setShowMentions(false);
-                    
-                    // Set cursor position after mention
-                    setTimeout(() => {
-                        const newCursorPos = lastAtIndex + entityToInsert.length + 2;
-                        inputElement.setSelectionRange(newCursorPos, newCursorPos);
-                        inputElement.focus();
-                    }, 0);
-                }
-            };
-
-            // Render input with highlighted mentions
-            const renderInputWithMentions = () => {
-                const parts = input.split(/(@[а-яё]+)/gi);
-                const entityNames = entities.map(e => e.name);
-                
-                return React.createElement('div', {
-                    className: 'input-overlay',
-                    key: 'overlay'
-                }, parts.map((part, index) => {
-                    if (part.startsWith('@')) {
-                        const entityName = part.slice(1);
-                        if (entityNames.includes(entityName)) {
-                            return React.createElement('span', {
-                                key: index,
-                                className: 'mentioned-entity'
-                            }, part);
-                        }
-                    }
-                    return React.createElement('span', { 
-                        key: index
-                    }, part);
-                }));
-            };
 
             const toggleAudioRecording = async () => {
                 if (!speechSupported) {
@@ -1321,19 +1974,210 @@
                 }
             };
 
-            const renderMessage = (msg) => {
+            const renderChartTitle = (reportData) => {
+                if (!reportData || !reportData.chart || !reportData.chart.label) {
+                    return null;
+                }
+                
+                return React.createElement('h3', { 
+                    className: 'chart-title', 
+                    key: 'chart-title' 
+                }, reportData.chart.label);
+            };
+
+            const renderChartFilters = (reportData) => {
+                if (!reportData || !reportData.metrics_filter) {
+                    return null;
+                }
+                
+                const filters = reportData.metrics_filter;
+                
+                // Helper function to format filter values
+                const formatFilterValue = (key, value) => {
+                    switch (key) {
+                        case 'period':
+                            if (!value) return 'All time';
+                            const periodMap = {
+                                'today': 'Today',
+                                'this week': 'This Week', 
+                                '2 weeks': 'Last 2 Weeks',
+                                '1 month': 'Last Month',
+                                '3 month': 'Last 3 Months', 
+                                '6 month': 'Last 6 months',
+                                'year': 'Last Year'
+                            };
+                            return periodMap[value] || value;
+                        case 'recruiters':
+                            return value ? `Recruiter ID: ${value}` : 'All recruiters';
+                        case 'vacancies':
+                            if (!value) return 'All vacancies';
+                            if (value === 'open') return 'Open vacancies';
+                            if (value === 'closed') return 'Closed vacancies';  
+                            return `Vacancy ID: ${value}`;
+                        case 'sources':
+                            return value ? `Source ID: ${value}` : 'All sources';
+                        default:
+                            return value || 'All';
+                    }
+                };
+                
+                return React.createElement('div', { className: 'chart-filters', key: 'chart-filters' }, [
+                    React.createElement('div', { className: 'filters-grid', key: 'filters-grid' }, [
+                        React.createElement('div', { className: 'filter-item', key: 'period' }, [
+                            React.createElement('div', { 
+                                className: `filter-value ${!filters.period ? 'empty' : ''}`, 
+                                key: 'period-value' 
+                            }, formatFilterValue('period', filters.period))
+                        ]),
+                        React.createElement('div', { className: 'filter-item', key: 'recruiter' }, [
+                            React.createElement('div', { 
+                                className: `filter-value ${!filters.recruiters ? 'empty' : ''}`, 
+                                key: 'recruiter-value' 
+                            }, formatFilterValue('recruiters', filters.recruiters))
+                        ]),
+                        React.createElement('div', { className: 'filter-item', key: 'vacancy' }, [
+                            React.createElement('div', { 
+                                className: `filter-value ${!filters.vacancies ? 'empty' : ''}`, 
+                                key: 'vacancy-value' 
+                            }, formatFilterValue('vacancies', filters.vacancies))
+                        ]),
+                        React.createElement('div', { className: 'filter-item', key: 'source' }, [
+                            React.createElement('div', { 
+                                className: `filter-value ${!filters.sources ? 'empty' : ''}`, 
+                                key: 'source-value' 
+                            }, formatFilterValue('sources', filters.sources))
+                        ])
+                    ])
+                ]);
+            };
+
+            const renderMessage = (msg, index) => {
+                const content = msg.content;
+                
+                // If this is a JSON message, format it specially
+                if (msg.isJson) {
+                    const messageId = `json-${index}`;
+                    const isExpanded = expandedJsonMessages[messageId] || false;
+                    
+                    return React.createElement('div', {
+                        className: 'json-container',
+                        style: {
+                            overflow: 'hidden',
+                            width: 'fit-content',
+                            backgroundColor: 'white',
+                            padding: '0.5rem',
+                            margin: '0'
+                        }
+                    }, [
+                        React.createElement('button', {
+                            key: 'toggle',
+                            onClick: () => setExpandedJsonMessages(prev => ({
+                                ...prev,
+                                [messageId]: !isExpanded
+                            })),
+                            style: {
+                                width: '100%',
+                                border: 'none',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+                                fontSize: 'var(--text-base, 1rem)',
+                                lineHeight: 'var(--text-base--line-height, 1.5)',
+                                color: 'var(--text-primary, #0d0d0d)',
+                                backgroundColor: 'white',
+                                boxSizing: 'border-box'
+                            }
+                        }, `${isExpanded ? '▼' : '▶'} Исходник отчета`),
+                        isExpanded ? React.createElement('pre', {
+                            key: 'content',
+                            style: {
+                                margin: '0',
+                                padding: '10px',
+                                fontSize: '12px',
+                                fontFamily: 'monospace',
+                                overflow: 'auto',
+                                maxHeight: '300px',
+                                maxWidth: '320px'
+                            }
+                        }, content) : null
+                    ]);
+                }
+                
+                // Helper function to detect and format JSON
+                const detectAndFormatJSON = (text) => {
+                    const elements = [];
+                    
+                    // Regex to find JSON objects/arrays (basic detection)
+                    const jsonRegex = /(\{[\s\S]*?\}|\[[\s\S]*?\])/g;
+                    let lastIndex = 0;
+                    let match;
+                    
+                    while ((match = jsonRegex.exec(text)) !== null) {
+                        // Add text before JSON
+                        if (match.index > lastIndex) {
+                            elements.push(text.substring(lastIndex, match.index));
+                        }
+                        
+                        // Try to parse as JSON
+                        try {
+                            const jsonObj = JSON.parse(match[1]);
+                            const formattedJSON = JSON.stringify(jsonObj, null, 2);
+                            
+                            // Create collapsible JSON display
+                            elements.push(React.createElement('div', {
+                                key: `json-${match.index}`,
+                                className: 'json-container'
+                            }, [
+                                React.createElement('button', {
+                                    key: 'toggle',
+                                    className: 'json-toggle',
+                                    onClick: (e) => {
+                                        const content = e.target.nextElementSibling;
+                                        const isHidden = content.style.display === 'none';
+                                        content.style.display = isHidden ? 'block' : 'none';
+                                        e.target.textContent = isHidden ? 'Hide JSON' : 'Show JSON';
+                                    }
+                                }, 'Show JSON'),
+                                React.createElement('div', {
+                                    key: 'content',
+                                    className: 'json-content',
+                                    style: { display: 'none' }
+                                }, formattedJSON)
+                            ]));
+                        } catch (e) {
+                            // If not valid JSON, treat as regular text
+                            elements.push(match[1]);
+                        }
+                        
+                        lastIndex = jsonRegex.lastIndex;
+                    }
+                    
+                    // Add remaining text
+                    if (lastIndex < text.length) {
+                        elements.push(text.substring(lastIndex));
+                    }
+                    
+                    return elements.length > 1 ? elements : text;
+                };
+                
                 // Handle markdown images like ![alt text](data:image/png;base64,...)
-                if (msg.content.includes('![') && msg.content.includes('data:image/png;base64,')) {
+                if (content.includes('![') && content.includes('data:image/png;base64,')) {
                     // Split on image markdown pattern
                     const imageRegex = /!\[([^\]]*)\]\((data:image\/png;base64,[^)]+)\)/g;
                     let lastIndex = 0;
                     const elements = [];
                     let match;
                     
-                    while ((match = imageRegex.exec(msg.content)) !== null) {
-                        // Add text before the image
+                    while ((match = imageRegex.exec(content)) !== null) {
+                        // Add text before the image (with JSON detection)
                         if (match.index > lastIndex) {
-                            elements.push(msg.content.substring(lastIndex, match.index));
+                            const textPart = content.substring(lastIndex, match.index);
+                            const processedText = detectAndFormatJSON(textPart);
+                            if (Array.isArray(processedText)) {
+                                elements.push(...processedText);
+                            } else {
+                                elements.push(processedText);
+                            }
                         }
                         
                         // Add the image
@@ -1347,56 +2191,78 @@
                         lastIndex = imageRegex.lastIndex;
                     }
                     
-                    // Add remaining text after last image
-                    if (lastIndex < msg.content.length) {
-                        elements.push(msg.content.substring(lastIndex));
+                    // Add remaining text after last image (with JSON detection)
+                    if (lastIndex < content.length) {
+                        const textPart = content.substring(lastIndex);
+                        const processedText = detectAndFormatJSON(textPart);
+                        if (Array.isArray(processedText)) {
+                            elements.push(...processedText);
+                        } else {
+                            elements.push(processedText);
+                        }
                     }
                     
-                    return elements.length > 1 ? elements : msg.content;
+                    return elements.length > 1 ? elements : content;
                 }
                 
                 // Fallback: check for data URI without proper markdown
-                if (msg.content.includes('data:image/png;base64,')) {
-                    const parts = msg.content.split('data:image/png;base64,');
+                if (content.includes('data:image/png;base64,')) {
+                    const parts = content.split('data:image/png;base64,');
                     if (parts.length > 1) {
                         const base64Data = parts[1].split(/\s/)[0]; // Get base64 until whitespace
                         return [
-                            parts[0],
+                            detectAndFormatJSON(parts[0]),
                             React.createElement('img', { 
                                 src: `data:image/png;base64,${base64Data}`, 
                                 alt: 'Chart',
                                 style: { maxWidth: '100%', height: 'auto', margin: '10px 0' }
                             }),
-                            parts[1].substring(base64Data.length)
-                        ];
+                            detectAndFormatJSON(parts[1].substring(base64Data.length))
+                        ].flat();
                     }
                 }
                 
-                return msg.content;
+                // Default: render as markdown first, then check for JSON
+                try {
+                    // Use marked.js to render markdown to HTML
+                    const htmlContent = marked.parse(content);
+                    
+                    // Create a div with dangerouslySetInnerHTML to render the markdown
+                    return React.createElement('div', {
+                        dangerouslySetInnerHTML: { __html: htmlContent },
+                        className: 'markdown-content'
+                    });
+                } catch (e) {
+                    // If markdown parsing fails, fall back to JSON detection
+                    console.warn('Markdown parsing failed, falling back to plain text:', e);
+                    return detectAndFormatJSON(content);
+                }
             };
 
-            return React.createElement('div', { className: 'container' }, [
+            return React.createElement('div', {}, [
+                // Header
+                React.createElement('div', { className: 'header', key: 'header' }),
+                // Main container
+                React.createElement('div', { className: 'container', key: 'main-container' }, [
                 // Report Panel
                 React.createElement('div', { 
                     className: `report-panel ${!isChatVisible ? 'full-width' : ''}`, 
                     key: 'report-panel' 
                 }, [
                     // Chat toggle button
-                    React.createElement('button', {
-                        key: 'chat-toggle',
-                        className: 'chat-toggle',
-                        onClick: toggleChatPanel,
-                        title: isChatVisible ? 'Hide chat panel' : 'Show chat panel'
-                    }, '💬'),
                     
                     report ? [
                         React.createElement('h1', { className: 'report-title', key: 'report-title' }, report.report_title),
+                        // Render chart filters right after h1
+                        renderChartFilters(report),
                         // Always render grouped metrics breakdown table
                         renderGroupedMetrics(report),
+                        // Render chart title from chart.label
+                        renderChartTitle(report),
                         React.createElement('div', { className: 'chart-container', key: 'chart-container' }, [
                             React.createElement('canvas', { ref: chartRef, key: 'chart' })
                         ])
-                    ] : React.createElement('div', { className: 'no-report', key: 'no-report' }, 'Ask a question to generate a report')
+                    ] : React.createElement('div', { className: 'no-report', key: 'no-report' }, 'Задайте вопрос для создания отчета')
                 ]),
                 // Chat Panel
                 React.createElement('div', { 
@@ -1408,7 +2274,7 @@
                         messages.length === 0 && React.createElement('div', { className: 'welcome', key: 'welcome' }, [
                             isPrefetching ? 
                                 React.createElement('div', { key: 'loading' }, [
-                                    React.createElement('p', { key: 'loading-text' }, '🔄 Loading Huntflow data...'),
+                                    React.createElement('p', { key: 'loading-text' }, '🔄 Загрузка данных Huntflow...'),
                                     React.createElement('div', { 
                                         key: 'loading-spinner',
                                         style: { 
@@ -1437,102 +2303,49 @@
                             React.createElement('div', {
                                 key: index,
                                 className: `message ${msg.role}-message`
-                            }, renderMessage(msg))
+                            }, renderMessage(msg, index))
                         ),
+                        // Loading indicator when waiting for assistant response
+                        isLoading && React.createElement('div', { 
+                            className: 'message assistant-message loading-indicator', 
+                            key: 'loading' 
+                        }, [
+                            React.createElement('div', { className: 'loading-dots', key: 'loading-dots' }, [
+                                React.createElement('div', { className: 'loading-dot', key: 'dot' })
+                            ])
+                        ]),
                         React.createElement('div', { ref: messagesEndRef, key: 'scroll-anchor' })
                     ]),
                     React.createElement('div', { className: 'input-container', key: 'input-container' }, [
-                        // Mention dropdown
-                        showMentions && React.createElement('div', { 
-                            className: 'mention-dropdown', 
-                            key: 'mention-dropdown' 
-                        }, 
-                            entities.filter(entity => 
-                                entity.name.toLowerCase().includes(mentionFilter.toLowerCase()) ||
-                                entity.desc.toLowerCase().includes(mentionFilter.toLowerCase())
-                            ).map((entity, index) => 
-                                React.createElement('div', {
-                                    key: entity.name,
-                                    className: `mention-item ${index === selectedMentionIndex ? 'selected' : ''}`,
-                                    onClick: () => insertMention(entity)
-                                }, [
-                                    React.createElement('span', { 
-                                        className: 'mention-icon', 
-                                        key: 'icon' 
-                                    }, entity.icon),
-                                    React.createElement('div', { 
-                                        className: 'mention-text', 
-                                        key: 'text' 
-                                    }, [
-                                        React.createElement('div', { 
-                                            className: 'mention-name', 
-                                            key: 'name' 
-                                        }, entity.name),
-                                        React.createElement('div', { 
-                                            className: 'mention-desc', 
-                                            key: 'desc' 
-                                        }, entity.desc)
-                                    ])
-                                ])
-                            )
-                        ),
-                        
-                        // Input container with overlay for highlighted mentions
-                        React.createElement('div', {
-                            key: 'input-wrapper',
-                            className: 'input-wrapper'
-                        }, [
-                            React.createElement('textarea', {
-                                key: 'input',
-                                className: 'input',
-                                value: input,
-                                onChange: handleInputChange,
-                                onKeyDown: handleKeyDown,
-                                onKeyPress: (e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey && !showMentions) {
-                                        e.preventDefault();
-                                        handleSend();
-                                    }
-                                },
-                                placeholder: '',
-                                disabled: isLoading,
-                                style: {
-                                    background: 'white',
-                                    position: 'relative',
-                                    zIndex: 2,
-                                    color: 'transparent',
-                                    caretColor: 'black'
+                        // Simple textarea input
+                        React.createElement('textarea', {
+                            key: 'input',
+                            className: 'input',
+                            value: input,
+                            onChange: (e) => setInput(e.target.value),
+                            onKeyPress: (e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
                                 }
-                            }),
-                            renderInputWithMentions()
-                        ]),
+                            },
+                            placeholder: 'Спросите о ваших данных по найму...',
+                            disabled: isLoading
+                        }),
                         // Button row under the textarea
                         React.createElement('div', {
                             key: 'button-row',
                             className: 'button-row'
                         }, [
-                            speechSupported && React.createElement('button', {
-                                key: 'mic',
-                                className: `mic-button ${isRecording ? 'recording' : ''}`,
-                                onClick: toggleAudioRecording,
-                                disabled: isLoading,
-                                title: isRecording ? 'Stop recording' : 'Start voice input (OpenAI Whisper)'
-                            }, isRecording ? '⏹️' : '🎤'),
-                            React.createElement('button', {
-                                key: 'undo',
-                                className: 'undo-button',
-                                onClick: handleUndo,
-                                disabled: isLoading || messages.length < 2,
-                                title: 'Undo last question and answer'
-                            }, '↶'),
                             React.createElement('button', {
                                 key: 'send',
                                 className: 'button',
                                 onClick: handleSend,
                                 disabled: isLoading || !input.trim()
-                            }, 'Send')
+                            }, 'Отправить')
                         ].filter(Boolean))
                     ])
+                ])
                 ])
                 ])
             ]);
